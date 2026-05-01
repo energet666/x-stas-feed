@@ -28,3 +28,7 @@
   - Important intermediate results, decisions, verification outcomes, and known issues must be recorded in `MEMORY.md`.
 - Initialized git repository in `/Users/sh/projects/feed-ai`.
 - Added `.gitignore` for `.DS_Store`, Go transient outputs, frontend `node_modules`, frontend build output, local `test-content` media, and logs.
+- Configured Vite dev server for debugging:
+  - Vite runs on fixed port `5173`.
+  - `/api` and `/media` proxy to `VITE_API_TARGET`, defaulting to `http://localhost:8080`.
+  - Added `web/.env.example` documenting the backend target.

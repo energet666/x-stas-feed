@@ -1,13 +1,27 @@
 import tailwindcss from '@tailwindcss/vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
-  plugins: [svelte(), tailwindcss()],
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8080',
-      '/media': 'http://localhost:8080'
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080';
+
+  return {
+    plugins: [svelte(), tailwindcss()],
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true
+        },
+        '/media': {
+          target: apiTarget,
+          changeOrigin: true
+        }
+      }
     }
-  }
+  };
 });
