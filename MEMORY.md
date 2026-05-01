@@ -84,3 +84,10 @@
   - Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
   - Verification completed: `npm run check` and `npm run build`.
 - Removed the warp visual effect from the feed video player at user request while preserving hold-Space 2x behavior.
+- Updated the page background to match the dark glass UI:
+  - Switched document `color-scheme` to dark.
+  - Replaced the old light page gradients with modern dark layered backgrounds.
+  - Updated the no-backdrop-filter fallback surfaces to stay dark.
+- Changed video controls visibility so paused videos follow the same reveal/autohide behavior as playing videos instead of keeping the control panel pinned open.
+- Changed the media title/metadata overlay to use the same movement-driven reveal/autohide timing as video controls instead of staying visible for the entire hover duration.
+- Removed the native `title` attribute from feed video elements to prevent browser tooltips with filenames near the cursor; the player container keeps an `aria-label`.

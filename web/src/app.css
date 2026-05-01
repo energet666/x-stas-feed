@@ -6,7 +6,7 @@
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
@@ -14,9 +14,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgb(247 250 255) 0%, rgb(232 240 252) 46%, rgb(246 246 248) 100%),
-    linear-gradient(180deg, rgb(255 255 255) 0%, rgb(238 242 248) 100%);
-  color: rgb(2 6 23);
+    linear-gradient(145deg, rgb(8 9 13) 0%, rgb(15 18 24) 36%, rgb(10 11 16) 100%),
+    linear-gradient(180deg, rgb(19 24 31) 0%, rgb(5 6 10) 100%);
+  color: rgb(243 244 246);
 }
 
 button,
@@ -26,8 +26,9 @@ video {
 
 .app-shell {
   background:
-    linear-gradient(90deg, rgb(255 255 255 / 0.46), rgb(255 255 255 / 0) 18%, rgb(255 255 255 / 0.28) 100%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.42), rgb(255 255 255 / 0.08) 38%, rgb(226 232 240 / 0.36));
+    linear-gradient(90deg, rgb(41 48 58 / 0.26), rgb(255 255 255 / 0) 24%, rgb(26 32 41 / 0.28) 100%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.025) 36%, rgb(0 0 0 / 0.22)),
+    linear-gradient(145deg, rgb(13 16 21), rgb(6 7 11));
 }
 
 .glass-nav {
@@ -455,17 +456,9 @@ video {
   color: rgb(255 255 255 / 0.72);
 }
 
-.glass-card:hover .card-overlay,
-.glass-card:focus-within .card-overlay {
+.card-overlay-visible {
   opacity: 1;
   transform: translateY(0);
-}
-
-@media (hover: none) {
-  .card-overlay {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .debug-overlay {
@@ -537,6 +530,6 @@ video {
   .glass-pill,
   .glass-button,
   .debug-overlay {
-    background: rgb(255 255 255 / 0.94);
+    background: rgb(17 19 24 / 0.96);
   }
 }

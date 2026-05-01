@@ -35,6 +35,8 @@
   let listTop = $state(0);
   let measuredHeights = $state<Record<string, number>>({});
   let debugCollapsed = $state(false);
+  let activeOverlayID = $state<string | null>(null);
+  let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
@@ -73,6 +75,7 @@
     void loadPage();
 
     return () => {
+      clearTimeout(overlayHideTimer);
       window.removeEventListener('scroll', updateViewport);
       window.removeEventListener('resize', updateViewport);
     };
@@ -167,6 +170,27 @@
     return rows.find((row) => row.item.id === id)?.top;
   }
 
+  function revealCardOverlay(id: string) {
+    activeOverlayID = id;
+    clearTimeout(overlayHideTimer);
+    overlayHideTimer = setTimeout(() => {
+      if (activeOverlayID === id) {
+        activeOverlayID = null;
+      }
+    }, 1800);
+  }
+
+  function keepCardOverlay(id: string) {
+    activeOverlayID = id;
+    clearTimeout(overlayHideTimer);
+  }
+
+  function hideCardOverlay(id: string) {
+    if (activeOverlayID === id) {
+      activeOverlayID = null;
+    }
+  }
+
   function formatSize(size: number) {
     if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
     return `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -236,8 +260,18 @@
         class="glass-card mb-4 overflow-hidden"
         use:measureCard={item.id}
       >
-        <div class="media-frame bg-black">
-          <div class="card-overlay">
+        <div
+          class="media-frame bg-black"
+          role="presentation"
+          onpointermove={() => revealCardOverlay(item.id)}
+          onpointerenter={() => revealCardOverlay(item.id)}
+          onmousemove={() => revealCardOverlay(item.id)}
+          onmouseenter={() => revealCardOverlay(item.id)}
+          ontouchstart={() => revealCardOverlay(item.id)}
+          onfocusin={() => keepCardOverlay(item.id)}
+          onmouseleave={() => hideCardOverlay(item.id)}
+        >
+          <div class="card-overlay" class:card-overlay-visible={activeOverlayID === item.id}>
             <div class="min-w-0">
               <h2 class="truncate text-sm font-semibold text-white">{item.filename}</h2>
               <p class="text-xs font-semibold text-white/62">{formatDate(item.modifiedAt)}</p>

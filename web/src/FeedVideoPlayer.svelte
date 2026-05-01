@@ -70,7 +70,7 @@
     setActivePlayer();
     showControls = true;
     clearTimeout(hideTimer);
-    if (!paused && !isDragging) {
+    if (!isDragging) {
       hideTimer = setTimeout(() => {
         showControls = false;
       }, 1800);
@@ -84,7 +84,7 @@
   }
 
   function hideControls() {
-    if (!paused && !isDragging) {
+    if (!isDragging) {
       showControls = false;
     }
   }
@@ -444,7 +444,6 @@
     playsinline
     preload="metadata"
     src={src}
-    {title}
     onclick={handleVideoClick}
     onloadedmetadata={syncMetadata}
     ondurationchange={syncMetadata}
@@ -457,11 +456,11 @@
     }}
     onpause={() => {
       paused = true;
-      showControls = true;
+      revealControls();
     }}
     onended={() => {
       paused = true;
-      showControls = true;
+      revealControls();
     }}
   ></video>
 
@@ -493,7 +492,7 @@
 
   <div
     class="video-controls"
-    class:video-controls-visible={showControls || paused || isDragging}
+    class:video-controls-visible={showControls || isDragging}
     onpointerenter={keepControls}
     onpointerleave={revealControls}
     role="toolbar"
