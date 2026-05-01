@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { AlertCircle, Bug, ChevronDown, ChevronUp, Image, LoaderCircle, RefreshCw, Video } from 'lucide-svelte';
+  import FeedVideoPlayer from './FeedVideoPlayer.svelte';
 
   type MediaItem = {
     id: string;
@@ -194,8 +195,8 @@
   <header class="glass-nav sticky top-0 z-20">
     <div class="mx-auto flex h-16 w-full max-w-2xl items-center justify-between px-4">
       <div>
-        <h1 class="text-xl font-semibold tracking-normal text-slate-950">Feed AI</h1>
-        <p class="text-xs font-semibold text-slate-700">Local media stream</p>
+        <h1 class="text-xl font-semibold tracking-normal text-white">Feed AI</h1>
+        <p class="text-xs font-semibold text-white/65">Local media stream</p>
       </div>
       <div class="glass-pill gap-2">
         <Image size={14} />
@@ -213,9 +214,9 @@
 
     {#if isEmpty}
       <div class="glass-empty flex min-h-96 flex-col items-center justify-center p-8 text-center">
-        <Image class="mb-4 text-slate-600" size={42} />
-        <h2 class="text-lg font-semibold text-slate-950">No media yet</h2>
-        <p class="mt-2 max-w-sm text-sm font-medium text-slate-700">
+        <Image class="mb-4 text-white/70" size={42} />
+        <h2 class="text-lg font-semibold text-white">No media yet</h2>
+        <p class="mt-2 max-w-sm text-sm font-medium text-white/65">
           Add photos or videos to <span class="font-mono">test-content</span> and refresh the feed.
         </p>
         <button class="glass-button mt-5 gap-2" type="button" onclick={retry}>
@@ -238,8 +239,8 @@
         <div class="media-frame bg-black">
           <div class="card-overlay">
             <div class="min-w-0">
-              <h2 class="truncate text-sm font-semibold text-slate-950">{item.filename}</h2>
-              <p class="text-xs font-semibold text-slate-700">{formatDate(item.modifiedAt)}</p>
+              <h2 class="truncate text-sm font-semibold text-white">{item.filename}</h2>
+              <p class="text-xs font-semibold text-white/62">{formatDate(item.modifiedAt)}</p>
             </div>
             <div class="glass-pill shrink-0 gap-1">
               {#if item.type === 'video'}
@@ -252,16 +253,7 @@
           </div>
 
           {#if item.type === 'video'}
-            <video
-              class="h-full w-full bg-black object-contain"
-              controls
-              playsinline
-              preload="metadata"
-              src={item.url}
-              title={item.filename}
-            >
-              <track kind="captions" />
-            </video>
+            <FeedVideoPlayer src={item.url} title={item.filename} />
           {:else}
             <img
               class="h-full w-full bg-black object-contain"
@@ -295,9 +287,9 @@
 
     <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
       {#if loading && initialLoaded}
-        <span class="loading loading-spinner loading-md text-slate-700"></span>
+        <span class="loading loading-spinner loading-md text-white/70"></span>
       {:else if initialLoaded && !hasMore && items.length > 0}
-        <p class="text-sm font-semibold text-slate-700">End of feed</p>
+        <p class="text-sm font-semibold text-white/65">End of feed</p>
       {/if}
     </div>
   </section>

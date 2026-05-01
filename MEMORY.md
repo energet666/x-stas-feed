@@ -55,3 +55,11 @@
 - Increased text contrast in the glass UI:
   - Primary text now uses near-black slate tones.
   - Secondary labels and metadata use darker slate colors and stronger font weights for readability on translucent surfaces.
+- Tried a stronger Apple Liquid Glass direction, then reverted it at user request because the previous glassmorphism version was preferred.
+- Inspected `https://github.com/energet666/videoplayer` for reusable Svelte video controls.
+- Added `FeedVideoPlayer.svelte`, adapting the videoplayer control interface pattern for the feed:
+  - Custom bottom glass controls replace native video controls.
+  - Supports play/pause, seek progress, current/duration time, mute, volume, and Picture-in-Picture.
+  - Avoided Electron-specific fullscreen/window-resize logic from the source repo.
+- Restyled the remaining UI panels to match the custom video controls:
+  - Header, media metadata overlay, pills, empty/error panels, buttons, and debug overlay now use the same dark translucent glass treatment.
