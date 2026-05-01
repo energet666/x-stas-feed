@@ -1,0 +1,117 @@
+package media
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestScanFiltersAndSortsByModifiedTime(t *testing.T) {
+	dir := t.TempDir()
+	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	newTime := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+
+	writeTestFile(t, dir, "old.png", oldTime)
+	writeTestFile(t, dir, "new.mp4", newTime)
+	writeTestFile(t, dir, "notes.txt", newTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(items) != 2 {
+		t.Fatalf("expected 2 supported items, got %d", len(items))
+	}
+	if items[0].Filename != "new.mp4" || items[0].Type != "video" {
+		t.Fatalf("expected newest video first, got %#v", items[0])
+	}
+	if items[1].Filename != "old.png" || items[1].Type != "image" {
+		t.Fatalf("expected older image second, got %#v", items[1])
+	}
+}
+
+func TestScanSortsFilenameTieAscending(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	writeTestFile(t, dir, "b.png", modTime)
+	writeTestFile(t, dir, "a.png", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if items[0].Filename != "a.png" || items[1].Filename != "b.png" {
+		t.Fatalf("expected filename tie-breaker ascending, got %q then %q", items[0].Filename, items[1].Filename)
+	}
+}
+
+func TestPageUsesCursorAndNextCursor(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "a.png", modTime)
+	writeTestFile(t, dir, "b.png", modTime)
+	writeTestFile(t, dir, "c.png", modTime)
+
+	page, err := NewLibrary(dir).Page("", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 || page.NextCursor != "2" {
+		t.Fatalf("expected first page with next cursor 2, got %#v", page)
+	}
+
+	next, err := NewLibrary(dir).Page(page.NextCursor, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next.Items) != 1 || next.NextCursor != "" {
+		t.Fatalf("expected final page with no next cursor, got %#v", next)
+	}
+}
+
+func TestPageHandlesEmptyAndMissingDirectories(t *testing.T) {
+	page, err := NewLibrary(filepath.Join(t.TempDir(), "missing")).Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 0 || page.NextCursor != "" {
+		t.Fatalf("expected empty page, got %#v", page)
+	}
+}
+
+func TestPathForIDRejectsEscapesAndUnsupportedFiles(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "ok.png", modTime)
+	writeTestFile(t, dir, "notes.txt", modTime)
+
+	path, mimeType, err := NewLibrary(dir).PathForID(EncodeID("ok.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(path) != "ok.png" || mimeType == "" {
+		t.Fatalf("expected png path and mime type, got %q %q", path, mimeType)
+	}
+
+	if _, _, err := NewLibrary(dir).PathForID(EncodeID("../secret.png")); err == nil {
+		t.Fatal("expected escape id to be rejected")
+	}
+	if _, _, err := NewLibrary(dir).PathForID(EncodeID("notes.txt")); err == nil {
+		t.Fatal("expected unsupported file to be rejected")
+	}
+}
+
+func writeTestFile(t *testing.T, dir, name string, modTime time.Time) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, modTime, modTime); err != nil {
+		t.Fatal(err)
+	}
+}
