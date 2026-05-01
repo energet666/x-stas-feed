@@ -43,3 +43,15 @@
 - Added an in-page debug overlay for virtual feed diagnostics:
   - Shows loaded, mounted, unloaded-before/after counts, rendered index window, cursor, loading state, viewport range, total virtual height, spacer heights, and measured-card count.
   - The overlay is fixed in the bottom-right corner and can be collapsed.
+- Restyled the UI toward an Apple-like glassmorphism direction:
+  - Switched to a light frosted-glass visual system with translucent header, feed cards, pills, buttons, empty/error states, and debug overlay.
+  - Added backdrop-filter and -webkit-backdrop-filter for Chrome/Safari, plus a solid fallback for browsers without backdrop-filter support.
+- Moved media card metadata into a glass overlay:
+  - On hover/focus-capable devices the overlay slides in from the top.
+  - On touch devices it remains visible so filenames and media metadata are accessible.
+- Increased the glassmorphism intensity:
+  - Reduced white fill opacity across header, cards, overlay, pills, and debug panel.
+  - Increased blur/saturation to make surfaces feel more transparent and frosted.
+- Increased text contrast in the glass UI:
+  - Primary text now uses near-black slate tones.
+  - Secondary labels and metadata use darker slate colors and stronger font weights for readability on translucent surfaces.

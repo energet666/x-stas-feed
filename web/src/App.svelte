@@ -190,14 +190,14 @@
   />
 </svelte:head>
 
-<main class="min-h-screen">
-  <header class="sticky top-0 z-20 border-b border-base-300/80 bg-base-100/90 backdrop-blur">
+<main class="app-shell min-h-screen">
+  <header class="glass-nav sticky top-0 z-20">
     <div class="mx-auto flex h-16 w-full max-w-2xl items-center justify-between px-4">
       <div>
-        <h1 class="text-xl font-semibold tracking-normal">Feed AI</h1>
-        <p class="text-xs text-base-content/60">Local media stream</p>
+        <h1 class="text-xl font-semibold tracking-normal text-slate-950">Feed AI</h1>
+        <p class="text-xs font-semibold text-slate-700">Local media stream</p>
       </div>
-      <div class="badge badge-neutral gap-2">
+      <div class="glass-pill gap-2">
         <Image size={14} />
         {items.length} loaded
       </div>
@@ -212,13 +212,13 @@
     {/if}
 
     {#if isEmpty}
-      <div class="flex min-h-96 flex-col items-center justify-center rounded-box border border-dashed border-base-300 bg-base-100 p-8 text-center">
-        <Image class="mb-4 text-base-content/50" size={42} />
-        <h2 class="text-lg font-semibold">No media yet</h2>
-        <p class="mt-2 max-w-sm text-sm text-base-content/60">
+      <div class="glass-empty flex min-h-96 flex-col items-center justify-center p-8 text-center">
+        <Image class="mb-4 text-slate-600" size={42} />
+        <h2 class="text-lg font-semibold text-slate-950">No media yet</h2>
+        <p class="mt-2 max-w-sm text-sm font-medium text-slate-700">
           Add photos or videos to <span class="font-mono">test-content</span> and refresh the feed.
         </p>
-        <button class="btn btn-primary btn-sm mt-5 gap-2" type="button" onclick={retry}>
+        <button class="glass-button mt-5 gap-2" type="button" onclick={retry}>
           <RefreshCw size={16} />
           Refresh
         </button>
@@ -232,25 +232,25 @@
     {#each visibleRows as row (row.item.id)}
       {@const item = row.item}
       <article
-        class="mb-4 overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-sm"
+        class="glass-card mb-4 overflow-hidden"
         use:measureCard={item.id}
       >
-        <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div class="min-w-0">
-            <h2 class="truncate text-sm font-semibold">{item.filename}</h2>
-            <p class="text-xs text-base-content/55">{formatDate(item.modifiedAt)}</p>
-          </div>
-          <div class="badge badge-outline shrink-0 gap-1">
-            {#if item.type === 'video'}
-              <Video size={13} />
-            {:else}
-              <Image size={13} />
-            {/if}
-            {formatSize(item.size)}
-          </div>
-        </div>
-
         <div class="media-frame bg-black">
+          <div class="card-overlay">
+            <div class="min-w-0">
+              <h2 class="truncate text-sm font-semibold text-slate-950">{item.filename}</h2>
+              <p class="text-xs font-semibold text-slate-700">{formatDate(item.modifiedAt)}</p>
+            </div>
+            <div class="glass-pill shrink-0 gap-1">
+              {#if item.type === 'video'}
+                <Video size={13} />
+              {:else}
+                <Image size={13} />
+              {/if}
+              {formatSize(item.size)}
+            </div>
+          </div>
+
           {#if item.type === 'video'}
             <video
               class="h-full w-full bg-black object-contain"
@@ -280,12 +280,12 @@
     {/if}
 
     {#if error}
-      <div class="alert alert-error items-start">
+      <div class="glass-alert items-start">
         <AlertCircle class="mt-0.5 shrink-0" size={20} />
         <div>
           <h2 class="font-semibold">Could not load the feed</h2>
           <p class="text-sm opacity-85">{error}</p>
-          <button class="btn btn-sm mt-3 gap-2" type="button" onclick={retry}>
+          <button class="glass-button mt-3 gap-2" type="button" onclick={retry}>
             <RefreshCw size={16} />
             Try again
           </button>
@@ -295,9 +295,9 @@
 
     <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
       {#if loading && initialLoaded}
-        <span class="loading loading-spinner loading-md text-primary"></span>
+        <span class="loading loading-spinner loading-md text-slate-700"></span>
       {:else if initialLoaded && !hasMore && items.length > 0}
-        <p class="text-sm text-base-content/50">End of feed</p>
+        <p class="text-sm font-semibold text-slate-700">End of feed</p>
       {/if}
     </div>
   </section>
