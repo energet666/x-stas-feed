@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
 					changeOrigin: true,
 				},
 			},
-			allowedHosts: "all",
+			allowedHosts: true,
 		},
 	};
 });
