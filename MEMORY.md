@@ -32,3 +32,14 @@
   - Vite runs on fixed port `5173`.
   - `/api` and `/media` proxy to `VITE_API_TARGET`, defaulting to `http://localhost:8080`.
   - Added `web/.env.example` documenting the backend target.
+- Prepared the feed for thousands of files:
+  - Frontend now virtualizes the feed and keeps only the viewport window plus overscan in the DOM.
+  - Loaded media metadata can grow, but image/video DOM nodes are unloaded outside the render window to reduce browser memory pressure.
+  - Backend feed pagination uses a short in-memory scan cache to avoid walking `test-content` for every rapid page request.
+- Added first scroll-jank mitigation pass for dynamic media content:
+  - Media renders inside a stable `4 / 5` frame so image/video decode does not resize cards after load.
+  - Native CSS scroll anchoring is disabled inside the virtual feed to avoid Chrome/Safari differences.
+  - Card measurement changes above the viewport manually compensate `window.scrollY` to keep the visible content anchored.
+- Added an in-page debug overlay for virtual feed diagnostics:
+  - Shows loaded, mounted, unloaded-before/after counts, rendered index window, cursor, loading state, viewport range, total virtual height, spacer heights, and measured-card count.
+  - The overlay is fixed in the bottom-right corner and can be collapsed.

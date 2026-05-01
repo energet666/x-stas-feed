@@ -11,12 +11,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	defaultLimit = 8
 	maxLimit     = 50
+	cacheTTL     = 2 * time.Second
 )
 
 var supportedExtensions = map[string]string{
@@ -35,7 +37,10 @@ var supportedExtensions = map[string]string{
 }
 
 type Library struct {
-	root string
+	root       string
+	mu         sync.Mutex
+	cachedAt   time.Time
+	cachedList []Item
 }
 
 type Item struct {
@@ -58,7 +63,7 @@ func NewLibrary(root string) *Library {
 }
 
 func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
-	items, err := l.Scan()
+	items, err := l.cachedScan()
 	if err != nil {
 		return Page{}, err
 	}
@@ -142,6 +147,24 @@ func (l *Library) Scan() ([]Item, error) {
 		return items[i].Filename < items[j].Filename
 	})
 
+	return items, nil
+}
+
+func (l *Library) cachedScan() ([]Item, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if time.Since(l.cachedAt) < cacheTTL {
+		return append([]Item(nil), l.cachedList...), nil
+	}
+
+	items, err := l.Scan()
+	if err != nil {
+		return nil, err
+	}
+
+	l.cachedAt = time.Now()
+	l.cachedList = append([]Item(nil), items...)
 	return items, nil
 }
 
