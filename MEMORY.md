@@ -75,3 +75,12 @@
   - Replaced rigid `aspect-ratio: 4 / 5` media sizing with a stable responsive `clamp(...)` height.
   - Video and image content now use explicit `object-fit: contain` sizing inside the frame.
   - Video controls stay within safe bottom insets so they are not clipped by the media frame.
+- Ported keyboard/mouse control behavior from `https://github.com/energet666/videoplayer` into the feed player:
+  - The last hovered/clicked/focused video is the active keyboard target so shortcuts do not affect every video in the feed.
+  - Space short press toggles play/pause; holding Space temporarily plays at 2x without a warp visual.
+  - ArrowLeft/ArrowRight short press seek by 1s; holding ArrowRight temporarily fast-forwards at 16x; holding ArrowLeft rewinds in repeated 3s jumps.
+  - ArrowUp/ArrowDown switch user playback speed across 1x, 1.25x, 1.5x, and 2x with an on-video speed indicator.
+  - Single click toggles play/pause after a short delay; double click on left/right half seeks -10s/+10s with accumulated seek feedback.
+  - Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
+  - Verification completed: `npm run check` and `npm run build`.
+- Removed the warp visual effect from the feed video player at user request while preserving hold-Space 2x behavior.
