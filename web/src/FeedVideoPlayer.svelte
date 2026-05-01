@@ -1,6 +1,12 @@
 <script lang="ts">
   import { Pause, PictureInPicture2, Play, Volume2, VolumeX } from 'lucide-svelte';
 
+  type SafariVideoElement = HTMLVideoElement & {
+    webkitSupportsPresentationMode?: (mode: 'picture-in-picture') => boolean;
+    webkitSetPresentationMode?: (mode: 'inline' | 'picture-in-picture') => void;
+    webkitPresentationMode?: 'inline' | 'picture-in-picture' | 'fullscreen';
+  };
+
   let {
     src,
     title
@@ -17,9 +23,18 @@
   let muted = $state(false);
   let showControls = $state(false);
   let isDragging = $state(false);
+  let playBlocked = $state(false);
+  let supportsVolumeControl = $state(true);
   let hideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
+  const supportsPip = $derived.by(() => {
+    const safariVideo = video as SafariVideoElement | undefined;
+    return Boolean(
+      document.pictureInPictureEnabled ||
+        safariVideo?.webkitSupportsPresentationMode?.('picture-in-picture')
+    );
+  });
 
   function revealControls() {
     showControls = true;
@@ -36,13 +51,65 @@
     clearTimeout(hideTimer);
   }
 
+  function hideControls() {
+    if (!paused && !isDragging) {
+      showControls = false;
+    }
+  }
+
   async function togglePlay() {
     if (!video) return;
-    if (video.paused) {
-      await video.play();
-    } else {
-      video.pause();
+    playBlocked = false;
+
+    try {
+      if (video.paused) {
+        await video.play();
+      } else {
+        video.pause();
+      }
+    } catch {
+      playBlocked = true;
+      showControls = true;
+      return;
     }
+
+    revealControls();
+  }
+
+  function syncMetadata() {
+    if (!video) return;
+    duration = Number.isFinite(video.duration) ? video.duration : 0;
+    volume = video.volume;
+    muted = video.muted;
+    supportsVolumeControl = canSetVolume(video);
+  }
+
+  function canSetVolume(element: HTMLVideoElement) {
+    const currentVolume = element.volume;
+    const testVolume = currentVolume === 1 ? 0.95 : 1;
+
+    try {
+      element.volume = testVolume;
+      const supported = Math.abs(element.volume - testVolume) < 0.001;
+      element.volume = currentVolume;
+      return supported;
+    } catch {
+      return false;
+    }
+  }
+
+  function handleVideoClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.closest('.video-controls')) return;
+    void togglePlay();
+  }
+
+  function finishDragging() {
+    isDragging = false;
+    revealControls();
+  }
+
+  function handleContainerTouch() {
     revealControls();
   }
 
@@ -54,7 +121,7 @@
   }
 
   function handleVolume(event: Event) {
-    if (!video) return;
+    if (!video || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
     volume = Number(target.value);
     video.volume = volume;
@@ -74,12 +141,24 @@
   }
 
   async function togglePip() {
-    if (!video || !document.pictureInPictureEnabled) return;
-    if (document.pictureInPictureElement) {
-      await document.exitPictureInPicture();
-    } else {
-      await video.requestPictureInPicture();
+    if (!video) return;
+    const safariVideo = video as SafariVideoElement;
+
+    try {
+      if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else {
+          await video.requestPictureInPicture();
+        }
+      } else if (safariVideo.webkitSupportsPresentationMode?.('picture-in-picture')) {
+        const nextMode = safariVideo.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+        safariVideo.webkitSetPresentationMode?.(nextMode);
+      }
+    } catch {
+      showControls = true;
     }
+
     revealControls();
   }
 
@@ -93,14 +172,15 @@
 
 <div
   class="feed-video-player"
-  role="group"
+  role="presentation"
   aria-label={`Video player: ${title}`}
   onpointermove={revealControls}
   onpointerenter={revealControls}
+  onmousemove={revealControls}
+  onmouseenter={revealControls}
+  ontouchstart={handleContainerTouch}
   onfocusin={keepControls}
-  onmouseleave={() => {
-    if (!paused && !isDragging) showControls = false;
-  }}
+  onmouseleave={hideControls}
 >
   <!-- svelte-ignore a11y_media_has_caption -->
   <video
@@ -110,12 +190,9 @@
     preload="metadata"
     src={src}
     {title}
-    onclick={togglePlay}
-    onloadedmetadata={() => {
-      duration = video?.duration ?? 0;
-      volume = video?.volume ?? 1;
-      muted = video?.muted ?? false;
-    }}
+    onclick={handleVideoClick}
+    onloadedmetadata={syncMetadata}
+    ondurationchange={syncMetadata}
     ontimeupdate={() => {
       if (!isDragging) currentTime = video?.currentTime ?? 0;
     }}
@@ -137,6 +214,10 @@
     <button class="video-play-overlay" type="button" aria-label="Play video" onclick={togglePlay}>
       <Play size={34} fill="currentColor" />
     </button>
+  {/if}
+
+  {#if playBlocked}
+    <div class="video-play-message">Tap play to start video</div>
   {/if}
 
   <div
@@ -170,10 +251,10 @@
         step="0.1"
         value={currentTime}
         onpointerdown={() => (isDragging = true)}
-        onpointerup={() => {
-          isDragging = false;
-          revealControls();
-        }}
+        onpointerup={finishDragging}
+        onmousedown={() => (isDragging = true)}
+        onmouseup={finishDragging}
+        onchange={finishDragging}
         oninput={handleSeek}
       />
     </div>
@@ -188,19 +269,23 @@
       {/if}
     </button>
 
-    <input
-      class="video-volume"
-      aria-label="Volume"
-      type="range"
-      min="0"
-      max="1"
-      step="0.05"
-      value={muted ? 0 : volume}
-      oninput={handleVolume}
-    />
+    {#if supportsVolumeControl}
+      <input
+        class="video-volume"
+        aria-label="Volume"
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={muted ? 0 : volume}
+        oninput={handleVolume}
+      />
+    {/if}
 
-    <button class="video-control-button" type="button" aria-label="Picture in Picture" onclick={togglePip}>
-      <PictureInPicture2 size={18} />
-    </button>
+    {#if supportsPip}
+      <button class="video-control-button" type="button" aria-label="Picture in Picture" onclick={togglePip}>
+        <PictureInPicture2 size={18} />
+      </button>
+    {/if}
   </div>
 </div>

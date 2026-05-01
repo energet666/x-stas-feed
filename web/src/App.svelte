@@ -19,7 +19,7 @@
   };
 
   const pageSize = 24;
-  const estimatedCardHeight = 780;
+  const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscan = 1600;
 

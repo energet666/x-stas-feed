@@ -63,3 +63,15 @@
   - Avoided Electron-specific fullscreen/window-resize logic from the source repo.
 - Restyled the remaining UI panels to match the custom video controls:
   - Header, media metadata overlay, pills, empty/error panels, buttons, and debug overlay now use the same dark translucent glass treatment.
+- Hardened custom video controls for Safari:
+  - Added mouse/touch fallbacks in addition to pointer events.
+  - Wrapped `video.play()` and PiP calls to avoid unhandled Safari promise/API failures.
+  - Added Safari `webkitSetPresentationMode` PiP fallback.
+  - Detects unsupported programmatic volume control and hides the volume slider when unavailable.
+- Fixed video control visibility/layout:
+  - Feed video container now owns hover/touch reveal events so overlays do not block control activation.
+  - Video play button and controls use separate z-index layers, keeping play centered and controls visible.
+- Fixed media frame clipping:
+  - Replaced rigid `aspect-ratio: 4 / 5` media sizing with a stable responsive `clamp(...)` height.
+  - Video and image content now use explicit `object-fit: contain` sizing inside the frame.
+  - Video controls stay within safe bottom insets so they are not clipped by the media frame.
