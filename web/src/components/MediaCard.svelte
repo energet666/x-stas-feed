@@ -169,7 +169,8 @@
     font-size: 0.78rem;
     font-weight: 600;
     line-height: 1.35;
-    white-space: normal;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;

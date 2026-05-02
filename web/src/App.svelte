@@ -70,7 +70,6 @@
   const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
-  const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
 
   onMount(() => {
     debugCollapsed = readStoredDebugCollapsed();
@@ -106,7 +105,7 @@
 
   $effect(() => {
     const previousOverflow = document.body.style.overflow;
-    if (expandedItemID || commentsPanelItemID) {
+    if (expandedItemID) {
       document.body.style.overflow = 'hidden';
     }
 
@@ -337,6 +336,14 @@
           onToggleExpanded={toggleExpandedItem}
           onOpenComments={openComments}
         />
+        {#if commentsPanelItemID === item.id}
+          <CommentsPanel
+            {item}
+            commentEvent={latestCommentEvent}
+            onClose={closeComments}
+            onCommentsChanged={updateItemComments}
+          />
+        {/if}
       </article>
     {/each}
 
@@ -357,13 +364,6 @@
     </div>
   </section>
 </main>
-
-<CommentsPanel
-  item={commentsPanelItem}
-  commentEvent={latestCommentEvent}
-  onClose={closeComments}
-  onCommentsChanged={updateItemComments}
-/>
 
 <FeedDebugOverlay
   collapsed={debugCollapsed}

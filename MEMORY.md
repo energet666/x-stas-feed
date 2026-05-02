@@ -196,3 +196,28 @@
   - Removed `@apply`, `@reference`, and component `lang="postcss"` because inline Tailwind classes work better with Svelte diagnostics and avoid utility expansion in scoped CSS.
   - Verification completed: `npm run check` and `npm run build`.
   - Production CSS is roughly 22.7 kB after centralizing repeated primitives and keeping only player-specific styling scoped.
+
+## 2026-05-03
+
+- Tried an in-card comments overlay:
+  - The expanded comments UI now renders as an absolute overlay inside the selected feed card instead of a global fixed side/bottom panel.
+  - The overlay covers the whole card, keeps the card's rounded clipping, and uses the existing glass visual system.
+  - Opening comments no longer locks body scrolling because comments are scoped to the card surface.
+  - Verification completed: `npm run check` and `npm run build`.
+- Preserved comment line breaks in the UI:
+  - Full comments now render with `white-space: pre-wrap` and safe wrapping so textarea newlines are visible.
+  - Compact comment previews also preserve line breaks while staying clamped to the existing two-line limit.
+  - Verification completed: `npm run check` and `npm run build`.
+- Improved comments overlay scroll behavior:
+  - Opening comments scrolls the list to the latest messages at the bottom.
+  - New comments appended through submit or SSE automatically scroll the list to the newest comment.
+  - Verification completed: `npm run check` and `npm run build`.
+- Added comment keyboard submission:
+  - Enter submits the comment from the textarea.
+  - Shift+Enter keeps the native newline behavior.
+  - IME composition is respected so Enter does not submit while composing text.
+  - Verification completed: `npm run check` and `npm run build`.
+- Adjusted the comment composer layout:
+  - Removed the visible send button; comments are submitted with Enter, while Shift+Enter inserts a newline.
+  - The textarea now uses the full form width.
+  - Verification completed: `npm run check` and `npm run build`.

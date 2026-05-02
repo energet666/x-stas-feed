@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LoaderCircle, MessageCircle, Send, X } from 'lucide-svelte';
+  import { LoaderCircle, MessageCircle, X } from 'lucide-svelte';
   import { createComment, fetchComments, type Comment, type MediaItem } from '../lib/feed';
 
   let {
@@ -20,6 +20,8 @@
   let error = $state<string | null>(null);
   let draft = $state('');
   let activeMediaId = '';
+  let commentListEl = $state<HTMLDivElement | undefined>(undefined);
+  let commentFormEl = $state<HTMLFormElement | undefined>(undefined);
 
   const canSubmit = $derived(draft.trim().length > 0 && !submitting && item !== undefined);
 
@@ -33,6 +35,7 @@
     activeMediaId = item.id;
     comments = item.comments;
     draft = '';
+    scrollCommentsToBottom('auto');
     void loadComments(item.id);
   });
 
@@ -49,6 +52,7 @@
       const response = await fetchComments(mediaId);
       comments = response.comments;
       onCommentsChanged(mediaId, response.comments);
+      scrollCommentsToBottom('auto');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unable to load comments';
     } finally {
@@ -75,18 +79,30 @@
     }
   }
 
+  function handleCommentKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+
+    event.preventDefault();
+    commentFormEl?.requestSubmit();
+  }
+
   function appendComment(mediaId: string, comment: Comment) {
     if (activeMediaId !== mediaId || comments.some((existing) => existing.id === comment.id)) return;
 
     const nextComments = [...comments, comment];
     comments = nextComments;
     onCommentsChanged(mediaId, nextComments);
+    scrollCommentsToBottom('smooth');
+  }
+
+  function scrollCommentsToBottom(behavior: ScrollBehavior) {
+    requestAnimationFrame(() => {
+      commentListEl?.scrollTo({ top: commentListEl.scrollHeight, behavior });
+    });
   }
 </script>
 
 {#if item}
-  <div class="comments-backdrop" role="presentation" onclick={onClose}></div>
-
   <aside class="comments-panel" aria-label={`Comments for ${item.filename}`}>
     <header class="flex items-center justify-between gap-3 border-b border-glass-border-soft px-4 py-3">
       <div class="min-w-0">
@@ -98,7 +114,7 @@
       </button>
     </header>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+    <div bind:this={commentListEl} class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
       {#if loading}
         <div class="flex h-40 items-center justify-center">
           <LoaderCircle class="animate-spin text-muted" size={26} />
@@ -112,7 +128,7 @@
         <div class="space-y-3">
           {#each comments as comment (comment.id)}
             <article class="rounded-overlay border border-glass-border-soft bg-button-bg px-3 py-2">
-              <p class="text-sm leading-5 text-secondary">
+              <p class="comment-text text-sm leading-5 text-secondary">
                 <span class="font-semibold text-primary">Guest</span>
                 {comment.text}
               </p>
@@ -131,8 +147,8 @@
       {/if}
     </div>
 
-    <form class="border-t border-glass-border-soft p-3" onsubmit={submitComment}>
-      <div class="flex items-end gap-2">
+    <form bind:this={commentFormEl} class="border-t border-glass-border-soft p-3" onsubmit={submitComment}>
+      <div>
         <label class="sr-only" for="comment-text">Add a comment</label>
         <textarea
           id="comment-text"
@@ -141,50 +157,37 @@
           maxlength="2000"
           placeholder="Add a comment"
           bind:value={draft}
+          onkeydown={handleCommentKeydown}
         ></textarea>
-        <button class="glass-icon-button" type="submit" disabled={!canSubmit} aria-label="Send comment">
-          {#if submitting}
-            <LoaderCircle class="animate-spin" size={17} />
-          {:else}
-            <Send size={17} />
-          {/if}
-        </button>
       </div>
     </form>
   </aside>
 {/if}
 
 <style>
-  .comments-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 90;
-    background: rgb(0 0 0 / 0.52);
-    backdrop-filter: blur(10px) saturate(130%);
-    -webkit-backdrop-filter: blur(10px) saturate(130%);
-  }
-
   .comments-panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 91;
+    position: absolute;
+    inset: 0;
+    z-index: 24;
     display: flex;
-    width: min(28rem, 100vw);
+    width: 100%;
     flex-direction: column;
-    border-left: 1px solid var(--color-glass-border);
-    background: var(--background-image-glass-strong);
+    overflow: hidden;
+    border: 1px solid var(--color-glass-border);
+    border-radius: inherit;
+    background:
+      linear-gradient(180deg, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.48)),
+      var(--background-image-glass-strong);
     box-shadow: var(--shadow-popover);
     color: var(--color-primary);
-    backdrop-filter: blur(34px) saturate(190%);
-    -webkit-backdrop-filter: blur(34px) saturate(190%);
+    backdrop-filter: blur(26px) saturate(170%);
+    -webkit-backdrop-filter: blur(26px) saturate(170%);
   }
 
   .comment-input {
     min-height: 2.75rem;
     max-height: 8rem;
-    flex: 1;
+    width: 100%;
     resize: vertical;
     border: 1px solid var(--color-glass-border-soft);
     border-radius: 1.25rem;
@@ -204,6 +207,11 @@
     border-color: var(--color-glass-border-hover);
   }
 
+  .comment-text {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
   button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
@@ -212,12 +220,7 @@
 
   @media (width < 720px) {
     .comments-panel {
-      top: auto;
-      width: 100vw;
-      height: min(78vh, 42rem);
-      border-top: 1px solid var(--color-glass-border);
-      border-left: 0;
-      border-radius: 1.5rem 1.5rem 0 0;
+      border-radius: inherit;
     }
   }
 </style>
