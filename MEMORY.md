@@ -107,3 +107,4 @@
 - Fixed Safari video controls hover behavior by tracking when the cursor is over the controls and making autohide timers re-check that state before hiding the panel.
 - Added cursor autohide for inactive video players, tied to the same inactivity timer as the video controls while keeping the cursor visible over controls and during dragging.
 - Fixed media info overlay staying visible after clicking the video Play button without moving the cursor by starting its autohide timer on pointer/click events and avoiding indefinite focus-based pinning.
+- Added a Safari-friendly preview-frame nudge for videos by seeking paused videos to `0.001s` after metadata loads, prompting first-frame decode without generated poster files.

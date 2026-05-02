@@ -57,6 +57,7 @@
   let isArrowLongPress = false;
   let arrowRightTemporarilyPlayed = false;
   let lastSeekFeedbackAt = 0;
+  let previewFrameRequested = false;
   const playerId = nextPlayerId++;
 
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
@@ -137,6 +138,18 @@
     muted = video.muted;
     video.playbackRate = userPlaybackRate;
     supportsVolumeControl = canSetVolume(video);
+    requestPreviewFrame();
+  }
+
+  function requestPreviewFrame() {
+    if (!video || previewFrameRequested || !video.paused || duration <= 0 || video.currentTime > 0) return;
+
+    previewFrameRequested = true;
+    try {
+      video.currentTime = Math.min(0.001, duration);
+    } catch {
+      previewFrameRequested = false;
+    }
   }
 
   function canSetVolume(element: HTMLVideoElement) {
