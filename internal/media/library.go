@@ -89,7 +89,9 @@ func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
 	for i := range pageItems {
 		comments, count, err := l.comments.Summary(pageItems[i].ID, 2)
 		if err != nil {
-			return Page{}, err
+			pageItems[i].Comments = []Comment{}
+			pageItems[i].CommentCount = 0
+			continue
 		}
 		pageItems[i].Comments = comments
 		pageItems[i].CommentCount = count
@@ -129,6 +131,9 @@ func (l *Library) Scan() ([]Item, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
+			if path != root && entry.Name() == commentsDirName {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 

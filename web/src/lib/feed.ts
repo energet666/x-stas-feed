@@ -32,7 +32,8 @@ export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit:
 
   const response = await fetch(`/api/feed?${params.toString()}`);
   if (!response.ok) {
-    throw new Error(`Feed request failed with ${response.status}`);
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Feed request failed with ${response.status}`);
   }
 
   return (await response.json()) as FeedPage;
@@ -41,7 +42,8 @@ export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit:
 export async function fetchComments(mediaId: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`);
   if (!response.ok) {
-    throw new Error(`Comments request failed with ${response.status}`);
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Comments request failed with ${response.status}`);
   }
 
   return (await response.json()) as { comments: Comment[] };
@@ -55,10 +57,7 @@ export async function createComment(mediaId: string, text: string) {
   });
 
   if (!response.ok) {
-    const message = await response
-      .json()
-      .then((body) => (typeof body.error === 'string' ? body.error : undefined))
-      .catch(() => undefined);
+    const message = await responseErrorMessage(response);
     throw new Error(message ?? `Comment request failed with ${response.status}`);
   }
 
@@ -67,4 +66,11 @@ export async function createComment(mediaId: string, text: string) {
 
 export function commentEventsURL() {
   return '/api/comments/events';
+}
+
+async function responseErrorMessage(response: Response) {
+  return response
+    .json()
+    .then((body) => (typeof body.error === 'string' ? body.error : undefined))
+    .catch(() => undefined);
 }

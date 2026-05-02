@@ -173,6 +173,12 @@
   - The comments panel no longer creates per-media SSE connections; it consumes the shared stream event from `App.svelte`.
   - Frontend comment merging deduplicates by comment ID so the local POST response and shared SSE event cannot create duplicate rows.
   - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
+- Fixed a feed pagination regression:
+  - The media scanner now skips the `.comments` directory explicitly.
+  - A broken comment summary file no longer fails the entire feed page; that item's comment summary is omitted instead.
+  - Frontend feed/comment API errors now surface the backend `error` message instead of only showing the HTTP status.
+  - Added regression coverage for broken comment summary files.
+  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
 - Removed daisyUI from the frontend:
   - Deleted the `@plugin 'daisyui'` Tailwind import.
   - Removed the `daisyui` package dependency and lockfile entry.

@@ -83,6 +83,31 @@ func TestPageHandlesEmptyAndMissingDirectories(t *testing.T) {
 	}
 }
 
+func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	commentsDir := filepath.Join(dir, commentsDirName)
+	if err := os.MkdirAll(commentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(commentsDir, EncodeID("photo.png")+".jsonl"), []byte("{broken json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := NewLibrary(dir).Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Filename != "photo.png" {
+		t.Fatalf("expected media item despite broken comments, got %#v", page)
+	}
+	if page.Items[0].CommentCount != 0 || len(page.Items[0].Comments) != 0 {
+		t.Fatalf("expected broken summary to be omitted, got %#v", page.Items[0])
+	}
+}
+
 func TestPathForIDRejectsEscapesAndUnsupportedFiles(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
