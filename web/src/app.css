@@ -30,10 +30,12 @@
   --color-debug-cell: rgb(255 255 255 / 0.05);
 
   /* Glass Backgrounds */
-  --background-image-glass: linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.34)), rgb(0 0 0 / 0.24);
-  --background-image-glass-nav: linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.3)), rgb(0 0 0 / 0.2);
-  --background-image-glass-strong: linear-gradient(180deg, rgb(20 20 24 / 0.56), rgb(10 10 14 / 0.36)), rgb(0 0 0 / 0.24);
-  --background-image-glass-play: linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.06)), rgb(0 0 0 / 0.16);
+  --background-image-glass: linear-gradient(180deg, rgb(20 20 24 / 0.28), rgb(10 10 14 / 0.16)), rgb(0 0 0 / 0.12);
+  --background-image-glass-nav: linear-gradient(180deg, rgb(20 20 24 / 0.26), rgb(10 10 14 / 0.14)), rgb(0 0 0 / 0.1);
+  --background-image-glass-strong: linear-gradient(180deg, rgb(20 20 24 / 0.32), rgb(10 10 14 / 0.20)), rgb(0 0 0 / 0.14);
+  --background-image-glass-play: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04)), rgb(0 0 0 / 0.1);
+  /* Overlay Glass — more opaque values for panels above media */
+  --background-image-glass-overlay: linear-gradient(180deg, rgb(20 20 24 / 0.58), rgb(10 10 14 / 0.42)), rgb(0 0 0 / 0.28);
 
   /* Shadows */
   --shadow-card: 0 1px 0 var(--color-glass-border) inset, 0 28px 70px rgb(0 0 0 / 0.18), 0 8px 24px rgb(0 0 0 / 0.12);
@@ -102,19 +104,11 @@ video {
     background: var(--background-image-glass);
     box-shadow: var(--shadow-card);
     color: var(--color-primary);
-    backdrop-filter: blur(30px) saturate(170%);
-    -webkit-backdrop-filter: blur(30px) saturate(170%);
+    backdrop-filter: blur(4px) saturate(140%);
+    -webkit-backdrop-filter: blur(4px) saturate(140%);
   }
 
-  .glass-card::before,
-  .glass-panel::before {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: linear-gradient(135deg, var(--color-glass-highlight), transparent 42%);
-    content: '';
-  }
+
 
   .glass-card > *,
   .glass-panel > * {
@@ -160,10 +154,10 @@ video {
 
   .glass-overlay {
     border-radius: var(--radius-overlay);
-    background: var(--background-image-glass);
+    background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-overlay);
-    backdrop-filter: blur(34px) saturate(220%);
-    -webkit-backdrop-filter: blur(34px) saturate(220%);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
   }
 
   .media-frame {
@@ -171,7 +165,6 @@ video {
     height: clamp(28rem, 76vh, 46rem);
     width: 100%;
     overflow: hidden;
-    background: var(--color-media);
   }
 
   .card-overlay {
@@ -187,12 +180,12 @@ video {
     gap: 0.75rem;
     padding: 0.6rem 0.75rem;
     border-radius: var(--radius-overlay);
-    background: var(--background-image-glass);
+    background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-overlay);
     opacity: 0;
     transform: translateY(-1rem);
-    backdrop-filter: blur(34px) saturate(220%);
-    -webkit-backdrop-filter: blur(34px) saturate(220%);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
     transition:
       opacity 180ms ease,
       transform 180ms ease;

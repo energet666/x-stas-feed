@@ -55,7 +55,7 @@
     min-width: 3.1rem;
     padding: 0.45rem 0.7rem;
     border: 1px solid var(--color-glass-border);
-    background: var(--background-image-glass);
+    background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-popover);
     color: var(--color-secondary);
     font-size: 0.8rem;
@@ -135,7 +135,7 @@
     max-width: calc(100% - 2rem);
     padding: 0.45rem 0.75rem;
     border: 1px solid var(--color-glass-border);
-    background: var(--background-image-glass);
+    background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-popover);
     color: var(--color-secondary);
     transform: translateX(-50%);

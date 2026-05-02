@@ -125,7 +125,7 @@
     padding: 0.65rem 0.8rem;
     border: 1px solid var(--color-glass-border);
     border-radius: 24px;
-    background: var(--background-image-glass);
+    background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-video-controls);
     opacity: 0;
     pointer-events: none;

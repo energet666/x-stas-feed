@@ -528,7 +528,7 @@
 
 <div
   bind:this={container}
-  class="feed-video-player relative h-full w-full overflow-hidden bg-media"
+  class="feed-video-player relative h-full w-full overflow-hidden"
   class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
   role="presentation"
   aria-label={`Video player: ${title}`}
@@ -544,7 +544,7 @@
   <!-- svelte-ignore a11y_media_has_caption -->
   <video
     bind:this={video}
-    class="block h-full w-full bg-media object-contain"
+    class="block h-full w-full object-contain"
     playsinline
     preload="metadata"
     src={src}

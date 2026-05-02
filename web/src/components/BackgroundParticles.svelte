@@ -55,10 +55,10 @@
     return {
       x: Math.random() * width,
       y: randomY ? Math.random() * height : height + 10,
-      radius: Math.random() * 1.5 + 0.5,
+      radius: Math.random() * 2 + 1, // Increased radius
       vx: (Math.random() - 0.5) * 0.3,
       vy: -(Math.random() * 0.5 + 0.2), // move upwards
-      alpha: Math.random() * 0.5 + 0.1,
+      alpha: Math.random() * 0.5 + 0.2, // Increased alpha
       pulseSpeed: Math.random() * 0.02 + 0.01,
       glow: Math.random() > 0.8
     };
@@ -105,7 +105,7 @@
         ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped})`;
       } else {
         ctx.shadowBlur = 0;
-        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.5})`;
+        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.65})`;
       }
       
       ctx.fill();

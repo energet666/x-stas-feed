@@ -62,7 +62,7 @@
     <FeedVideoPlayer mediaId={item.id} src={item.url} title={item.filename} />
   {:else}
     <img
-      class="block h-full w-full bg-media object-contain"
+      class="block h-full w-full object-contain"
       src={item.url}
       alt={item.filename}
       loading="lazy"
