@@ -88,6 +88,9 @@
   - Switched document `color-scheme` to dark.
   - Replaced the old light page gradients with modern dark layered backgrounds.
   - Updated the no-backdrop-filter fallback surfaces to stay dark.
+- Refined the dark page background for infinite loading:
+  - Removed page-height-dependent gradients that could visually shift as the feed grows.
+  - Switched to a stable dark base with a subtle fixed grid texture.
 - Changed video controls visibility so paused videos follow the same reveal/autohide behavior as playing videos instead of keeping the control panel pinned open.
 - Changed the media title/metadata overlay to use the same movement-driven reveal/autohide timing as video controls instead of staying visible for the entire hover duration.
 - Removed the native `title` attribute from feed video elements to prevent browser tooltips with filenames near the cursor; the player container keeps an `aria-label`.
