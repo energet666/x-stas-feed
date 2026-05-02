@@ -43,7 +43,9 @@
 
   function initParticles() {
     particles = [];
-    const numParticles = Math.min(Math.floor((width * height) / 8000), 120);
+    // Increased density: from 8000 to 6000 divisor (~33% increase)
+    // Increased cap: from 120 to 160 (~33% increase)
+    const numParticles = Math.min(Math.floor((width * height) / 6000), 160);
     for (let i = 0; i < numParticles; i++) {
       particles.push(createParticle(true));
     }
