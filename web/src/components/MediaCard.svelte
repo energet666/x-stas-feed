@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Maximize2, X } from 'lucide-svelte';
-  import FeedVideoPlayer from '../FeedVideoPlayer.svelte';
+  import FeedVideoPlayer from './FeedVideoPlayer/FeedVideoPlayer.svelte';
   import { formatMediaDate } from '../lib/date';
   import type { MediaItem } from '../lib/feed';
 
