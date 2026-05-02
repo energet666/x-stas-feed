@@ -21,6 +21,9 @@
   let height = 0;
   let time = 0;
 
+  let lastScrollY = 0;
+  let scrollVelocity = 0;
+
   function resize() {
     if (!canvas) return;
     width = window.innerWidth;
@@ -28,6 +31,14 @@
     canvas.width = width;
     canvas.height = height;
     initParticles();
+  }
+
+  function handleScroll() {
+    const currentScrollY = window.scrollY;
+    const delta = currentScrollY - lastScrollY;
+    // We dampen the velocity a bit and cap it to prevent crazy jumps
+    scrollVelocity += delta * 0.15;
+    lastScrollY = currentScrollY;
   }
 
   function initParticles() {
@@ -56,18 +67,28 @@
     ctx.clearRect(0, 0, width, height);
     time += 1;
 
+    // Decay scroll velocity
+    scrollVelocity *= 0.92;
+
     for (let i = 0; i < particles.length; i++) {
       let p = particles[i];
       
-      // Update position
+      // Update position - particles react to scroll velocity
+      // Scroll down (positive delta) makes particles go UP (negative y change)
       p.x += p.vx + Math.sin(time * p.pulseSpeed) * 0.1; // slight sway
-      p.y += p.vy;
+      p.y += p.vy - scrollVelocity * 0.5;
       
-      // Wrap around or recreate
-      if (p.y < -10 || p.x < -10 || p.x > width + 10) {
-        particles[i] = createParticle(false);
-        p = particles[i];
+      // Wrap around (recreate if they go off screen)
+      if (p.y < -10) {
+        p.y = height + 10;
+        p.x = Math.random() * width;
+      } else if (p.y > height + 10) {
+        p.y = -10;
+        p.x = Math.random() * width;
       }
+
+      if (p.x < -10) p.x = width + 10;
+      if (p.x > width + 10) p.x = -10;
 
       // Draw
       const currentAlpha = p.alpha + Math.sin(time * p.pulseSpeed * 2) * 0.1;
@@ -93,12 +114,15 @@
 
   onMount(() => {
     ctx = canvas.getContext('2d');
+    lastScrollY = window.scrollY;
     resize();
     window.addEventListener('resize', resize);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     animate();
 
     return () => {
       window.removeEventListener('resize', resize);
+      window.removeEventListener('scroll', handleScroll);
       cancelAnimationFrame(animationFrameId);
     };
   });
