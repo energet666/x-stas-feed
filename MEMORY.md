@@ -133,3 +133,16 @@
   - Moved video player constants, shared event names, Safari PiP typing, time formatting, editable-target detection, volume clamping, and localStorage helpers into `web/src/lib/videoPlayer.ts`.
   - Kept DOM refs, timers, Svelte state, and event orchestration in `FeedVideoPlayer.svelte`.
   - Verification completed: `npm run check` and `npm run build`.
+
+## 2026-05-02
+
+- Removed daisyUI from the frontend:
+  - Deleted the `@plugin 'daisyui'` Tailwind import.
+  - Removed the `daisyui` package dependency and lockfile entry.
+  - Replaced the only daisyUI spinner usage with the existing lucide `LoaderCircle` icon.
+- Reworked CSS ownership after frontend decomposition:
+  - Kept `web/src/app.css` limited to Tailwind import, theme, document defaults, and the app shell background.
+  - Moved header, empty/error states, media card overlay/frame, debug overlay, expanded-card wrapper, and video player styles into their owning Svelte components.
+  - Used explicit `:global(...)` only where the `App.svelte` card wrapper must style DOM rendered by `MediaCard`.
+  - Production CSS output dropped from roughly 43.6 kB to 24.6 kB after removing daisyUI and scoping styles.
+  - Verification completed: `npm run check` and `npm run build`.

@@ -287,7 +287,7 @@
 
     <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
       {#if loading && initialLoaded}
-        <span class="loading loading-spinner loading-md text-white/70"></span>
+        <LoaderCircle class="animate-spin text-white/70" size={26} />
       {:else if initialLoaded && !hasMore && items.length > 0}
         <p class="text-sm font-semibold text-white/65">End of feed</p>
       {/if}
@@ -313,3 +313,89 @@
   {measuredCount}
   onToggle={toggleDebugCollapsed}
 />
+
+<style>
+  .virtual-feed,
+  .virtual-feed * {
+    overflow-anchor: none;
+  }
+
+  .glass-card {
+    position: relative;
+    border: 1px solid rgb(255 255 255 / 0.18);
+    border-radius: 28px;
+    background:
+      linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.34)),
+      rgb(0 0 0 / 0.24);
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.18) inset,
+      0 28px 70px rgb(0 0 0 / 0.18),
+      0 8px 24px rgb(0 0 0 / 0.12);
+    color: white;
+    backdrop-filter: blur(30px) saturate(170%);
+    -webkit-backdrop-filter: blur(30px) saturate(170%);
+  }
+
+  .glass-card::before {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 42%);
+    content: '';
+  }
+
+  :global(.glass-card > *) {
+    position: relative;
+  }
+
+  .media-card-expanded {
+    position: relative;
+    z-index: 80;
+    min-height: clamp(28rem, 76vh, 46rem);
+    overflow: visible !important;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .media-card-expanded::before {
+    position: fixed;
+    inset: 0;
+    z-index: 78;
+    background: rgb(0 0 0 / 0.86);
+    backdrop-filter: blur(18px) saturate(130%);
+    -webkit-backdrop-filter: blur(18px) saturate(130%);
+    content: '';
+  }
+
+  :global(.media-card-expanded .media-frame) {
+    position: fixed;
+    inset: 0;
+    z-index: 79;
+    height: auto;
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    background: black;
+    box-shadow: none;
+  }
+
+  :global(.media-card-expanded .card-overlay) {
+    z-index: 82;
+  }
+
+  @media (max-width: 520px) {
+    .media-card-expanded {
+      min-height: clamp(24rem, 72vh, 40rem);
+    }
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-card {
+      background: rgb(17 19 24 / 0.96);
+    }
+  }
+</style>
