@@ -122,3 +122,14 @@
 - Fixed expanded media cards collapsing by disabling glass/backdrop clipping on the expanded card and giving it a stable placeholder height while its media frame is fixed to the viewport.
 - Changed fullscreen-expanded media cards so the info overlay follows the same inactivity autohide behavior instead of staying pinned visible.
 - Changed fullscreen-expanded media frames to cover the whole browser viewport with no inset, border, radius, or shadow so underlying UI is not visible in the corners.
+- Started frontend architecture decomposition:
+  - Moved feed API types and `fetchFeedPage` into `web/src/lib/feed.ts`.
+  - Moved media date formatting into `web/src/lib/date.ts`.
+  - Split presentational UI out of `App.svelte` into `FeedHeader`, `EmptyFeedState`, `FeedError`, `MediaCard`, and `FeedDebugOverlay` components.
+  - Kept pagination state, virtualization, measurement, scroll anchoring, overlay state, and expanded-card state in `App.svelte` as the page coordinator.
+  - Reduced `App.svelte` from 455 lines to 315 lines without changing the feed/player behavior.
+  - Verification completed: `npm run check` and `npm run build`.
+- Continued frontend decomposition for the video player:
+  - Moved video player constants, shared event names, Safari PiP typing, time formatting, editable-target detection, volume clamping, and localStorage helpers into `web/src/lib/videoPlayer.ts`.
+  - Kept DOM refs, timers, Svelte state, and event orchestration in `FeedVideoPlayer.svelte`.
+  - Verification completed: `npm run check` and `npm run build`.

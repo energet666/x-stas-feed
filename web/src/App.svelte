@@ -1,27 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertCircle, Bug, ChevronDown, ChevronUp, Image, LoaderCircle, Maximize2, RefreshCw, Video, X } from 'lucide-svelte';
-  import FeedVideoPlayer from './FeedVideoPlayer.svelte';
-
-  type MediaItem = {
-    id: string;
-    filename: string;
-    type: 'image' | 'video';
-    url: string;
-    mimeType: string;
-    size: number;
-    modifiedAt: string;
-  };
-
-  type FeedPage = {
-    items: MediaItem[];
-    nextCursor?: string;
-  };
+  import { LoaderCircle } from 'lucide-svelte';
+  import EmptyFeedState from './components/EmptyFeedState.svelte';
+  import FeedDebugOverlay from './components/FeedDebugOverlay.svelte';
+  import FeedError from './components/FeedError.svelte';
+  import FeedHeader from './components/FeedHeader.svelte';
+  import MediaCard from './components/MediaCard.svelte';
+  import { fetchFeedPage, type MediaItem } from './lib/feed';
 
   const pageSize = 24;
   const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscan = 1600;
+
+  type FeedRow = {
+    item: MediaItem;
+    top: number;
+    height: number;
+  };
 
   let items = $state<MediaItem[]>([]);
   let nextCursor = $state<string | undefined>(undefined);
@@ -43,7 +39,7 @@
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
   const viewportStart = $derived(Math.max(0, scrollY - listTop));
   const viewportEnd = $derived(viewportStart + viewportHeight);
-  const rows = $derived.by(() => {
+  const rows = $derived.by<FeedRow[]>(() => {
     let top = 0;
     return items.map((item) => {
       const height = (measuredHeights[item.id] ?? estimatedCardHeight) + itemGap;
@@ -68,6 +64,7 @@
   });
   const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
+  const measuredCount = $derived(Object.keys(measuredHeights).length);
 
   onMount(() => {
     debugCollapsed = readStoredDebugCollapsed();
@@ -99,6 +96,17 @@
     return () => observer.disconnect();
   });
 
+  $effect(() => {
+    const previousOverflow = document.body.style.overflow;
+    if (expandedItemID) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  });
+
   async function loadPage() {
     if (loading || (initialLoaded && !nextCursor)) return;
 
@@ -106,15 +114,7 @@
     error = null;
 
     try {
-      const params = new URLSearchParams({ limit: String(pageSize) });
-      if (nextCursor) params.set('cursor', nextCursor);
-
-      const response = await fetch(`/api/feed?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Feed request failed with ${response.status}`);
-      }
-
-      const page = (await response.json()) as FeedPage;
+      const page = await fetchFeedPage({ cursor: nextCursor, limit: pageSize });
       items = [...items, ...page.items];
       nextCursor = page.nextCursor;
       initialLoaded = true;
@@ -174,12 +174,7 @@
 
   function revealCardOverlay(id: string) {
     activeOverlayID = id;
-    clearTimeout(overlayHideTimer);
-    overlayHideTimer = setTimeout(() => {
-      if (activeOverlayID === id) {
-        activeOverlayID = null;
-      }
-    }, 1800);
+    scheduleCardOverlayHide(id);
   }
 
   function keepCardOverlay(id: string) {
@@ -200,16 +195,6 @@
         activeOverlayID = null;
       }
     }, 1800);
-  }
-
-  function formatDate(value: string) {
-    return new Intl.DateTimeFormat(undefined, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(value));
   }
 
   function toggleDebugCollapsed() {
@@ -243,20 +228,7 @@
       closeExpandedItem();
     }
   }
-
-  $effect(() => {
-    const previousOverflow = document.body.style.overflow;
-    if (expandedItemID) {
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  });
 </script>
-
-<svelte:window onkeydown={handleWindowKeydown} />
 
 <svelte:head>
   <title>Feed AI</title>
@@ -266,19 +238,10 @@
   />
 </svelte:head>
 
+<svelte:window onkeydown={handleWindowKeydown} />
+
 <main class="app-shell min-h-screen">
-  <header class="glass-nav sticky top-0 z-20">
-    <div class="mx-auto flex h-16 w-full max-w-2xl items-center justify-between px-4">
-      <div>
-        <h1 class="text-xl font-semibold tracking-normal text-white">Feed AI</h1>
-        <p class="text-xs font-semibold text-white/65">Local media stream</p>
-      </div>
-      <div class="glass-pill gap-2">
-        <Image size={14} />
-        {items.length} loaded
-      </div>
-    </div>
-  </header>
+  <FeedHeader loadedCount={items.length} />
 
   <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
     {#if !initialLoaded && loading}
@@ -288,17 +251,7 @@
     {/if}
 
     {#if isEmpty}
-      <div class="glass-empty flex min-h-96 flex-col items-center justify-center p-8 text-center">
-        <Image class="mb-4 text-white/70" size={42} />
-        <h2 class="text-lg font-semibold text-white">No media yet</h2>
-        <p class="mt-2 max-w-sm text-sm font-medium text-white/65">
-          Add photos or videos to <span class="font-mono">test-content</span> and refresh the feed.
-        </p>
-        <button class="glass-button mt-5 gap-2" type="button" onclick={retry}>
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-      </div>
+      <EmptyFeedState onRetry={retry} />
     {/if}
 
     {#if topSpacer > 0}
@@ -312,53 +265,15 @@
         class:media-card-expanded={expandedItemID === item.id}
         use:measureCard={item.id}
       >
-        <div
-          class="media-frame bg-black"
-          role="presentation"
-          onpointermove={() => revealCardOverlay(item.id)}
-          onpointerenter={() => revealCardOverlay(item.id)}
-          onmousemove={() => revealCardOverlay(item.id)}
-          onmouseenter={() => revealCardOverlay(item.id)}
-          ontouchstart={() => revealCardOverlay(item.id)}
-          onpointerdown={() => revealCardOverlay(item.id)}
-          onclick={() => revealCardOverlay(item.id)}
-          onfocusin={() => keepCardOverlay(item.id)}
-          onmouseleave={() => hideCardOverlay(item.id)}
-        >
-          <div class="card-overlay" class:card-overlay-visible={activeOverlayID === item.id}>
-            <div class="min-w-0">
-              <h2 class="truncate text-sm font-semibold text-white">{item.filename}</h2>
-              <p class="text-xs font-semibold text-white/62">{formatDate(item.modifiedAt)}</p>
-            </div>
-            <button
-              class="card-overlay-action"
-              type="button"
-              aria-label={expandedItemID === item.id ? 'Close fullscreen media' : 'Open media fullscreen'}
-              onclick={(event) => {
-                event.stopPropagation();
-                toggleExpandedItem(item.id);
-              }}
-            >
-              {#if expandedItemID === item.id}
-                <X size={17} />
-              {:else}
-                <Maximize2 size={16} />
-              {/if}
-            </button>
-          </div>
-
-          {#if item.type === 'video'}
-            <FeedVideoPlayer mediaId={item.id} src={item.url} title={item.filename} />
-          {:else}
-            <img
-              class="h-full w-full bg-black object-contain"
-              src={item.url}
-              alt={item.filename}
-              loading="lazy"
-              decoding="async"
-            />
-          {/if}
-        </div>
+        <MediaCard
+          {item}
+          expanded={expandedItemID === item.id}
+          overlayVisible={activeOverlayID === item.id}
+          onReveal={revealCardOverlay}
+          onKeep={keepCardOverlay}
+          onHide={hideCardOverlay}
+          onToggleExpanded={toggleExpandedItem}
+        />
       </article>
     {/each}
 
@@ -367,17 +282,7 @@
     {/if}
 
     {#if error}
-      <div class="glass-alert items-start">
-        <AlertCircle class="mt-0.5 shrink-0" size={20} />
-        <div>
-          <h2 class="font-semibold">Could not load the feed</h2>
-          <p class="text-sm opacity-85">{error}</p>
-          <button class="glass-button mt-3 gap-2" type="button" onclick={retry}>
-            <RefreshCw size={16} />
-            Try again
-          </button>
-        </div>
-      </div>
+      <FeedError message={error} onRetry={retry} />
     {/if}
 
     <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
@@ -390,66 +295,21 @@
   </section>
 </main>
 
-<aside class="debug-overlay">
-  <button
-    class="debug-toggle"
-    type="button"
-    aria-label={debugCollapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
-    onclick={toggleDebugCollapsed}
-  >
-    <span class="inline-flex items-center gap-2">
-      <Bug size={14} />
-      Feed debug
-    </span>
-    {#if debugCollapsed}
-      <ChevronUp size={14} />
-    {:else}
-      <ChevronDown size={14} />
-    {/if}
-  </button>
-
-  {#if !debugCollapsed}
-    <dl class="debug-grid">
-      <div>
-        <dt>Loaded</dt>
-        <dd>{items.length}</dd>
-      </div>
-      <div>
-        <dt>Mounted</dt>
-        <dd>{visibleRows.length}</dd>
-      </div>
-      <div>
-        <dt>Unloaded</dt>
-        <dd>{unloadedBefore} / {unloadedAfter}</dd>
-      </div>
-      <div>
-        <dt>Window</dt>
-        <dd>{visibleStartIndex >= 0 ? `${visibleStartIndex}-${visibleEndIndex}` : '-'}</dd>
-      </div>
-      <div>
-        <dt>Cursor</dt>
-        <dd>{nextCursor ?? 'end'}</dd>
-      </div>
-      <div>
-        <dt>Loading</dt>
-        <dd>{loading ? 'yes' : 'no'}</dd>
-      </div>
-      <div>
-        <dt>Viewport</dt>
-        <dd>{Math.round(viewportStart)}-{Math.round(viewportEnd)}</dd>
-      </div>
-      <div>
-        <dt>Total height</dt>
-        <dd>{Math.round(totalHeight)}</dd>
-      </div>
-      <div>
-        <dt>Spacers</dt>
-        <dd>{Math.round(topSpacer)} / {Math.round(bottomSpacer)}</dd>
-      </div>
-      <div>
-        <dt>Measured</dt>
-        <dd>{Object.keys(measuredHeights).length}</dd>
-      </div>
-    </dl>
-  {/if}
-</aside>
+<FeedDebugOverlay
+  collapsed={debugCollapsed}
+  loadedCount={items.length}
+  mountedCount={visibleRows.length}
+  {unloadedBefore}
+  {unloadedAfter}
+  {visibleStartIndex}
+  {visibleEndIndex}
+  {nextCursor}
+  {loading}
+  {viewportStart}
+  {viewportEnd}
+  {totalHeight}
+  {topSpacer}
+  {bottomSpacer}
+  {measuredCount}
+  onToggle={toggleDebugCollapsed}
+/>

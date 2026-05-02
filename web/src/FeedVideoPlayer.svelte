@@ -1,24 +1,31 @@
 <script module lang="ts">
   let nextPlayerId = 0;
   let activePlayerId: number | undefined = undefined;
-  const feedVideoPlayEvent = 'feed-video-play';
-  const feedVideoVolumeEvent = 'feed-video-volume';
 </script>
 
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { Pause, PictureInPicture2, Play, Volume2, VolumeX } from 'lucide-svelte';
-
-  const availableSpeeds = [1, 1.25, 1.5, 2];
-  const longPressDelayMs = 200;
-  const seekFeedbackAccumulationMs = 600;
-  const touchpadSeekSensitivity = 0.05;
-
-  type SafariVideoElement = HTMLVideoElement & {
-    webkitSupportsPresentationMode?: (mode: 'picture-in-picture') => boolean;
-    webkitSetPresentationMode?: (mode: 'inline' | 'picture-in-picture') => void;
-    webkitPresentationMode?: 'inline' | 'picture-in-picture' | 'fullscreen';
-  };
+  import {
+    AVAILABLE_SPEEDS,
+    FEED_VIDEO_PLAY_EVENT,
+    FEED_VIDEO_VOLUME_EVENT,
+    LONG_PRESS_DELAY_MS,
+    SEEK_FEEDBACK_ACCUMULATION_MS,
+    TOUCHPAD_SEEK_SENSITIVITY,
+    canSetVolume,
+    clampTime,
+    clampVolume,
+    clearStoredProgress,
+    formatVideoTime,
+    isEditableTarget,
+    readStoredProgress,
+    readStoredVolume,
+    saveStoredProgress,
+    saveStoredVolume,
+    supportsPictureInPicture,
+    type SafariVideoElement
+  } from './lib/videoPlayer';
 
   let {
     mediaId,
@@ -68,13 +75,7 @@
   const playerId = nextPlayerId++;
 
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
-  const supportsPip = $derived.by(() => {
-    const safariVideo = video as SafariVideoElement | undefined;
-    return Boolean(
-      document.pictureInPictureEnabled ||
-        safariVideo?.webkitSupportsPresentationMode?.('picture-in-picture')
-    );
-  });
+  const supportsPip = $derived(supportsPictureInPicture(video));
 
   function revealControls() {
     setActivePlayer();
@@ -119,7 +120,7 @@
   }
 
   function announcePlayback() {
-    window.dispatchEvent(new CustomEvent(feedVideoPlayEvent, { detail: { playerId } }));
+    window.dispatchEvent(new CustomEvent(FEED_VIDEO_PLAY_EVENT, { detail: { playerId } }));
   }
 
   function pauseForOtherPlayer(event: Event) {
@@ -129,7 +130,7 @@
   }
 
   function announceVolumeChange() {
-    window.dispatchEvent(new CustomEvent(feedVideoVolumeEvent, { detail: { playerId, volume, muted } }));
+    window.dispatchEvent(new CustomEvent(FEED_VIDEO_VOLUME_EVENT, { detail: { playerId, volume, muted } }));
   }
 
   function applyVolume(nextVolume: number, nextMuted: boolean, announce = false) {
@@ -140,7 +141,7 @@
       video.volume = volume;
     }
     video.muted = muted;
-    saveStoredVolume();
+    saveStoredVolume(volume, muted);
     if (announce) announceVolumeChange();
   }
 
@@ -194,20 +195,6 @@
       video.currentTime = Math.min(0.001, duration);
     } catch {
       previewFrameRequested = false;
-    }
-  }
-
-  function canSetVolume(element: HTMLVideoElement) {
-    const currentVolume = element.volume;
-    const testVolume = currentVolume === 1 ? 0.95 : 1;
-
-    try {
-      element.volume = testVolume;
-      const supported = Math.abs(element.volume - testVolume) < 0.001;
-      element.volume = currentVolume;
-      return supported;
-    } catch {
-      return false;
     }
   }
 
@@ -302,15 +289,15 @@
     });
   }
 
-  function clampTime(nextTime: number) {
+  function clampPlaybackTime(nextTime: number) {
     const maxTime = duration || video?.duration || 0;
-    return Math.max(0, Math.min(maxTime, nextTime));
+    return clampTime(nextTime, maxTime);
   }
 
   function seekBy(seconds: number) {
     if (!video) return;
     markProgressInteraction();
-    video.currentTime = clampTime(video.currentTime + seconds);
+    video.currentTime = clampPlaybackTime(video.currentTime + seconds);
     currentTime = video.currentTime;
     saveProgress();
     revealControls();
@@ -323,7 +310,7 @@
     const rect = container.getBoundingClientRect();
     const side = event.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
     const delta = side === 'left' ? -10 : 10;
-    const shouldAccumulate = seekFeedbackSide === side && now - lastSeekFeedbackAt <= seekFeedbackAccumulationMs;
+    const shouldAccumulate = seekFeedbackSide === side && now - lastSeekFeedbackAt <= SEEK_FEEDBACK_ACCUMULATION_MS;
 
     seekBy(delta);
     seekFeedbackSide = side;
@@ -353,10 +340,10 @@
   }
 
   function changePlaybackRate(direction: 1 | -1) {
-    const index = Math.max(0, availableSpeeds.indexOf(userPlaybackRate));
-    const nextIndex = Math.max(0, Math.min(availableSpeeds.length - 1, index + direction));
+    const index = Math.max(0, AVAILABLE_SPEEDS.indexOf(userPlaybackRate));
+    const nextIndex = Math.max(0, Math.min(AVAILABLE_SPEEDS.length - 1, index + direction));
     if (nextIndex !== index) {
-      setPlaybackRate(availableSpeeds[nextIndex]);
+      setPlaybackRate(AVAILABLE_SPEEDS[nextIndex]);
     }
   }
 
@@ -382,7 +369,7 @@
         isSpaceLongPress = true;
         video.playbackRate = 2;
         if (video.paused) safePlay();
-      }, longPressDelayMs);
+      }, LONG_PRESS_DELAY_MS);
       return;
     }
 
@@ -416,7 +403,7 @@
           rewind();
           rewindTimer = setInterval(rewind, 300);
         }
-      }, longPressDelayMs);
+      }, LONG_PRESS_DELAY_MS);
     }
   }
 
@@ -454,67 +441,21 @@
     }
   }
 
-  function isEditableTarget(target: EventTarget | null) {
-    if (!(target instanceof HTMLElement)) return false;
-    const tagName = target.tagName.toLowerCase();
-    return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable;
-  }
-
   function handleWheel(event: WheelEvent) {
     if (Math.abs(event.deltaX) < Math.abs(event.deltaY)) return;
     event.preventDefault();
     setActivePlayer();
-    seekBy(-event.deltaX * touchpadSeekSensitivity);
-  }
-
-  function formatTime(seconds: number) {
-    if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const rest = Math.floor(seconds % 60);
-    return `${minutes}:${String(rest).padStart(2, '0')}`;
-  }
-
-  function storageGet(key: string) {
-    try {
-      return window.localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  function storageSet(key: string, value: string) {
-    try {
-      window.localStorage.setItem(key, value);
-    } catch {
-      // Ignore storage failures; playback should keep working.
-    }
-  }
-
-  function storageRemove(key: string) {
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      // Ignore storage failures; playback should keep working.
-    }
-  }
-
-  function progressStorageKey() {
-    return `feed-ai:video-progress:${mediaId}`;
-  }
-
-  function readStoredProgress() {
-    const value = Number(storageGet(progressStorageKey()));
-    return Number.isFinite(value) ? value : 0;
+    seekBy(-event.deltaX * TOUCHPAD_SEEK_SENSITIVITY);
   }
 
   function restoreProgress() {
     if (!video || progressRestored || duration <= 0) return;
     progressRestored = true;
 
-    const storedTime = readStoredProgress();
+    const storedTime = readStoredProgress(mediaId);
     if (storedTime <= 0.5) return;
     if (storedTime >= duration - 1) {
-      storageRemove(progressStorageKey());
+      clearStoredProgress(mediaId);
       return;
     }
 
@@ -538,36 +479,11 @@
     const time = video.currentTime;
 
     if (!Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
-      storageRemove(progressStorageKey());
+      clearStoredProgress(mediaId);
       return;
     }
 
-    storageSet(progressStorageKey(), time.toFixed(2));
-  }
-
-  function clearProgress() {
-    storageRemove(progressStorageKey());
-  }
-
-  function readStoredVolume() {
-    const storedVolumeValue = storageGet('feed-ai:video-volume');
-    const storedVolume = Number(storedVolumeValue);
-    const storedMuted = storageGet('feed-ai:video-muted');
-
-    return {
-      volume: storedVolumeValue !== null && Number.isFinite(storedVolume) ? clampVolume(storedVolume) : 0.5,
-      muted: storedMuted === 'true'
-    };
-  }
-
-  function saveStoredVolume() {
-    storageSet('feed-ai:video-volume', String(clampVolume(volume)));
-    storageSet('feed-ai:video-muted', String(muted));
-  }
-
-  function clampVolume(value: number) {
-    if (!Number.isFinite(value)) return 1;
-    return Math.max(0, Math.min(1, value));
+    saveStoredProgress(mediaId, time, duration);
   }
 
   $effect(() => {
@@ -582,12 +498,12 @@
   });
 
   $effect(() => {
-    window.addEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
-    window.addEventListener(feedVideoVolumeEvent, syncVolumeFromOtherPlayer);
+    window.addEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
+    window.addEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
 
     return () => {
-      window.removeEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
-      window.removeEventListener(feedVideoVolumeEvent, syncVolumeFromOtherPlayer);
+      window.removeEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
+      window.removeEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
     };
   });
 
@@ -651,7 +567,7 @@
     }}
     onended={() => {
       paused = true;
-      clearProgress();
+      clearStoredProgress(mediaId);
       revealControls();
     }}
   ></video>
@@ -701,7 +617,7 @@
       {/if}
     </button>
 
-    <span class="video-time">{formatTime(currentTime)}</span>
+    <span class="video-time">{formatVideoTime(currentTime)}</span>
 
     <div class="video-progress">
       <div class="video-progress-track">
@@ -723,7 +639,7 @@
       />
     </div>
 
-    <span class="video-time video-time-end">{formatTime(duration)}</span>
+    <span class="video-time video-time-end">{formatVideoTime(duration)}</span>
 
     <button class="video-control-button" type="button" aria-label={muted ? 'Unmute' : 'Mute'} onclick={toggleMute}>
       {#if muted || volume === 0}
