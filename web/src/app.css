@@ -13,12 +13,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    linear-gradient(rgb(255 255 255 / 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.022) 1px, transparent 1px),
-    rgb(9 10 14);
-  background-attachment: fixed;
-  background-size: 44px 44px, 44px 44px, auto;
+  background: rgb(9 10 14);
   color: rgb(243 244 246);
 }
 
@@ -28,7 +23,23 @@ video {
 }
 
 .app-shell {
-  background: rgb(9 10 14);
+  position: relative;
+  isolation: isolate;
+}
+
+.app-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 2px 2px, rgb(255 255 255 / 0.1) 1.2px, transparent 1.8px),
+    linear-gradient(45deg, rgb(255 255 255 / 0.026) 25%, transparent 25% 75%, rgb(255 255 255 / 0.026) 75%),
+    linear-gradient(45deg, rgb(255 255 255 / 0.026) 25%, transparent 25% 75%, rgb(255 255 255 / 0.026) 75%),
+    rgb(9 10 14);
+  background-position: 0 0, 0 0, 16px 16px, 0 0;
+  background-size: 24px 24px, 32px 32px, 32px 32px, auto;
+  content: '';
+  pointer-events: none;
 }
 
 .glass-nav {

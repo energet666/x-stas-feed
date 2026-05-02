@@ -91,6 +91,15 @@
 - Refined the dark page background for infinite loading:
   - Removed page-height-dependent gradients that could visually shift as the feed grows.
   - Switched to a stable dark base with a subtle fixed grid texture.
+- Softened the fixed dark background texture:
+  - Replaced the grid with a low-contrast repeating dot and diagonal micro-pattern so the background feels less flat without drawing attention.
+- Increased the fixed dark background pattern visibility after review:
+  - Raised dot contrast and added a subtle tiled layer so the texture is visible on empty feed margins while staying close to the base color.
+- Fixed the background pattern being hidden after app load:
+  - Kept `body` as a plain dark fallback and moved the visible repeating pattern onto `.app-shell`, which covers the Svelte page after hydration.
+- Fixed background pattern jank during infinite-feed loading:
+  - Removed `background-attachment: fixed` from the scrolling shell.
+  - Moved the repeating pattern into a fixed `.app-shell::before` viewport layer behind the feed so document height changes do not reposition it.
 - Changed video controls visibility so paused videos follow the same reveal/autohide behavior as playing videos instead of keeping the control panel pinned open.
 - Changed the media title/metadata overlay to use the same movement-driven reveal/autohide timing as video controls instead of staying visible for the entire hover duration.
 - Removed the native `title` attribute from feed video elements to prevent browser tooltips with filenames near the cursor; the player container keeps an `aria-label`.
