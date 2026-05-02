@@ -146,3 +146,10 @@
   - Used explicit `:global(...)` only where the `App.svelte` card wrapper must style DOM rendered by `MediaCard`.
   - Production CSS output dropped from roughly 43.6 kB to 24.6 kB after removing daisyUI and scoping styles.
   - Verification completed: `npm run check` and `npm run build`.
+- Reworked the second CSS pass away from Tailwind `@apply`:
+  - Added a small global Tailwind-style design system in `web/src/app.css`: semantic colors (`primary`, `secondary`, `muted`, `danger`, `media`, `glass`), semantic radii (`card`, `overlay`, `control`, `toolbar`), and reusable global component classes (`glass-card`, `glass-panel`, `glass-button`, `glass-pill`, `glass-nav`, `glass-overlay`, `glass-icon-button`, `media-frame`, `card-overlay`, `debug-overlay`).
+  - Moved repeated layout, spacing, border, radius, sizing, and text color rules into Tailwind classes or reusable global UI classes instead of duplicating them across Svelte components.
+  - Kept only video-player-specific custom styling scoped in `FeedVideoPlayer.svelte`, while referencing the global theme tokens.
+  - Removed `@apply`, `@reference`, and component `lang="postcss"` because inline Tailwind classes work better with Svelte diagnostics and avoid utility expansion in scoped CSS.
+  - Verification completed: `npm run check` and `npm run build`.
+  - Production CSS is roughly 22.7 kB after centralizing repeated primitives and keeping only player-specific styling scoped.

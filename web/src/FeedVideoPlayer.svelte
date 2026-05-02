@@ -527,7 +527,7 @@
 
 <div
   bind:this={container}
-  class="feed-video-player"
+  class="feed-video-player relative h-full w-full overflow-hidden bg-media"
   class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
   role="presentation"
   aria-label={`Video player: ${title}`}
@@ -543,7 +543,7 @@
   <!-- svelte-ignore a11y_media_has_caption -->
   <video
     bind:this={video}
-    class="h-full w-full bg-black object-contain"
+    class="block h-full w-full bg-media object-contain"
     playsinline
     preload="metadata"
     src={src}
@@ -575,7 +575,7 @@
   {#if seekFeedbackSide}
     {#key `${seekFeedbackSide}-${seekFeedbackTick}`}
       <div
-        class="video-seek-feedback"
+        class="video-seek-feedback absolute flex items-center"
         class:video-seek-feedback-left={seekFeedbackSide === 'left'}
         class:video-seek-feedback-right={seekFeedbackSide === 'right'}
       >
@@ -585,21 +585,21 @@
   {/if}
 
   {#if showSpeedIndicator}
-    <div class="video-speed-indicator">{userPlaybackRate}x</div>
+    <div class="video-speed-indicator absolute right-4 rounded-full text-center font-extrabold">{userPlaybackRate}x</div>
   {/if}
 
   {#if paused}
-    <button class="video-play-overlay" type="button" aria-label="Play video" onclick={togglePlay}>
+    <button class="video-play-overlay absolute grid place-items-center rounded-full" type="button" aria-label="Play video" onclick={togglePlay}>
       <Play size={26} fill="currentColor" />
     </button>
   {/if}
 
   {#if playBlocked}
-    <div class="video-play-message">Tap play to start video</div>
+    <div class="video-play-message absolute rounded-full text-xs font-bold">Tap play to start video</div>
   {/if}
 
   <div
-    class="video-controls"
+    class="video-controls absolute flex items-center text-primary"
     class:video-controls-visible={showControls || isDragging}
     onpointerenter={enterControls}
     onpointerleave={leaveControls}
@@ -609,7 +609,7 @@
     aria-label="Video controls"
     tabindex="-1"
   >
-    <button class="video-control-button" type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={togglePlay}>
+    <button class="video-control-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={togglePlay}>
       {#if paused}
         <Play size={18} fill="currentColor" />
       {:else}
@@ -617,11 +617,11 @@
       {/if}
     </button>
 
-    <span class="video-time">{formatVideoTime(currentTime)}</span>
+    <span class="video-time shrink-0 font-bold">{formatVideoTime(currentTime)}</span>
 
-    <div class="video-progress">
-      <div class="video-progress-track">
-        <div class="video-progress-fill" style={`width: ${progress}%`}></div>
+    <div class="video-progress relative flex min-w-16 flex-1 items-center">
+      <div class="video-progress-track w-full overflow-hidden rounded-full">
+        <div class="video-progress-fill h-full" style={`width: ${progress}%`}></div>
       </div>
       <input
         aria-label="Seek video"
@@ -639,9 +639,9 @@
       />
     </div>
 
-    <span class="video-time video-time-end">{formatVideoTime(duration)}</span>
+    <span class="video-time video-time-end shrink-0 font-bold">{formatVideoTime(duration)}</span>
 
-    <button class="video-control-button" type="button" aria-label={muted ? 'Unmute' : 'Mute'} onclick={toggleMute}>
+    <button class="video-control-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={muted ? 'Unmute' : 'Mute'} onclick={toggleMute}>
       {#if muted || volume === 0}
         <VolumeX size={18} />
       {:else}
@@ -651,7 +651,7 @@
 
     {#if supportsVolumeControl}
       <input
-        class="video-volume"
+        class="video-volume shrink-0 cursor-pointer rounded-full"
         aria-label="Volume"
         type="range"
         min="0"
@@ -663,7 +663,7 @@
     {/if}
 
     {#if supportsPip}
-      <button class="video-control-button" type="button" aria-label="Picture in Picture" onclick={togglePip}>
+      <button class="video-control-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label="Picture in Picture" onclick={togglePip}>
         <PictureInPicture2 size={18} />
       </button>
     {/if}
@@ -672,12 +672,7 @@
 
 <style>
   .feed-video-player {
-    position: relative;
     z-index: 1;
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
-    background: black;
   }
 
   .video-cursor-hidden,
@@ -685,41 +680,24 @@
     cursor: none;
   }
 
-  .feed-video-player video {
-    display: block;
-    height: 100%;
-    width: 100%;
-    object-fit: contain;
-  }
-
   .video-speed-indicator {
-    position: absolute;
     top: 4.8rem;
-    right: 1rem;
     z-index: 6;
     min-width: 3.1rem;
     padding: 0.45rem 0.7rem;
-    border: 1px solid rgb(255 255 255 / 0.2);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.34)),
-      rgb(0 0 0 / 0.24);
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.24);
-    color: rgb(255 255 255 / 0.9);
+    border: 1px solid var(--feed-glass-border);
+    background: var(--feed-glass-bg);
+    box-shadow: var(--feed-shadow-popover);
+    color: var(--feed-text-soft);
     font-size: 0.8rem;
-    font-weight: 800;
-    text-align: center;
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
   }
 
   .video-seek-feedback {
-    position: absolute;
     inset-block: 0;
     z-index: 6;
-    display: flex;
     width: 50%;
-    align-items: center;
     pointer-events: none;
   }
 
@@ -734,19 +712,17 @@
   }
 
   .video-seek-feedback span {
+    border-radius: 999px;
+    font-weight: 800;
+    text-align: center;
     margin: 0 2rem;
     min-width: 4.1rem;
     padding: 0.7rem 0.9rem;
-    border: 1px solid rgb(255 255 255 / 0.18);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgb(20 20 24 / 0.56), rgb(10 10 14 / 0.36)),
-      rgb(0 0 0 / 0.24);
-    box-shadow: 0 14px 36px rgb(0 0 0 / 0.26);
-    color: rgb(255 255 255 / 0.92);
+    border: 1px solid var(--feed-glass-border);
+    background: var(--feed-glass-bg-strong);
+    box-shadow: var(--feed-shadow-seek);
+    color: var(--feed-text-strong);
     font-size: 0.92rem;
-    font-weight: 800;
-    text-align: center;
     animation: video-seek-feedback-pop 420ms ease-out both;
     backdrop-filter: blur(22px) saturate(170%);
     -webkit-backdrop-filter: blur(22px) saturate(170%);
@@ -770,66 +746,48 @@
   }
 
   .video-play-overlay {
-    position: absolute;
     top: 50%;
     left: 50%;
     z-index: 4;
-    display: grid;
     height: 3.35rem;
     width: 3.35rem;
-    place-items: center;
-    border: 1px solid rgb(255 255 255 / 0.2);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.06)),
-      rgb(0 0 0 / 0.16);
-    box-shadow: 0 12px 30px rgb(0 0 0 / 0.18);
-    color: rgb(255 255 255 / 0.84);
+    border: 1px solid var(--feed-glass-border);
+    background: var(--feed-glass-bg-play);
+    box-shadow: var(--feed-shadow-play);
+    color: var(--feed-text-soft);
     transform: translate(-50%, -50%);
     backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
   }
 
   .video-play-message {
-    position: absolute;
     top: calc(50% + 3.25rem);
     left: 50%;
     z-index: 4;
     width: max-content;
     max-width: calc(100% - 2rem);
     padding: 0.45rem 0.75rem;
-    border: 1px solid rgb(255 255 255 / 0.18);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.34)),
-      rgb(0 0 0 / 0.24);
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.24);
-    color: rgb(255 255 255 / 0.82);
-    font-size: 0.75rem;
-    font-weight: 700;
+    border: 1px solid var(--feed-glass-border);
+    background: var(--feed-glass-bg);
+    box-shadow: var(--feed-shadow-popover);
+    color: var(--feed-text-soft);
     transform: translateX(-50%);
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
   }
 
   .video-controls {
-    position: absolute;
     right: max(0.75rem, env(safe-area-inset-right));
     bottom: max(0.75rem, env(safe-area-inset-bottom));
     left: max(0.75rem, env(safe-area-inset-left));
     z-index: 5;
-    display: flex;
-    align-items: center;
     gap: 0.6rem;
     min-height: 3.35rem;
     padding: 0.65rem 0.8rem;
-    border: 1px solid rgb(255 255 255 / 0.18);
+    border: 1px solid var(--feed-glass-border);
     border-radius: 24px;
-    background:
-      linear-gradient(180deg, rgb(20 20 24 / 0.54), rgb(10 10 14 / 0.34)),
-      rgb(0 0 0 / 0.24);
-    box-shadow: 0 1px 0 rgb(255 255 255 / 0.18) inset, 0 20px 48px rgb(0 0 0 / 0.3);
-    color: white;
+    background: var(--feed-glass-bg);
+    box-shadow: var(--feed-shadow-video-controls);
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.75rem);
@@ -847,13 +805,7 @@
   }
 
   .video-control-button {
-    display: grid;
-    height: 2rem;
-    width: 2rem;
-    flex: 0 0 auto;
-    place-items: center;
-    border-radius: 999px;
-    color: rgb(255 255 255 / 0.86);
+    color: var(--feed-text-soft);
     transition:
       background 140ms ease,
       color 140ms ease,
@@ -861,18 +813,16 @@
   }
 
   .video-control-button:hover {
-    background: rgb(255 255 255 / 0.12);
-    color: white;
+    background: var(--feed-button-hover-bg);
+    color: var(--feed-text-strong);
     transform: scale(1.04);
   }
 
   .video-time {
     width: 2.35rem;
-    flex: 0 0 auto;
-    color: rgb(255 255 255 / 0.72);
+    color: var(--feed-text-muted);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
   }
 
   .video-time-end {
@@ -880,26 +830,18 @@
   }
 
   .video-progress {
-    position: relative;
-    display: flex;
     height: 1.5rem;
     flex: 1 1 auto;
-    align-items: center;
-    min-width: 4rem;
   }
 
   .video-progress-track {
     height: 0.24rem;
-    width: 100%;
-    overflow: hidden;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.2);
+    background: var(--feed-track-bg);
   }
 
   .video-progress-fill {
-    height: 100%;
     border-radius: inherit;
-    background: rgb(255 255 255 / 0.9);
+    background: var(--feed-track-fill);
   }
 
   .video-progress input {
@@ -913,11 +855,8 @@
   .video-volume {
     width: 3.25rem;
     height: 0.25rem;
-    flex: 0 0 auto;
-    cursor: pointer;
     appearance: none;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.25);
+    background: var(--feed-track-bg-strong);
   }
 
   .video-volume::-webkit-slider-thumb {
@@ -925,8 +864,8 @@
     height: 0.72rem;
     appearance: none;
     border-radius: 999px;
-    background: white;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.24);
+    background: var(--feed-text-strong);
+    box-shadow: var(--feed-shadow-thumb);
   }
 
   .video-volume::-moz-range-thumb {
@@ -934,8 +873,8 @@
     height: 0.72rem;
     border: 0;
     border-radius: 999px;
-    background: white;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.24);
+    background: var(--feed-text-strong);
+    box-shadow: var(--feed-shadow-thumb);
   }
 
   @media (max-width: 520px) {
