@@ -1,6 +1,7 @@
 <script module lang="ts">
   let nextPlayerId = 0;
   let activePlayerId: number | undefined = undefined;
+  const feedVideoPlayEvent = 'feed-video-play';
 </script>
 
 <script lang="ts">
@@ -109,6 +110,16 @@
   function leaveControls() {
     isOverControls = false;
     revealControls();
+  }
+
+  function announcePlayback() {
+    window.dispatchEvent(new CustomEvent(feedVideoPlayEvent, { detail: { playerId } }));
+  }
+
+  function pauseForOtherPlayer(event: Event) {
+    const otherPlayerId = (event as CustomEvent<{ playerId: number }>).detail?.playerId;
+    if (otherPlayerId === playerId || !video || video.paused) return;
+    video.pause();
   }
 
   async function togglePlay() {
@@ -440,6 +451,14 @@
     };
   });
 
+  $effect(() => {
+    window.addEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
+
+    return () => {
+      window.removeEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
+    };
+  });
+
   onDestroy(() => {
     clearTimeout(hideTimer);
     clearTimeout(speedTimer);
@@ -487,6 +506,7 @@
     }}
     onplay={() => {
       paused = false;
+      announcePlayback();
       revealControls();
     }}
     onpause={() => {
