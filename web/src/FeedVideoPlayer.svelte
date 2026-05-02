@@ -685,10 +685,10 @@
     z-index: 6;
     min-width: 3.1rem;
     padding: 0.45rem 0.7rem;
-    border: 1px solid var(--feed-glass-border);
-    background: var(--feed-glass-bg);
-    box-shadow: var(--feed-shadow-popover);
-    color: var(--feed-text-soft);
+    border: 1px solid var(--color-glass-border);
+    background: var(--background-image-glass);
+    box-shadow: var(--shadow-popover);
+    color: var(--color-secondary);
     font-size: 0.8rem;
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
@@ -718,10 +718,10 @@
     margin: 0 2rem;
     min-width: 4.1rem;
     padding: 0.7rem 0.9rem;
-    border: 1px solid var(--feed-glass-border);
-    background: var(--feed-glass-bg-strong);
-    box-shadow: var(--feed-shadow-seek);
-    color: var(--feed-text-strong);
+    border: 1px solid var(--color-glass-border);
+    background: var(--background-image-glass-strong);
+    box-shadow: var(--shadow-seek);
+    color: var(--color-primary);
     font-size: 0.92rem;
     animation: video-seek-feedback-pop 420ms ease-out both;
     backdrop-filter: blur(22px) saturate(170%);
@@ -751,10 +751,10 @@
     z-index: 4;
     height: 3.35rem;
     width: 3.35rem;
-    border: 1px solid var(--feed-glass-border);
-    background: var(--feed-glass-bg-play);
-    box-shadow: var(--feed-shadow-play);
-    color: var(--feed-text-soft);
+    border: 1px solid var(--color-glass-border);
+    background: var(--background-image-glass-play);
+    box-shadow: var(--shadow-play);
+    color: var(--color-secondary);
     transform: translate(-50%, -50%);
     backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
@@ -767,10 +767,10 @@
     width: max-content;
     max-width: calc(100% - 2rem);
     padding: 0.45rem 0.75rem;
-    border: 1px solid var(--feed-glass-border);
-    background: var(--feed-glass-bg);
-    box-shadow: var(--feed-shadow-popover);
-    color: var(--feed-text-soft);
+    border: 1px solid var(--color-glass-border);
+    background: var(--background-image-glass);
+    box-shadow: var(--shadow-popover);
+    color: var(--color-secondary);
     transform: translateX(-50%);
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
@@ -784,10 +784,10 @@
     gap: 0.6rem;
     min-height: 3.35rem;
     padding: 0.65rem 0.8rem;
-    border: 1px solid var(--feed-glass-border);
+    border: 1px solid var(--color-glass-border);
     border-radius: 24px;
-    background: var(--feed-glass-bg);
-    box-shadow: var(--feed-shadow-video-controls);
+    background: var(--background-image-glass);
+    box-shadow: var(--shadow-video-controls);
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.75rem);
@@ -805,7 +805,7 @@
   }
 
   .video-control-button {
-    color: var(--feed-text-soft);
+    color: var(--color-secondary);
     transition:
       background 140ms ease,
       color 140ms ease,
@@ -813,14 +813,14 @@
   }
 
   .video-control-button:hover {
-    background: var(--feed-button-hover-bg);
-    color: var(--feed-text-strong);
+    background: var(--color-button-hover);
+    color: var(--color-primary);
     transform: scale(1.04);
   }
 
   .video-time {
     width: 2.35rem;
-    color: var(--feed-text-muted);
+    color: var(--color-muted);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }
@@ -836,12 +836,12 @@
 
   .video-progress-track {
     height: 0.24rem;
-    background: var(--feed-track-bg);
+    background: var(--color-track-bg);
   }
 
   .video-progress-fill {
     border-radius: inherit;
-    background: var(--feed-track-fill);
+    background: var(--color-track-fill);
   }
 
   .video-progress input {
@@ -856,7 +856,7 @@
     width: 3.25rem;
     height: 0.25rem;
     appearance: none;
-    background: var(--feed-track-bg-strong);
+    background: var(--color-track-bg-strong);
   }
 
   .video-volume::-webkit-slider-thumb {
@@ -864,8 +864,8 @@
     height: 0.72rem;
     appearance: none;
     border-radius: 999px;
-    background: var(--feed-text-strong);
-    box-shadow: var(--feed-shadow-thumb);
+    background: var(--color-primary);
+    box-shadow: var(--shadow-thumb);
   }
 
   .video-volume::-moz-range-thumb {
@@ -873,8 +873,8 @@
     height: 0.72rem;
     border: 0;
     border-radius: 999px;
-    background: var(--feed-text-strong);
-    box-shadow: var(--feed-shadow-thumb);
+    background: var(--color-primary);
+    box-shadow: var(--shadow-thumb);
   }
 
   @media (max-width: 520px) {
