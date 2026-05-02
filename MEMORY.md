@@ -94,3 +94,7 @@
 - Changed video controls visibility so paused videos follow the same reveal/autohide behavior as playing videos instead of keeping the control panel pinned open.
 - Changed the media title/metadata overlay to use the same movement-driven reveal/autohide timing as video controls instead of staying visible for the entire hover duration.
 - Removed the native `title` attribute from feed video elements to prevent browser tooltips with filenames near the cursor; the player container keeps an `aria-label`.
+- Softened the center video Play overlay by reducing its size, icon size, border contrast, glow, and glass intensity so it is less visually dominant.
+- Fixed Safari video controls hover behavior by tracking when the cursor is over the controls and making autohide timers re-check that state before hiding the panel.
+- Added cursor autohide for inactive video players, tied to the same inactivity timer as the video controls while keeping the cursor visible over controls and during dragging.
+- Fixed media info overlay staying visible after clicking the video Play button without moving the cursor by starting its autohide timer on pointer/click events and avoiding indefinite focus-based pinning.

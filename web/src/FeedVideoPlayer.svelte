@@ -35,7 +35,9 @@
   let muted = $state(false);
   let userPlaybackRate = $state(1);
   let showControls = $state(false);
+  let showCursor = $state(true);
   let isDragging = $state(false);
+  let isOverControls = $state(false);
   let playBlocked = $state(false);
   let supportsVolumeControl = $state(true);
   let showSpeedIndicator = $state(false);
@@ -69,10 +71,17 @@
   function revealControls() {
     setActivePlayer();
     showControls = true;
+    showCursor = true;
+    scheduleControlsHide();
+  }
+
+  function scheduleControlsHide() {
     clearTimeout(hideTimer);
-    if (!isDragging) {
+    if (!isDragging && !isOverControls) {
       hideTimer = setTimeout(() => {
+        if (isDragging || isOverControls) return;
         showControls = false;
+        showCursor = false;
       }, 1800);
     }
   }
@@ -80,13 +89,25 @@
   function keepControls() {
     setActivePlayer();
     showControls = true;
+    showCursor = true;
     clearTimeout(hideTimer);
   }
 
   function hideControls() {
-    if (!isDragging) {
+    if (!isDragging && !isOverControls) {
       showControls = false;
+      showCursor = true;
     }
+  }
+
+  function enterControls() {
+    isOverControls = true;
+    keepControls();
+  }
+
+  function leaveControls() {
+    isOverControls = false;
+    revealControls();
   }
 
   async function togglePlay() {
@@ -426,6 +447,7 @@
 <div
   bind:this={container}
   class="feed-video-player"
+  class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
   role="presentation"
   aria-label={`Video player: ${title}`}
   onpointermove={revealControls}
@@ -482,7 +504,7 @@
 
   {#if paused}
     <button class="video-play-overlay" type="button" aria-label="Play video" onclick={togglePlay}>
-      <Play size={34} fill="currentColor" />
+      <Play size={26} fill="currentColor" />
     </button>
   {/if}
 
@@ -493,8 +515,10 @@
   <div
     class="video-controls"
     class:video-controls-visible={showControls || isDragging}
-    onpointerenter={keepControls}
-    onpointerleave={revealControls}
+    onpointerenter={enterControls}
+    onpointerleave={leaveControls}
+    onmouseenter={enterControls}
+    onmouseleave={leaveControls}
     role="toolbar"
     aria-label="Video controls"
     tabindex="-1"

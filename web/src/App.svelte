@@ -182,13 +182,22 @@
 
   function keepCardOverlay(id: string) {
     activeOverlayID = id;
-    clearTimeout(overlayHideTimer);
+    scheduleCardOverlayHide(id);
   }
 
   function hideCardOverlay(id: string) {
     if (activeOverlayID === id) {
       activeOverlayID = null;
     }
+  }
+
+  function scheduleCardOverlayHide(id: string) {
+    clearTimeout(overlayHideTimer);
+    overlayHideTimer = setTimeout(() => {
+      if (activeOverlayID === id) {
+        activeOverlayID = null;
+      }
+    }, 1800);
   }
 
   function formatSize(size: number) {
@@ -268,6 +277,8 @@
           onmousemove={() => revealCardOverlay(item.id)}
           onmouseenter={() => revealCardOverlay(item.id)}
           ontouchstart={() => revealCardOverlay(item.id)}
+          onpointerdown={() => revealCardOverlay(item.id)}
+          onclick={() => revealCardOverlay(item.id)}
           onfocusin={() => keepCardOverlay(item.id)}
           onmouseleave={() => hideCardOverlay(item.id)}
         >
