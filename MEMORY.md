@@ -136,6 +136,43 @@
 
 ## 2026-05-02
 
+- Added agent workflow rule:
+  - The local server may be started only for short agent verification checks and must be stopped immediately afterward, unless the user explicitly asks to start or keep it running.
+- Updated product requirements for comments:
+  - Comments are now required for v1.
+  - The app should still avoid databases; comments should be stored in server-managed text files deterministically associated with media files.
+  - Feed cards should show the latest 1-2 comments inline.
+  - Clicking comments should open a panel with the full comment thread and an input field.
+  - Feed responses should include comment summary data so the frontend does not need to fetch every full thread up front.
+- Implemented filesystem-backed comments:
+  - Added `internal/media/CommentStore`, storing comments as append-only JSON Lines text files in `test-content/.comments/{mediaID}.jsonl`.
+  - `Library.Page` now enriches media items with `comments` containing the latest two comments and `commentCount`.
+  - Added `GET /api/media/{id}/comments` and `POST /api/media/{id}/comments`; both validate the media ID through the existing safe media lookup.
+  - Comment submission trims text, rejects empty comments, and enforces a 2000-byte limit.
+  - Added frontend comment API helpers, inline comment previews in media cards, and a responsive comments panel with loading, empty, error, and submit states.
+  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
+- Tried a more compact comments presentation:
+  - Moved the comment count and latest-comment preview into the existing media information overlay.
+  - Removed the separate comments block below each media frame so feed cards stay visually focused on the media.
+  - The compact overlay state still opens the full comments panel on click.
+  - Verification completed: `npm run check` and `npm run build`.
+- Refined compact overlays:
+  - The media information overlay now shows only the latest comment, clamped to two lines with a max-height cap so long comments cannot expand the panel excessively.
+  - Moved the video playback-speed indicator from the top-right area to the right-middle of the video to avoid intersecting with the media information overlay.
+  - Verification completed: `npm run check` and `npm run build`.
+- Changed media information overlay visibility:
+  - Each mounted media card now shows its information overlay immediately so comments are visible while scrolling without hover.
+  - The initial overlay visibility is tied to user interaction rather than a timer: it remains visible until pointer/touch/focus interaction with that card.
+  - After the first interaction, the intro state is dismissed and the existing reveal/autohide behavior takes over.
+  - Verification completed: `npm run check` and `npm run build`.
+- Added SSE for live comment updates:
+  - Added an in-memory comment event hub in `internal/server`.
+  - Added one global `GET /api/comments/events` stream, which emits `event: comment` SSE messages shaped as `{ mediaId, comment }` for newly created comments.
+  - `POST /api/media/{id}/comments` now publishes the created comment to active SSE subscribers after the filesystem write succeeds.
+  - `App.svelte` owns a single `EventSource`, updates compact previews for loaded feed items by `mediaId`, and passes the latest event to the open comments panel.
+  - The comments panel no longer creates per-media SSE connections; it consumes the shared stream event from `App.svelte`.
+  - Frontend comment merging deduplicates by comment ID so the local POST response and shared SSE event cannot create duplicate rows.
+  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
 - Removed daisyUI from the frontend:
   - Deleted the `@plugin 'daisyui'` Tailwind import.
   - Removed the `daisyui` package dependency and lockfile entry.

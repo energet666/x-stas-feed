@@ -38,19 +38,22 @@ var supportedExtensions = map[string]string{
 
 type Library struct {
 	root       string
+	comments   *CommentStore
 	mu         sync.Mutex
 	cachedAt   time.Time
 	cachedList []Item
 }
 
 type Item struct {
-	ID         string    `json:"id"`
-	Filename   string    `json:"filename"`
-	Type       string    `json:"type"`
-	URL        string    `json:"url"`
-	MimeType   string    `json:"mimeType"`
-	Size       int64     `json:"size"`
-	ModifiedAt time.Time `json:"modifiedAt"`
+	ID           string    `json:"id"`
+	Filename     string    `json:"filename"`
+	Type         string    `json:"type"`
+	URL          string    `json:"url"`
+	MimeType     string    `json:"mimeType"`
+	Size         int64     `json:"size"`
+	ModifiedAt   time.Time `json:"modifiedAt"`
+	Comments     []Comment `json:"comments"`
+	CommentCount int       `json:"commentCount"`
 }
 
 type Page struct {
@@ -59,7 +62,7 @@ type Page struct {
 }
 
 func NewLibrary(root string) *Library {
-	return &Library{root: root}
+	return &Library{root: root, comments: NewCommentStore(root)}
 }
 
 func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
@@ -82,12 +85,36 @@ func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
 		end = len(items)
 	}
 
-	page := Page{Items: items[start:end]}
+	pageItems := append([]Item(nil), items[start:end]...)
+	for i := range pageItems {
+		comments, count, err := l.comments.Summary(pageItems[i].ID, 2)
+		if err != nil {
+			return Page{}, err
+		}
+		pageItems[i].Comments = comments
+		pageItems[i].CommentCount = count
+	}
+
+	page := Page{Items: pageItems}
 	if end < len(items) {
 		page.NextCursor = strconv.Itoa(end)
 	}
 
 	return page, nil
+}
+
+func (l *Library) CommentsForID(id string) ([]Comment, error) {
+	if _, _, err := l.PathForID(id); err != nil {
+		return nil, err
+	}
+	return l.comments.List(id)
+}
+
+func (l *Library) AddComment(id, text string) (Comment, error) {
+	if _, _, err := l.PathForID(id); err != nil {
+		return Comment{}, err
+	}
+	return l.comments.Add(id, text)
 }
 
 func (l *Library) Scan() ([]Item, error) {

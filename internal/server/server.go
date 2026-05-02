@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +17,7 @@ import (
 type Server struct {
 	mux       *http.ServeMux
 	library   *media.Library
+	comments  *commentHub
 	staticDir string
 	logger    *log.Logger
 }
@@ -23,6 +26,7 @@ func New(library *media.Library, staticDir string, logger *log.Logger) *Server {
 	s := &Server{
 		mux:       http.NewServeMux(),
 		library:   library,
+		comments:  newCommentHub(),
 		staticDir: staticDir,
 		logger:    logger,
 	}
@@ -36,6 +40,9 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/feed", s.handleFeed)
+	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
+	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
+	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
 }
@@ -48,6 +55,72 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, page)
+}
+
+func (s *Server) handleComments(w http.ResponseWriter, r *http.Request) {
+	comments, err := s.library.CommentsForID(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]media.Comment{"comments": comments})
+}
+
+func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid comment payload")
+		return
+	}
+
+	comment, err := s.library.AddComment(r.PathValue("id"), request.Text)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	w.Header().Set("Location", r.URL.Path+"/"+comment.ID)
+	s.comments.publish(r.PathValue("id"), comment)
+	writeJSON(w, http.StatusCreated, comment)
+}
+
+func (s *Server) handleCommentEvents(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming is not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	events := s.comments.subscribe()
+	defer s.comments.unsubscribe(events)
+
+	_, _ = fmt.Fprint(w, ": connected\n\n")
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event := <-events:
+			data, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+			_, _ = fmt.Fprintf(w, "event: comment\ndata: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
 }
 
 func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {

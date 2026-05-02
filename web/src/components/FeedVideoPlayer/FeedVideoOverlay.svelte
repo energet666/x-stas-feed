@@ -50,7 +50,7 @@
 
 <style>
   .video-speed-indicator {
-    top: 4.8rem;
+    top: 50%;
     z-index: 6;
     min-width: 3.1rem;
     padding: 0.45rem 0.7rem;
@@ -59,6 +59,7 @@
     box-shadow: var(--shadow-popover);
     color: var(--color-secondary);
     font-size: 0.8rem;
+    transform: translateY(-50%);
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
   }

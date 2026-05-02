@@ -2,12 +2,13 @@
   import { onMount } from 'svelte';
   import { LoaderCircle } from 'lucide-svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
+  import CommentsPanel from './components/CommentsPanel.svelte';
   import EmptyFeedState from './components/EmptyFeedState.svelte';
   import FeedDebugOverlay from './components/FeedDebugOverlay.svelte';
   import FeedError from './components/FeedError.svelte';
   import FeedHeader from './components/FeedHeader.svelte';
   import MediaCard from './components/MediaCard.svelte';
-  import { fetchFeedPage, type MediaItem } from './lib/feed';
+  import { commentEventsURL, fetchFeedPage, type Comment, type CommentEvent, type MediaItem } from './lib/feed';
 
   const pageSize = 24;
   const estimatedCardHeight = 760;
@@ -34,7 +35,10 @@
   let debugCollapsed = $state(false);
   let activeOverlayID = $state<string | null>(null);
   let expandedItemID = $state<string | null>(null);
+  let commentsPanelItemID = $state<string | null>(null);
+  let latestCommentEvent = $state<CommentEvent | null>(null);
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  let commentEvents: EventSource | undefined = undefined;
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
@@ -66,16 +70,19 @@
   const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
+  const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
 
   onMount(() => {
     debugCollapsed = readStoredDebugCollapsed();
     updateViewport();
     window.addEventListener('scroll', updateViewport, { passive: true });
     window.addEventListener('resize', updateViewport);
+    subscribeToCommentEvents();
     void loadPage();
 
     return () => {
       clearTimeout(overlayHideTimer);
+      commentEvents?.close();
       window.removeEventListener('scroll', updateViewport);
       window.removeEventListener('resize', updateViewport);
     };
@@ -99,7 +106,7 @@
 
   $effect(() => {
     const previousOverflow = document.body.style.overflow;
-    if (expandedItemID) {
+    if (expandedItemID || commentsPanelItemID) {
       document.body.style.overflow = 'hidden';
     }
 
@@ -224,7 +231,60 @@
     expandedItemID = null;
   }
 
+  function openComments(id: string) {
+    commentsPanelItemID = id;
+  }
+
+  function closeComments() {
+    commentsPanelItemID = null;
+  }
+
+  function updateItemComments(mediaId: string, comments: Comment[]) {
+    items = items.map((item) =>
+      item.id === mediaId
+        ? {
+            ...item,
+            comments: comments.slice(-2),
+            commentCount: comments.length
+          }
+        : item
+    );
+  }
+
+  function appendItemComment(mediaId: string, comment: Comment) {
+    items = items.map((item) => {
+      if (item.id !== mediaId || item.comments.some((existing) => existing.id === comment.id)) {
+        return item;
+      }
+
+      return {
+        ...item,
+        comments: [...item.comments, comment].slice(-2),
+        commentCount: item.commentCount + 1
+      };
+    });
+  }
+
+  function subscribeToCommentEvents() {
+    commentEvents?.close();
+    commentEvents = new EventSource(commentEventsURL());
+
+    commentEvents.addEventListener('comment', (event) => {
+      try {
+        const nextEvent = JSON.parse(event.data) as CommentEvent;
+        latestCommentEvent = nextEvent;
+        appendItemComment(nextEvent.mediaId, nextEvent.comment);
+      } catch {
+        // Ignore malformed stream events; feed pagination/full comment loads can recover state.
+      }
+    });
+  }
+
   function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && commentsPanelItemID) {
+      closeComments();
+      return;
+    }
     if (event.key === 'Escape' && expandedItemID) {
       closeExpandedItem();
     }
@@ -275,6 +335,7 @@
           onKeep={keepCardOverlay}
           onHide={hideCardOverlay}
           onToggleExpanded={toggleExpandedItem}
+          onOpenComments={openComments}
         />
       </article>
     {/each}
@@ -296,6 +357,13 @@
     </div>
   </section>
 </main>
+
+<CommentsPanel
+  item={commentsPanelItem}
+  commentEvent={latestCommentEvent}
+  onClose={closeComments}
+  onCommentsChanged={updateItemComments}
+/>
 
 <FeedDebugOverlay
   collapsed={debugCollapsed}

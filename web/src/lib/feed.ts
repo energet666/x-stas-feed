@@ -1,3 +1,14 @@
+export type Comment = {
+  id: string;
+  text: string;
+  createdAt: string;
+};
+
+export type CommentEvent = {
+  mediaId: string;
+  comment: Comment;
+};
+
 export type MediaItem = {
   id: string;
   filename: string;
@@ -6,6 +17,8 @@ export type MediaItem = {
   mimeType: string;
   size: number;
   modifiedAt: string;
+  comments: Comment[];
+  commentCount: number;
 };
 
 export type FeedPage = {
@@ -23,4 +36,35 @@ export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit:
   }
 
   return (await response.json()) as FeedPage;
+}
+
+export async function fetchComments(mediaId: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`);
+  if (!response.ok) {
+    throw new Error(`Comments request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as { comments: Comment[] };
+}
+
+export async function createComment(mediaId: string, text: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+
+  if (!response.ok) {
+    const message = await response
+      .json()
+      .then((body) => (typeof body.error === 'string' ? body.error : undefined))
+      .catch(() => undefined);
+    throw new Error(message ?? `Comment request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as Comment;
+}
+
+export function commentEventsURL() {
+  return '/api/comments/events';
 }
