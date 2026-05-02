@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { LoaderCircle } from 'lucide-svelte';
+  import BackgroundParticles from './components/BackgroundParticles.svelte';
   import EmptyFeedState from './components/EmptyFeedState.svelte';
   import FeedDebugOverlay from './components/FeedDebugOverlay.svelte';
   import FeedError from './components/FeedError.svelte';
@@ -241,6 +242,7 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <main class="app-shell min-h-screen">
+  <BackgroundParticles />
   <FeedHeader loadedCount={items.length} />
 
   <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
