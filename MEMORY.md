@@ -109,3 +109,9 @@
 - Fixed media info overlay staying visible after clicking the video Play button without moving the cursor by starting its autohide timer on pointer/click events and avoiding indefinite focus-based pinning.
 - Added a Safari-friendly preview-frame nudge for videos by seeking paused videos to `0.001s` after metadata loads, prompting first-frame decode without generated poster files.
 - Enforced single-video playback in the feed by dispatching a shared `feed-video-play` event when one player starts and pausing any other mounted player that is currently playing.
+- Added browser persistence:
+  - Per-video watch progress is saved to `localStorage` after user interaction and restored when the video is mounted again; progress is cleared when playback reaches the end.
+  - Video volume and mute state are shared across all mounted feed players and saved/restored through `localStorage`.
+  - Debug overlay collapsed/expanded state is saved/restored through `localStorage`.
+  - Verification completed: `npm run check` and `npm run build`.
+- Changed first-run default video volume to 50% when no saved browser volume exists; saved user volume still takes precedence.

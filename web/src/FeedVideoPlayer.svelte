@@ -2,6 +2,7 @@
   let nextPlayerId = 0;
   let activePlayerId: number | undefined = undefined;
   const feedVideoPlayEvent = 'feed-video-play';
+  const feedVideoVolumeEvent = 'feed-video-volume';
 </script>
 
 <script lang="ts">
@@ -20,9 +21,11 @@
   };
 
   let {
+    mediaId,
     src,
     title
   }: {
+    mediaId: string;
     src: string;
     title: string;
   } = $props();
@@ -59,6 +62,9 @@
   let arrowRightTemporarilyPlayed = false;
   let lastSeekFeedbackAt = 0;
   let previewFrameRequested = false;
+  let progressRestored = false;
+  let hasProgressInteraction = false;
+  let lastProgressSaveAt = 0;
   const playerId = nextPlayerId++;
 
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
@@ -122,9 +128,37 @@
     video.pause();
   }
 
+  function announceVolumeChange() {
+    window.dispatchEvent(new CustomEvent(feedVideoVolumeEvent, { detail: { playerId, volume, muted } }));
+  }
+
+  function applyVolume(nextVolume: number, nextMuted: boolean, announce = false) {
+    if (!video) return;
+    volume = clampVolume(nextVolume);
+    muted = nextMuted;
+    if (supportsVolumeControl) {
+      video.volume = volume;
+    }
+    video.muted = muted;
+    saveStoredVolume();
+    if (announce) announceVolumeChange();
+  }
+
+  function applyStoredVolume() {
+    const stored = readStoredVolume();
+    applyVolume(stored.volume, stored.muted);
+  }
+
+  function syncVolumeFromOtherPlayer(event: Event) {
+    const detail = (event as CustomEvent<{ playerId: number; volume: number; muted: boolean }>).detail;
+    if (!detail || detail.playerId === playerId || !video) return;
+    applyVolume(detail.volume, detail.muted);
+  }
+
   async function togglePlay() {
     if (!video) return;
     setActivePlayer();
+    markProgressInteraction();
     playBlocked = false;
 
     try {
@@ -145,10 +179,10 @@
   function syncMetadata() {
     if (!video) return;
     duration = Number.isFinite(video.duration) ? video.duration : 0;
-    volume = video.volume;
-    muted = video.muted;
     video.playbackRate = userPlaybackRate;
     supportsVolumeControl = canSetVolume(video);
+    applyStoredVolume();
+    restoreProgress();
     requestPreviewFrame();
   }
 
@@ -207,27 +241,24 @@
   function handleSeek(event: Event) {
     if (!video) return;
     const target = event.target as HTMLInputElement;
+    markProgressInteraction();
     currentTime = Number(target.value);
     video.currentTime = currentTime;
+    saveProgress();
   }
 
   function handleVolume(event: Event) {
     if (!video || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
-    volume = Number(target.value);
-    video.volume = volume;
-    muted = volume === 0;
-    video.muted = muted;
+    const nextVolume = Number(target.value);
+    applyVolume(nextVolume, nextVolume === 0, true);
   }
 
   function toggleMute() {
     if (!video) return;
-    muted = !muted;
-    video.muted = muted;
-    if (!muted && volume === 0) {
-      volume = 1;
-      video.volume = volume;
-    }
+    const nextMuted = !muted;
+    const nextVolume = !nextMuted && volume === 0 ? 1 : volume;
+    applyVolume(nextVolume, nextMuted, true);
     revealControls();
   }
 
@@ -263,6 +294,7 @@
 
   function safePlay() {
     if (!video) return;
+    markProgressInteraction();
     playBlocked = false;
     video.play().catch(() => {
       playBlocked = true;
@@ -277,8 +309,10 @@
 
   function seekBy(seconds: number) {
     if (!video) return;
+    markProgressInteraction();
     video.currentTime = clampTime(video.currentTime + seconds);
     currentTime = video.currentTime;
+    saveProgress();
     revealControls();
   }
 
@@ -440,6 +474,102 @@
     return `${minutes}:${String(rest).padStart(2, '0')}`;
   }
 
+  function storageGet(key: string) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function storageSet(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Ignore storage failures; playback should keep working.
+    }
+  }
+
+  function storageRemove(key: string) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures; playback should keep working.
+    }
+  }
+
+  function progressStorageKey() {
+    return `feed-ai:video-progress:${mediaId}`;
+  }
+
+  function readStoredProgress() {
+    const value = Number(storageGet(progressStorageKey()));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function restoreProgress() {
+    if (!video || progressRestored || duration <= 0) return;
+    progressRestored = true;
+
+    const storedTime = readStoredProgress();
+    if (storedTime <= 0.5) return;
+    if (storedTime >= duration - 1) {
+      storageRemove(progressStorageKey());
+      return;
+    }
+
+    video.currentTime = storedTime;
+    currentTime = storedTime;
+  }
+
+  function markProgressInteraction() {
+    hasProgressInteraction = true;
+  }
+
+  function saveProgressThrottled() {
+    const now = Date.now();
+    if (now - lastProgressSaveAt < 1000) return;
+    lastProgressSaveAt = now;
+    saveProgress();
+  }
+
+  function saveProgress() {
+    if (!hasProgressInteraction || !video || duration <= 0) return;
+    const time = video.currentTime;
+
+    if (!Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
+      storageRemove(progressStorageKey());
+      return;
+    }
+
+    storageSet(progressStorageKey(), time.toFixed(2));
+  }
+
+  function clearProgress() {
+    storageRemove(progressStorageKey());
+  }
+
+  function readStoredVolume() {
+    const storedVolumeValue = storageGet('feed-ai:video-volume');
+    const storedVolume = Number(storedVolumeValue);
+    const storedMuted = storageGet('feed-ai:video-muted');
+
+    return {
+      volume: storedVolumeValue !== null && Number.isFinite(storedVolume) ? clampVolume(storedVolume) : 0.5,
+      muted: storedMuted === 'true'
+    };
+  }
+
+  function saveStoredVolume() {
+    storageSet('feed-ai:video-volume', String(clampVolume(volume)));
+    storageSet('feed-ai:video-muted', String(muted));
+  }
+
+  function clampVolume(value: number) {
+    if (!Number.isFinite(value)) return 1;
+    return Math.max(0, Math.min(1, value));
+  }
+
   $effect(() => {
     if (!container) return;
 
@@ -453,13 +583,16 @@
 
   $effect(() => {
     window.addEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
+    window.addEventListener(feedVideoVolumeEvent, syncVolumeFromOtherPlayer);
 
     return () => {
       window.removeEventListener(feedVideoPlayEvent, pauseForOtherPlayer);
+      window.removeEventListener(feedVideoVolumeEvent, syncVolumeFromOtherPlayer);
     };
   });
 
   onDestroy(() => {
+    saveProgress();
     clearTimeout(hideTimer);
     clearTimeout(speedTimer);
     clearTimeout(clickTimer);
@@ -503,18 +636,22 @@
     ondurationchange={syncMetadata}
     ontimeupdate={() => {
       if (!isDragging) currentTime = video?.currentTime ?? 0;
+      saveProgressThrottled();
     }}
     onplay={() => {
+      markProgressInteraction();
       paused = false;
       announcePlayback();
       revealControls();
     }}
     onpause={() => {
       paused = true;
+      saveProgress();
       revealControls();
     }}
     onended={() => {
       paused = true;
+      clearProgress();
       revealControls();
     }}
   ></video>

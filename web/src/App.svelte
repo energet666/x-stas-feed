@@ -69,6 +69,7 @@
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
 
   onMount(() => {
+    debugCollapsed = readStoredDebugCollapsed();
     updateViewport();
     window.addEventListener('scroll', updateViewport, { passive: true });
     window.addEventListener('resize', updateViewport);
@@ -214,6 +215,23 @@
       minute: '2-digit'
     }).format(new Date(value));
   }
+
+  function toggleDebugCollapsed() {
+    debugCollapsed = !debugCollapsed;
+    try {
+      window.localStorage.setItem('feed-ai:debug-collapsed', String(debugCollapsed));
+    } catch {
+      // Ignore storage failures; debug UI should still be usable.
+    }
+  }
+
+  function readStoredDebugCollapsed() {
+    try {
+      return window.localStorage.getItem('feed-ai:debug-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -298,7 +316,7 @@
           </div>
 
           {#if item.type === 'video'}
-            <FeedVideoPlayer src={item.url} title={item.filename} />
+            <FeedVideoPlayer mediaId={item.id} src={item.url} title={item.filename} />
           {:else}
             <img
               class="h-full w-full bg-black object-contain"
@@ -345,7 +363,7 @@
     class="debug-toggle"
     type="button"
     aria-label={debugCollapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
-    onclick={() => (debugCollapsed = !debugCollapsed)}
+    onclick={toggleDebugCollapsed}
   >
     <span class="inline-flex items-center gap-2">
       <Bug size={14} />
