@@ -115,3 +115,10 @@
   - Debug overlay collapsed/expanded state is saved/restored through `localStorage`.
   - Verification completed: `npm run check` and `npm run build`.
 - Changed first-run default video volume to 50% when no saved browser volume exists; saved user volume still takes precedence.
+- Reworked the media info overlay:
+  - Removed file size from the card overlay.
+  - Added a fullscreen icon button that expands the selected media card in place to a fixed browser-window overlay instead of mounting a duplicate media copy.
+  - Expanded mode keeps the same image/video DOM node, supports Escape/button close, and locks background scroll while open.
+- Fixed expanded media cards collapsing by disabling glass/backdrop clipping on the expanded card and giving it a stable placeholder height while its media frame is fixed to the viewport.
+- Changed fullscreen-expanded media cards so the info overlay follows the same inactivity autohide behavior instead of staying pinned visible.
+- Changed fullscreen-expanded media frames to cover the whole browser viewport with no inset, border, radius, or shadow so underlying UI is not visible in the corners.

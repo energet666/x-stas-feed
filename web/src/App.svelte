@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AlertCircle, Bug, ChevronDown, ChevronUp, Image, LoaderCircle, RefreshCw, Video } from 'lucide-svelte';
+  import { AlertCircle, Bug, ChevronDown, ChevronUp, Image, LoaderCircle, Maximize2, RefreshCw, Video, X } from 'lucide-svelte';
   import FeedVideoPlayer from './FeedVideoPlayer.svelte';
 
   type MediaItem = {
@@ -36,6 +36,7 @@
   let measuredHeights = $state<Record<string, number>>({});
   let debugCollapsed = $state(false);
   let activeOverlayID = $state<string | null>(null);
+  let expandedItemID = $state<string | null>(null);
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
@@ -201,11 +202,6 @@
     }, 1800);
   }
 
-  function formatSize(size: number) {
-    if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
-    return `${(size / 1024 / 1024).toFixed(1)} MB`;
-  }
-
   function formatDate(value: string) {
     return new Intl.DateTimeFormat(undefined, {
       day: '2-digit',
@@ -232,7 +228,35 @@
       return false;
     }
   }
+
+  function toggleExpandedItem(id: string) {
+    expandedItemID = expandedItemID === id ? null : id;
+    revealCardOverlay(id);
+  }
+
+  function closeExpandedItem() {
+    expandedItemID = null;
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && expandedItemID) {
+      closeExpandedItem();
+    }
+  }
+
+  $effect(() => {
+    const previousOverflow = document.body.style.overflow;
+    if (expandedItemID) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  });
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <svelte:head>
   <title>Feed AI</title>
@@ -285,6 +309,7 @@
       {@const item = row.item}
       <article
         class="glass-card mb-4 overflow-hidden"
+        class:media-card-expanded={expandedItemID === item.id}
         use:measureCard={item.id}
       >
         <div
@@ -305,14 +330,21 @@
               <h2 class="truncate text-sm font-semibold text-white">{item.filename}</h2>
               <p class="text-xs font-semibold text-white/62">{formatDate(item.modifiedAt)}</p>
             </div>
-            <div class="glass-pill shrink-0 gap-1">
-              {#if item.type === 'video'}
-                <Video size={13} />
+            <button
+              class="card-overlay-action"
+              type="button"
+              aria-label={expandedItemID === item.id ? 'Close fullscreen media' : 'Open media fullscreen'}
+              onclick={(event) => {
+                event.stopPropagation();
+                toggleExpandedItem(item.id);
+              }}
+            >
+              {#if expandedItemID === item.id}
+                <X size={17} />
               {:else}
-                <Image size={13} />
+                <Maximize2 size={16} />
               {/if}
-              {formatSize(item.size)}
-            </div>
+            </button>
           </div>
 
           {#if item.type === 'video'}

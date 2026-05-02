@@ -421,6 +421,10 @@ video {
     height: clamp(24rem, 72vh, 40rem);
   }
 
+  .media-card-expanded {
+    min-height: clamp(24rem, 72vh, 40rem);
+  }
+
   .video-controls {
     right: 0.65rem;
     bottom: 0.65rem;
@@ -472,9 +476,71 @@ video {
   color: rgb(255 255 255 / 0.72);
 }
 
+.card-overlay-action {
+  display: grid;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.82);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.card-overlay-action:hover {
+  border-color: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.14);
+  color: white;
+  transform: scale(1.04);
+}
+
 .card-overlay-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+.media-card-expanded {
+  position: relative;
+  z-index: 80;
+  min-height: clamp(28rem, 76vh, 46rem);
+  overflow: visible !important;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.media-card-expanded::before {
+  position: fixed;
+  inset: 0;
+  z-index: 78;
+  background: rgb(0 0 0 / 0.86);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  content: '';
+}
+
+.media-card-expanded .media-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  height: auto;
+  width: auto;
+  border: 0;
+  border-radius: 0;
+  background: black;
+  box-shadow: none;
+}
+
+.media-card-expanded .card-overlay {
+  z-index: 82;
 }
 
 .debug-overlay {
