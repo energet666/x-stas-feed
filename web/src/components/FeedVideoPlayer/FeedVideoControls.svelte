@@ -115,15 +115,8 @@
   .video-controls {
     z-index: 5;
     gap: 0.6rem;
-    min-height: 3.35rem;
+    min-height: 2.5rem;
     width: 100%;
-    padding: 0.65rem 0.8rem;
-    border: 1px solid var(--color-glass-border);
-    border-radius: 24px;
-    background: var(--background-image-glass-overlay);
-    box-shadow: var(--shadow-video-controls);
-    backdrop-filter: blur(30px) saturate(170%);
-    -webkit-backdrop-filter: blur(30px) saturate(170%);
   }
 
   .video-control-button {
@@ -202,7 +195,6 @@
   @media (max-width: 520px) {
     .video-controls {
       gap: 0.35rem;
-      padding: 0.55rem 0.6rem;
     }
 
     .video-volume,

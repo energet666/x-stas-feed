@@ -70,7 +70,7 @@
 
   <div class="feed-card-bottom-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
     {#if bottomAccessory}
-      <section class="feed-card-panel feed-card-accessory-panel" aria-label="Media controls">
+      <section class="feed-card-panel" aria-label="Media controls">
         {@render bottomAccessory()}
       </section>
     {/if}
@@ -139,15 +139,6 @@
     color: var(--color-primary);
     backdrop-filter: blur(28px) saturate(200%);
     -webkit-backdrop-filter: blur(28px) saturate(200%);
-  }
-
-  .feed-card-accessory-panel {
-    padding: 0;
-    background: transparent;
-    box-shadow: none;
-    overflow: hidden;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   @media (width < 520px) {
