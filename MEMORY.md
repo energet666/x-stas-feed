@@ -221,3 +221,12 @@
   - Removed the visible send button; comments are submitted with Enter, while Shift+Enter inserts a newline.
   - The textarea now uses the full form width.
   - Verification completed: `npm run check` and `npm run build`.
+- Started feed card layout decomposition:
+  - Added a reusable `FeedCardFrame` that owns the card overlay structure: top info stack, future top accessory slot, media content, bottom accessory slot, and compact comments preview.
+  - Moved the fixed media information panel and compact comments preview into `FeedCardInfoPanel` and `FeedCardCommentsPreview`.
+  - Changed video controls to render through the frame's bottom accessory markup above the compact comments preview instead of positioning themselves independently at the bottom of the media surface.
+  - Verification completed: `npm run check` and `npm run build`.
+- Refined feed card overlay animation:
+  - Top and bottom overlay stacks now slide fully from outside the card bounds without animating opacity.
+  - Video controls no longer animate independently; they are static bottom-accessory content whose visibility and movement are owned by `FeedCardFrame`.
+  - Verification completed: `npm run check` and `npm run build`.

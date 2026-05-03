@@ -317,7 +317,8 @@ video {
     box-shadow: none;
   }
 
-  .media-card-expanded .card-overlay {
+  .media-card-expanded .card-overlay,
+  .media-card-expanded .feed-card-overlay {
     z-index: 82;
   }
 
@@ -340,6 +341,7 @@ video {
     .glass-pill,
     .glass-overlay,
     .card-overlay,
+    .feed-card-panel,
     .debug-overlay {
       background: var(--color-glass-fallback);
     }

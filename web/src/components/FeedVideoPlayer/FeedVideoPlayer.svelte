@@ -5,8 +5,10 @@
 
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import FeedCardFrame from '../FeedCardFrame.svelte';
   import FeedVideoControls from './FeedVideoControls.svelte';
   import FeedVideoOverlay from './FeedVideoOverlay.svelte';
+  import type { MediaItem } from '../../lib/feed';
   import {
     AVAILABLE_SPEEDS,
     FEED_VIDEO_PLAY_EVENT,
@@ -18,7 +20,6 @@
     clampTime,
     clampVolume,
     clearStoredProgress,
-    formatVideoTime,
     isEditableTarget,
     readStoredProgress,
     readStoredVolume,
@@ -29,13 +30,23 @@
   } from './utils';
 
   let {
-    mediaId,
-    src,
-    title
+    item,
+    expanded,
+    overlayVisible,
+    onReveal,
+    onKeep,
+    onHide,
+    onToggleExpanded,
+    onOpenComments
   }: {
-    mediaId: string;
-    src: string;
-    title: string;
+    item: MediaItem;
+    expanded: boolean;
+    overlayVisible: boolean;
+    onReveal: () => void;
+    onKeep: () => void;
+    onHide: () => void;
+    onToggleExpanded: () => void;
+    onOpenComments: () => void;
   } = $props();
 
   let video = $state<HTMLVideoElement | undefined>(undefined);
@@ -453,10 +464,10 @@
     if (!video || progressRestored || duration <= 0) return;
     progressRestored = true;
 
-    const storedTime = readStoredProgress(mediaId);
+    const storedTime = readStoredProgress(item.id);
     if (storedTime <= 0.5) return;
     if (storedTime >= duration - 1) {
-      clearStoredProgress(mediaId);
+      clearStoredProgress(item.id);
       return;
     }
 
@@ -480,11 +491,11 @@
     const time = video.currentTime;
 
     if (!Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
-      clearStoredProgress(mediaId);
+      clearStoredProgress(item.id);
       return;
     }
 
-    saveStoredProgress(mediaId, time, duration);
+    saveStoredProgress(item.id, time, duration);
   }
 
   $effect(() => {
@@ -526,85 +537,99 @@
   onkeyup={(event) => handleKeyboard(event, 'up')}
 />
 
-<div
-  bind:this={container}
-  class="feed-video-player relative h-full w-full overflow-hidden"
-  class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
-  role="presentation"
-  aria-label={`Video player: ${title}`}
-  onpointermove={revealControls}
-  onpointerenter={revealControls}
-  onmousemove={revealControls}
-  onmouseenter={revealControls}
-  ontouchstart={handleContainerTouch}
-  onfocusin={keepControls}
-  onmouseleave={hideControls}
-  onclick={setActivePlayer}
+<FeedCardFrame
+  {item}
+  {expanded}
+  {overlayVisible}
+  {onReveal}
+  {onKeep}
+  {onHide}
+  {onToggleExpanded}
+  {onOpenComments}
 >
-  <!-- svelte-ignore a11y_media_has_caption -->
-  <video
-    bind:this={video}
-    class="block h-full w-full object-contain"
-    playsinline
-    preload="metadata"
-    src={src}
-    onclick={handleVideoClick}
-    onloadedmetadata={syncMetadata}
-    ondurationchange={syncMetadata}
-    ontimeupdate={() => {
-      if (!isDragging) currentTime = video?.currentTime ?? 0;
-      saveProgressThrottled();
-    }}
-    onplay={() => {
-      markProgressInteraction();
-      paused = false;
-      announcePlayback();
-      revealControls();
-    }}
-    onpause={() => {
-      paused = true;
-      saveProgress();
-      revealControls();
-    }}
-    onended={() => {
-      paused = true;
-      clearStoredProgress(mediaId);
-      revealControls();
-    }}
-  ></video>
+  {#snippet content()}
+    <div
+      bind:this={container}
+      class="feed-video-player relative h-full w-full overflow-hidden"
+      class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
+      role="presentation"
+      aria-label={`Video player: ${item.filename}`}
+      onpointermove={revealControls}
+      onpointerenter={revealControls}
+      onmousemove={revealControls}
+      onmouseenter={revealControls}
+      ontouchstart={handleContainerTouch}
+      onfocusin={keepControls}
+      onmouseleave={hideControls}
+      onclick={setActivePlayer}
+    >
+      <!-- svelte-ignore a11y_media_has_caption -->
+      <video
+        bind:this={video}
+        class="block h-full w-full object-contain"
+        playsinline
+        preload="metadata"
+        src={item.url}
+        onclick={handleVideoClick}
+        onloadedmetadata={syncMetadata}
+        ondurationchange={syncMetadata}
+        ontimeupdate={() => {
+          if (!isDragging) currentTime = video?.currentTime ?? 0;
+          saveProgressThrottled();
+        }}
+        onplay={() => {
+          markProgressInteraction();
+          paused = false;
+          announcePlayback();
+          revealControls();
+        }}
+        onpause={() => {
+          paused = true;
+          saveProgress();
+          revealControls();
+        }}
+        onended={() => {
+          paused = true;
+          clearStoredProgress(item.id);
+          revealControls();
+        }}
+      ></video>
 
-  <FeedVideoOverlay
-    {paused}
-    {playBlocked}
-    {seekFeedbackSide}
-    {seekFeedbackAmount}
-    {seekFeedbackTick}
-    {showSpeedIndicator}
-    {userPlaybackRate}
-    onTogglePlay={togglePlay}
-  />
+      <FeedVideoOverlay
+        {paused}
+        {playBlocked}
+        {seekFeedbackSide}
+        {seekFeedbackAmount}
+        {seekFeedbackTick}
+        {showSpeedIndicator}
+        {userPlaybackRate}
+        onTogglePlay={togglePlay}
+      />
+    </div>
+  {/snippet}
 
-  <FeedVideoControls
-    {paused}
-    {currentTime}
-    {duration}
-    {muted}
-    {volume}
-    {progress}
-    {supportsVolumeControl}
-    {supportsPip}
-    {showControls}
-    bind:isDragging
-    onTogglePlay={togglePlay}
-    onSeek={handleSeek}
-    onVolumeChange={handleVolume}
-    onToggleMute={toggleMute}
-    onTogglePip={togglePip}
-    onEnterControls={enterControls}
-    onLeaveControls={leaveControls}
-    onFinishDragging={finishDragging}
-  />
-</div>
+  {#snippet bottomAccessory()}
+    <FeedVideoControls
+      {paused}
+      {currentTime}
+      {duration}
+      {muted}
+      {volume}
+      {progress}
+      {supportsVolumeControl}
+      {supportsPip}
+      bind:isDragging
+      onTogglePlay={togglePlay}
+      onSeek={handleSeek}
+      onVolumeChange={handleVolume}
+      onToggleMute={toggleMute}
+      onTogglePip={togglePip}
+      onEnterControls={enterControls}
+      onLeaveControls={leaveControls}
+      onFinishDragging={finishDragging}
+    />
+  {/snippet}
+</FeedCardFrame>
 
 <style>
   .feed-video-player {

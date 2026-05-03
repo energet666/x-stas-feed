@@ -11,7 +11,6 @@
     progress,
     supportsVolumeControl,
     supportsPip,
-    showControls,
     isDragging = $bindable(false),
     onTogglePlay,
     onSeek,
@@ -30,7 +29,6 @@
     progress: number;
     supportsVolumeControl: boolean;
     supportsPip: boolean;
-    showControls: boolean;
     isDragging: boolean;
     onTogglePlay: () => void;
     onSeek: (event: Event) => void;
@@ -44,8 +42,7 @@
 </script>
 
 <div
-  class="video-controls absolute flex items-center text-primary"
-  class:video-controls-visible={showControls || isDragging}
+  class="video-controls flex items-center text-primary"
   onpointerenter={onEnterControls}
   onpointerleave={onLeaveControls}
   onmouseenter={onEnterControls}
@@ -116,31 +113,17 @@
 
 <style>
   .video-controls {
-    right: max(0.75rem, env(safe-area-inset-right));
-    bottom: max(0.75rem, env(safe-area-inset-bottom));
-    left: max(0.75rem, env(safe-area-inset-left));
     z-index: 5;
     gap: 0.6rem;
     min-height: 3.35rem;
+    width: 100%;
     padding: 0.65rem 0.8rem;
     border: 1px solid var(--color-glass-border);
     border-radius: 24px;
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-video-controls);
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(0.75rem);
     backdrop-filter: blur(30px) saturate(170%);
     -webkit-backdrop-filter: blur(30px) saturate(170%);
-    transition:
-      opacity 180ms ease,
-      transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
-  }
-
-  .video-controls-visible {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
   }
 
   .video-control-button {
@@ -218,9 +201,6 @@
 
   @media (max-width: 520px) {
     .video-controls {
-      right: 0.65rem;
-      bottom: 0.65rem;
-      left: 0.65rem;
       gap: 0.35rem;
       padding: 0.55rem 0.6rem;
     }
