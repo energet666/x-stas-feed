@@ -102,6 +102,7 @@
       commentListEl?.scrollTo({ top: commentListEl.scrollHeight, behavior });
     });
   }
+
 </script>
 
 {#if item}
@@ -152,12 +153,14 @@
     <form bind:this={commentFormEl} class="border-t border-glass-border-soft p-3" onsubmit={submitComment}>
       <div>
         <label class="sr-only" for="comment-text">Add a comment</label>
+        <!-- svelte-ignore a11y_autofocus - the comments overlay is opened by an explicit user action and should be ready for typing. -->
         <textarea
-          id="comment-text"
+          id={`comment-composer-${item.id}`}
+          autofocus
+          data-comment-composer={item.id}
           class="comment-input"
           rows="1"
           maxlength="2000"
-          placeholder={`Add a comment as ${username || 'Guest'}`}
           bind:value={draft}
           onkeydown={handleCommentKeydown}
         ></textarea>
@@ -199,10 +202,6 @@
     font-size: 0.875rem;
     line-height: 1.35;
     outline: none;
-  }
-
-  .comment-input::placeholder {
-    color: var(--color-subtle);
   }
 
   .comment-input:focus {

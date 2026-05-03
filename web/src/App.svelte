@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { flushSync, onMount } from 'svelte';
   import { LoaderCircle } from 'lucide-svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
   import CommentsPanel from './components/CommentsPanel.svelte';
@@ -265,11 +265,29 @@
   }
 
   function openComments(id: string) {
-    commentsPanelItemID = id;
+    flushSync(() => {
+      commentsPanelItemID = id;
+    });
+    focusCommentsComposer(id, 0);
+    window.setTimeout(() => focusCommentsComposer(id, 0), 0);
+    window.setTimeout(() => focusCommentsComposer(id, 0), 80);
   }
 
   function closeComments() {
     commentsPanelItemID = null;
+  }
+
+  function focusCommentsComposer(id: string, attempt: number) {
+    const textarea = document.getElementById(`comment-composer-${id}`) as HTMLTextAreaElement | null;
+    if (document.activeElement instanceof HTMLElement && document.activeElement !== textarea) {
+      document.activeElement.blur();
+    }
+    textarea?.focus({ preventScroll: true });
+    textarea?.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    if (textarea && document.activeElement !== textarea && attempt < 3) {
+      window.setTimeout(() => focusCommentsComposer(id, attempt + 1), 60);
+    }
   }
 
   function updateItemComments(mediaId: string, comments: Comment[]) {

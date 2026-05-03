@@ -86,6 +86,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.
 - Full comments and compact comment previews preserve user line breaks with safe wrapping.
 - The comment composer submits with Enter; Shift+Enter inserts a newline; IME composition must not submit prematurely.
+- Opening comments focuses the composer textarea from the same user-triggered `openComments` path using Svelte `flushSync`, a stable `comment-composer-{mediaID}` element id, and short retries after the click completes; this is needed for Safari, which may ignore delayed textarea focus and leave focus on the nickname input.
+- The comment composer textarea intentionally has no placeholder, avoiding visible placeholder flicker during Safari autofocus.
 - A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 
 ## Agent Workflow Constraints
