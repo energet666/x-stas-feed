@@ -9,6 +9,7 @@
     expanded,
     overlayVisible,
     content,
+    contentOverlay,
     topAccessory,
     bottomAccessory,
     onReveal,
@@ -21,6 +22,7 @@
     expanded: boolean;
     overlayVisible: boolean;
     content: Snippet;
+    contentOverlay?: Snippet;
     topAccessory?: Snippet;
     bottomAccessory?: Snippet;
     onReveal: () => void;
@@ -47,6 +49,12 @@
   <div class="feed-card-content">
     {@render content()}
   </div>
+
+  {#if contentOverlay}
+    <div class="feed-card-content-overlay">
+      {@render contentOverlay()}
+    </div>
+  {/if}
 
   <div class="feed-card-top-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
     <section class="feed-card-panel" aria-label="Media information">
@@ -78,6 +86,21 @@
     position: absolute;
     inset: 0;
     z-index: 1;
+  }
+
+  .feed-card-content-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .feed-card-content-overlay :global(button),
+  .feed-card-content-overlay :global(input),
+  .feed-card-content-overlay :global(select),
+  .feed-card-content-overlay :global(textarea),
+  .feed-card-content-overlay :global(a) {
+    pointer-events: auto;
   }
 
   .feed-card-overlay {

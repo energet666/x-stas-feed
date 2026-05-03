@@ -230,3 +230,7 @@
   - Top and bottom overlay stacks now slide fully from outside the card bounds without animating opacity.
   - Video controls no longer animate independently; they are static bottom-accessory content whose visibility and movement are owned by `FeedCardFrame`.
   - Verification completed: `npm run check` and `npm run build`.
+- Added a feed card content overlay layer:
+  - `FeedCardFrame` now supports a `contentOverlay` snippet rendered as its own full-card layer between media content and the top/bottom chrome stacks.
+  - `FeedVideoOverlay` moved out of the video content wrapper into this `contentOverlay` layer, while video playback state remains owned by `FeedVideoPlayer`.
+  - Verification completed: `npm run check` and `npm run build`.

@@ -594,18 +594,20 @@
           revealControls();
         }}
       ></video>
-
-      <FeedVideoOverlay
-        {paused}
-        {playBlocked}
-        {seekFeedbackSide}
-        {seekFeedbackAmount}
-        {seekFeedbackTick}
-        {showSpeedIndicator}
-        {userPlaybackRate}
-        onTogglePlay={togglePlay}
-      />
     </div>
+  {/snippet}
+
+  {#snippet contentOverlay()}
+    <FeedVideoOverlay
+      {paused}
+      {playBlocked}
+      {seekFeedbackSide}
+      {seekFeedbackAmount}
+      {seekFeedbackTick}
+      {showSpeedIndicator}
+      {userPlaybackRate}
+      onTogglePlay={togglePlay}
+    />
   {/snippet}
 
   {#snippet bottomAccessory()}
