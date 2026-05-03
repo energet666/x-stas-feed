@@ -46,6 +46,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 ## Feed Card Layout Decisions
 
 - `FeedCardFrame` owns card geometry and overlay layering.
+- Feed card shells keep their page-background glass effect through a `::before` backing layer. Do not put `backdrop-filter` directly on `.glass-card`, because nested overlay panels need to blur their own backdrop rather than inheriting a flattened card backdrop.
 - Card layers are:
   - media content,
   - optional `contentOverlay`,
