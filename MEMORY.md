@@ -57,7 +57,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The top overlay stack contains the persistent media information panel and an optional future top accessory snippet.
 - The bottom overlay stack contains an optional bottom accessory snippet and the compact comments preview.
 - Compact comments preview is persistent and remains visible at the bottom of each card. Bottom accessory content such as video controls expands above it and does not control comment preview visibility.
-- Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`.
+- Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`. External shadows were removed from all UI components for a cleaner look in the dark theme, and a safe offset of 1.5rem is used when hidden to ensure no subpixel artifacts remain visible at the card edges.
 - Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
 

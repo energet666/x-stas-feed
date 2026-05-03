@@ -121,7 +121,7 @@
 
   .feed-card-top-stack {
     top: 0.75rem;
-    transform: translateY(calc(-100% - 0.75rem));
+    transform: translateY(calc(-100% - 1.5rem));
   }
 
   .feed-card-bottom-stack {
