@@ -112,11 +112,11 @@ func (l *Library) CommentsForID(id string) ([]Comment, error) {
 	return l.comments.List(id)
 }
 
-func (l *Library) AddComment(id, text string) (Comment, error) {
+func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	if _, _, err := l.PathForID(id); err != nil {
 		return Comment{}, err
 	}
-	return l.comments.Add(id, text)
+	return l.comments.Add(id, text, author)
 }
 
 func (l *Library) Scan() ([]Item, error) {

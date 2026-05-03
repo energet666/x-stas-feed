@@ -1,5 +1,6 @@
 export type Comment = {
   id: string;
+  author: string;
   text: string;
   createdAt: string;
 };
@@ -49,11 +50,11 @@ export async function fetchComments(mediaId: string) {
   return (await response.json()) as { comments: Comment[] };
 }
 
-export async function createComment(mediaId: string, text: string) {
+export async function createComment(mediaId: string, text: string, author: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text, author })
   });
 
   if (!response.ok) {

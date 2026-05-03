@@ -29,6 +29,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Current storage format is JSON Lines under `test-content/.comments/{mediaID}.jsonl`.
 - Creating a comment creates the comment file if needed and appends the new comment.
 - Comment text is trimmed and validated; empty comments are rejected.
+- Comments now include an `author` field. The browser stores the user's chosen nickname in `localStorage`, sends it when creating comments, and the server normalizes untrusted/missing author input to `Guest`.
 - Comment parsing must be deterministic and robust against newlines or delimiter characters in user text.
 - Feed responses include comment summary data so cards can render the latest 1-2 comments without fetching every full thread.
 - Full comment threads are loaded through media-specific comment endpoints.
@@ -85,6 +86,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.
 - Full comments and compact comment previews preserve user line breaks with safe wrapping.
 - The comment composer submits with Enter; Shift+Enter inserts a newline; IME composition must not submit prematurely.
+- A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 
 ## Agent Workflow Constraints
 

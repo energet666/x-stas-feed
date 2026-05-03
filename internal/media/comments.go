@@ -16,6 +16,8 @@ import (
 const (
 	commentsDirName = ".comments"
 	maxCommentBytes = 2000
+	maxAuthorRunes  = 40
+	defaultAuthor   = "Guest"
 )
 
 type CommentStore struct {
@@ -25,6 +27,7 @@ type CommentStore struct {
 
 type Comment struct {
 	ID        string    `json:"id"`
+	Author    string    `json:"author"`
 	Text      string    `json:"text"`
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -40,7 +43,7 @@ func (s *CommentStore) List(mediaID string) ([]Comment, error) {
 	return s.readLocked(mediaID)
 }
 
-func (s *CommentStore) Add(mediaID, text string) (Comment, error) {
+func (s *CommentStore) Add(mediaID, text, author string) (Comment, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return Comment{}, errors.New("comment text is required")
@@ -51,6 +54,7 @@ func (s *CommentStore) Add(mediaID, text string) (Comment, error) {
 
 	comment := Comment{
 		ID:        newCommentID(),
+		Author:    normalizeAuthor(author),
 		Text:      text,
 		CreatedAt: time.Now().UTC(),
 	}
@@ -98,7 +102,7 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 
 	var comments []Comment
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 1024), maxCommentBytes+1024)
+	scanner.Buffer(make([]byte, 1024), maxCommentBytes+maxAuthorRunes*4+2048)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -109,6 +113,7 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 		if err := json.Unmarshal([]byte(line), &comment); err != nil {
 			return nil, err
 		}
+		comment.Author = normalizeAuthor(comment.Author)
 		comments = append(comments, comment)
 	}
 	if err := scanner.Err(); err != nil {
@@ -116,6 +121,19 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 	}
 
 	return comments, nil
+}
+
+func normalizeAuthor(author string) string {
+	author = strings.Join(strings.Fields(author), " ")
+	if author == "" {
+		return defaultAuthor
+	}
+
+	runes := []rune(author)
+	if len(runes) > maxAuthorRunes {
+		return string(runes[:maxAuthorRunes])
+	}
+	return author
 }
 
 func (s *CommentStore) pathForID(mediaID string) string {

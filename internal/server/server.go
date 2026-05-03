@@ -68,14 +68,15 @@ func (s *Server) handleComments(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Text string `json:"text"`
+		Text   string `json:"text"`
+		Author string `json:"author"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid comment payload")
 		return
 	}
 
-	comment, err := s.library.AddComment(r.PathValue("id"), request.Text)
+	comment, err := s.library.AddComment(r.PathValue("id"), request.Text, request.Author)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			http.NotFound(w, r)

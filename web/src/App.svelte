@@ -8,12 +8,14 @@
   import FeedError from './components/FeedError.svelte';
   import FeedHeader from './components/FeedHeader.svelte';
   import MediaCard from './components/MediaCard.svelte';
+  import UserSidebar from './components/UserSidebar.svelte';
   import { commentEventsURL, fetchFeedPage, type Comment, type CommentEvent, type MediaItem } from './lib/feed';
 
   const pageSize = 24;
   const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscan = 1600;
+  const usernameStorageKey = 'feed-ai:comment-username';
 
   type FeedRow = {
     item: MediaItem;
@@ -37,6 +39,8 @@
   let expandedItemID = $state<string | null>(null);
   let commentsPanelItemID = $state<string | null>(null);
   let latestCommentEvent = $state<CommentEvent | null>(null);
+  let username = $state('Guest');
+  let usernameStorageReady = $state(false);
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
 
@@ -70,9 +74,12 @@
   const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
+  const commentUsername = $derived(username.trim() || 'Guest');
 
   onMount(() => {
     debugCollapsed = readStoredDebugCollapsed();
+    username = readStoredUsername();
+    usernameStorageReady = true;
     updateViewport();
     window.addEventListener('scroll', updateViewport, { passive: true });
     window.addEventListener('resize', updateViewport);
@@ -112,6 +119,11 @@
     return () => {
       document.body.style.overflow = previousOverflow;
     };
+  });
+
+  $effect(() => {
+    if (!usernameStorageReady) return;
+    persistUsername(username);
   });
 
   async function loadPage() {
@@ -221,6 +233,28 @@
     }
   }
 
+  function persistUsername(nextUsername: string) {
+    try {
+      const storedUsername = nextUsername.trim();
+      if (storedUsername) {
+        window.localStorage.setItem(usernameStorageKey, storedUsername);
+      } else {
+        window.localStorage.removeItem(usernameStorageKey);
+      }
+    } catch {
+      // Ignore storage failures; comments can still be submitted with the in-memory name.
+    }
+  }
+
+  function readStoredUsername() {
+    try {
+      const storedUsername = window.localStorage.getItem(usernameStorageKey)?.trim();
+      return storedUsername || 'Guest';
+    } catch {
+      return 'Guest';
+    }
+  }
+
   function toggleExpandedItem(id: string) {
     expandedItemID = expandedItemID === id ? null : id;
     revealCardOverlay(id);
@@ -303,6 +337,7 @@
 <main class="app-shell min-h-screen">
   <BackgroundParticles />
   <FeedHeader loadedCount={items.length} />
+  <UserSidebar bind:username />
 
   <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
     {#if !initialLoaded && loading}
@@ -339,6 +374,7 @@
         {#if commentsPanelItemID === item.id}
           <CommentsPanel
             {item}
+            username={commentUsername}
             commentEvent={latestCommentEvent}
             onClose={closeComments}
             onCommentsChanged={updateItemComments}

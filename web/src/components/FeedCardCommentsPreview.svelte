@@ -29,7 +29,7 @@
 
   <span class="feed-card-comments-text">
     {#if latestComment}
-      <span class="font-semibold text-primary">Guest</span>
+      <span class="font-semibold text-primary">{latestComment.author || 'Guest'}</span>
       {latestComment.text}
     {:else}
       <span>Add a comment</span>

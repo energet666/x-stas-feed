@@ -4,11 +4,13 @@
 
   let {
     item,
+    username,
     commentEvent,
     onClose,
     onCommentsChanged
   }: {
     item: MediaItem | undefined;
+    username: string;
     commentEvent: { mediaId: string; comment: Comment } | null;
     onClose: () => void;
     onCommentsChanged: (mediaId: string, comments: Comment[]) => void;
@@ -69,7 +71,7 @@
     error = null;
 
     try {
-      const comment = await createComment(item.id, text);
+      const comment = await createComment(item.id, text, username);
       appendComment(item.id, comment);
       draft = '';
     } catch (err) {
@@ -129,7 +131,7 @@
           {#each comments as comment (comment.id)}
             <article class="rounded-overlay border border-glass-border-soft bg-button-bg px-3 py-2">
               <p class="comment-text text-sm leading-5 text-secondary">
-                <span class="font-semibold text-primary">Guest</span>
+                <span class="font-semibold text-primary">{comment.author || 'Guest'}</span>
                 {comment.text}
               </p>
               <time class="mt-1 block text-xs font-semibold text-subtle" datetime={comment.createdAt}>
@@ -155,7 +157,7 @@
           class="comment-input"
           rows="1"
           maxlength="2000"
-          placeholder="Add a comment"
+          placeholder={`Add a comment as ${username || 'Guest'}`}
           bind:value={draft}
           onkeydown={handleCommentKeydown}
         ></textarea>

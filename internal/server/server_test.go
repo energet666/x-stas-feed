@@ -72,7 +72,7 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 
 	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
 	for _, text := range []string{"first", "second", "third"} {
-		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"`+text+`"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"`+text+`","author":"Ламповый Кабачок 42"}`))
 		req.Header.Set("Content-Type", "application/json")
 		res := httptest.NewRecorder()
 
@@ -101,6 +101,9 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 	if len(commentsResponse.Comments) != 3 || commentsResponse.Comments[2].Text != "third" {
 		t.Fatalf("unexpected comments response: %#v", commentsResponse)
 	}
+	if commentsResponse.Comments[2].Author != "Ламповый Кабачок 42" {
+		t.Fatalf("expected saved comment author, got %#v", commentsResponse.Comments[2])
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
 	res = httptest.NewRecorder()
@@ -120,6 +123,50 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 	}
 	if len(page.Items[0].Comments) != 2 || page.Items[0].Comments[0].Text != "second" || page.Items[0].Comments[1].Text != "third" {
 		t.Fatalf("expected latest two comments in feed summary, got %#v", page.Items[0].Comments)
+	}
+	if page.Items[0].Comments[1].Author != "Ламповый Кабачок 42" {
+		t.Fatalf("expected latest comment author in feed summary, got %#v", page.Items[0].Comments[1])
+	}
+}
+
+func TestCreateCommentDefaultsAndNormalizesAuthor(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"hello","author":"  Космический\n  Пончик  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var comment media.Comment
+	if err := json.NewDecoder(res.Body).Decode(&comment); err != nil {
+		t.Fatal(err)
+	}
+	if comment.Author != "Космический Пончик" {
+		t.Fatalf("expected normalized author, got %#v", comment)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"fallback","author":"   "}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+	if err := json.NewDecoder(res.Body).Decode(&comment); err != nil {
+		t.Fatal(err)
+	}
+	if comment.Author != "Guest" {
+		t.Fatalf("expected default author, got %#v", comment)
 	}
 }
 
