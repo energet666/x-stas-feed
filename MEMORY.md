@@ -1,236 +1,96 @@
 # MEMORY
 
-## 2026-05-01
+This file is for durable project decisions, constraints, and known risks. It is not a changelog; routine implementation steps, small UI tweaks, and verification logs belong in git history or final task notes.
 
-- Implemented the initial media feed web app from scratch.
-- Backend:
-  - Go module `feed-ai`.
-  - `cmd/server` starts a standard `net/http` server on `:8080` by default.
-  - `internal/media` scans `test-content`, filters supported image/video files, sorts by modification time descending, uses filename as tie-breaker, and exposes cursor pagination.
-  - `internal/server` serves `GET /api/feed?cursor=&limit=`, safe media URLs under `/media/{id}`, and the built SPA from `web/dist`.
-  - Media IDs are URL-safe base64 encodings of relative paths; file serving validates IDs stay inside `test-content`.
-- Frontend:
-  - Svelte 5 + Vite SPA in `web`.
-  - Tailwind CSS 4, daisyUI 5, and lucide-svelte configured.
-  - One-column Instagram-like infinite feed with image/video cards, lazy image loading, `video controls preload="metadata"`, loading, empty, error, and end-of-feed states.
-- Test media currently exists in `test-content`: several `.mp4` files and one `.png`.
-- Verification completed:
-  - `go test ./...`
-  - `npm run check`
-  - `npm run build`
-  - Smoke-tested running Go server with `/api/feed?limit=1` and `/`.
-- Environment note:
-  - `go test` and `go run` needed sandbox escalation because the Go build cache is outside the workspace.
-  - `npm install` needed sandbox escalation for registry access.
-- Known implementation choice:
-  - Used standard `log` instead of `log/slog` because the local Go toolchain reported `log/slog` missing from stdlib.
-- Added project process rule:
-  - Important intermediate results, decisions, verification outcomes, and known issues must be recorded in `MEMORY.md`.
-- Initialized git repository in `/Users/sh/projects/feed-ai`.
-- Added `.gitignore` for `.DS_Store`, Go transient outputs, frontend `node_modules`, frontend build output, local `test-content` media, and logs.
-- Configured Vite dev server for debugging:
-  - Vite runs on fixed port `5173`.
-  - `/api` and `/media` proxy to `VITE_API_TARGET`, defaulting to `http://localhost:8080`.
-  - Added `web/.env.example` documenting the backend target.
-- Prepared the feed for thousands of files:
-  - Frontend now virtualizes the feed and keeps only the viewport window plus overscan in the DOM.
-  - Loaded media metadata can grow, but image/video DOM nodes are unloaded outside the render window to reduce browser memory pressure.
-  - Backend feed pagination uses a short in-memory scan cache to avoid walking `test-content` for every rapid page request.
-- Added first scroll-jank mitigation pass for dynamic media content:
-  - Media renders inside a stable `4 / 5` frame so image/video decode does not resize cards after load.
-  - Native CSS scroll anchoring is disabled inside the virtual feed to avoid Chrome/Safari differences.
-  - Card measurement changes above the viewport manually compensate `window.scrollY` to keep the visible content anchored.
-- Added an in-page debug overlay for virtual feed diagnostics:
-  - Shows loaded, mounted, unloaded-before/after counts, rendered index window, cursor, loading state, viewport range, total virtual height, spacer heights, and measured-card count.
-  - The overlay is fixed in the bottom-right corner and can be collapsed.
-- Restyled the UI toward an Apple-like glassmorphism direction:
-  - Switched to a light frosted-glass visual system with translucent header, feed cards, pills, buttons, empty/error states, and debug overlay.
-  - Added backdrop-filter and -webkit-backdrop-filter for Chrome/Safari, plus a solid fallback for browsers without backdrop-filter support.
-- Moved media card metadata into a glass overlay:
-  - On hover/focus-capable devices the overlay slides in from the top.
-  - On touch devices it remains visible so filenames and media metadata are accessible.
-- Increased the glassmorphism intensity:
-  - Reduced white fill opacity across header, cards, overlay, pills, and debug panel.
-  - Increased blur/saturation to make surfaces feel more transparent and frosted.
-- Increased text contrast in the glass UI:
-  - Primary text now uses near-black slate tones.
-  - Secondary labels and metadata use darker slate colors and stronger font weights for readability on translucent surfaces.
-- Tried a stronger Apple Liquid Glass direction, then reverted it at user request because the previous glassmorphism version was preferred.
-- Inspected `https://github.com/energet666/videoplayer` for reusable Svelte video controls.
-- Added `FeedVideoPlayer.svelte`, adapting the videoplayer control interface pattern for the feed:
-  - Custom bottom glass controls replace native video controls.
-  - Supports play/pause, seek progress, current/duration time, mute, volume, and Picture-in-Picture.
-  - Avoided Electron-specific fullscreen/window-resize logic from the source repo.
-- Restyled the remaining UI panels to match the custom video controls:
-  - Header, media metadata overlay, pills, empty/error panels, buttons, and debug overlay now use the same dark translucent glass treatment.
-- Hardened custom video controls for Safari:
-  - Added mouse/touch fallbacks in addition to pointer events.
-  - Wrapped `video.play()` and PiP calls to avoid unhandled Safari promise/API failures.
-  - Added Safari `webkitSetPresentationMode` PiP fallback.
-  - Detects unsupported programmatic volume control and hides the volume slider when unavailable.
-- Fixed video control visibility/layout:
-  - Feed video container now owns hover/touch reveal events so overlays do not block control activation.
-  - Video play button and controls use separate z-index layers, keeping play centered and controls visible.
-- Fixed media frame clipping:
-  - Replaced rigid `aspect-ratio: 4 / 5` media sizing with a stable responsive `clamp(...)` height.
-  - Video and image content now use explicit `object-fit: contain` sizing inside the frame.
-  - Video controls stay within safe bottom insets so they are not clipped by the media frame.
-- Ported keyboard/mouse control behavior from `https://github.com/energet666/videoplayer` into the feed player:
-  - The last hovered/clicked/focused video is the active keyboard target so shortcuts do not affect every video in the feed.
-  - Space short press toggles play/pause; holding Space temporarily plays at 2x without a warp visual.
-  - ArrowLeft/ArrowRight short press seek by 1s; holding ArrowRight temporarily fast-forwards at 16x; holding ArrowLeft rewinds in repeated 3s jumps.
-  - ArrowUp/ArrowDown switch user playback speed across 1x, 1.25x, 1.5x, and 2x with an on-video speed indicator.
-  - Single click toggles play/pause after a short delay; double click on left/right half seeks -10s/+10s with accumulated seek feedback.
-  - Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
-  - Verification completed: `npm run check` and `npm run build`.
-- Removed the warp visual effect from the feed video player at user request while preserving hold-Space 2x behavior.
-- Updated the page background to match the dark glass UI:
-  - Switched document `color-scheme` to dark.
-  - Replaced the old light page gradients with modern dark layered backgrounds.
-  - Updated the no-backdrop-filter fallback surfaces to stay dark.
-- Refined the dark page background for infinite loading:
-  - Removed page-height-dependent gradients that could visually shift as the feed grows.
-  - Switched to a stable dark base with a subtle fixed grid texture.
-- Softened the fixed dark background texture:
-  - Replaced the grid with a low-contrast repeating dot and diagonal micro-pattern so the background feels less flat without drawing attention.
-- Increased the fixed dark background pattern visibility after review:
-  - Raised dot contrast and added a subtle tiled layer so the texture is visible on empty feed margins while staying close to the base color.
-- Fixed the background pattern being hidden after app load:
-  - Kept `body` as a plain dark fallback and moved the visible repeating pattern onto `.app-shell`, which covers the Svelte page after hydration.
-- Fixed background pattern jank during infinite-feed loading:
-  - Removed `background-attachment: fixed` from the scrolling shell.
-  - Moved the repeating pattern into a fixed `.app-shell::before` viewport layer behind the feed so document height changes do not reposition it.
-- Changed video controls visibility so paused videos follow the same reveal/autohide behavior as playing videos instead of keeping the control panel pinned open.
-- Changed the media title/metadata overlay to use the same movement-driven reveal/autohide timing as video controls instead of staying visible for the entire hover duration.
-- Removed the native `title` attribute from feed video elements to prevent browser tooltips with filenames near the cursor; the player container keeps an `aria-label`.
-- Softened the center video Play overlay by reducing its size, icon size, border contrast, glow, and glass intensity so it is less visually dominant.
-- Fixed Safari video controls hover behavior by tracking when the cursor is over the controls and making autohide timers re-check that state before hiding the panel.
-- Added cursor autohide for inactive video players, tied to the same inactivity timer as the video controls while keeping the cursor visible over controls and during dragging.
-- Fixed media info overlay staying visible after clicking the video Play button without moving the cursor by starting its autohide timer on pointer/click events and avoiding indefinite focus-based pinning.
-- Added a Safari-friendly preview-frame nudge for videos by seeking paused videos to `0.001s` after metadata loads, prompting first-frame decode without generated poster files.
-- Enforced single-video playback in the feed by dispatching a shared `feed-video-play` event when one player starts and pausing any other mounted player that is currently playing.
-- Added browser persistence:
-  - Per-video watch progress is saved to `localStorage` after user interaction and restored when the video is mounted again; progress is cleared when playback reaches the end.
-  - Video volume and mute state are shared across all mounted feed players and saved/restored through `localStorage`.
-  - Debug overlay collapsed/expanded state is saved/restored through `localStorage`.
-  - Verification completed: `npm run check` and `npm run build`.
-- Changed first-run default video volume to 50% when no saved browser volume exists; saved user volume still takes precedence.
-- Reworked the media info overlay:
-  - Removed file size from the card overlay.
-  - Added a fullscreen icon button that expands the selected media card in place to a fixed browser-window overlay instead of mounting a duplicate media copy.
-  - Expanded mode keeps the same image/video DOM node, supports Escape/button close, and locks background scroll while open.
-- Fixed expanded media cards collapsing by disabling glass/backdrop clipping on the expanded card and giving it a stable placeholder height while its media frame is fixed to the viewport.
-- Changed fullscreen-expanded media cards so the info overlay follows the same inactivity autohide behavior instead of staying pinned visible.
-- Changed fullscreen-expanded media frames to cover the whole browser viewport with no inset, border, radius, or shadow so underlying UI is not visible in the corners.
-- Started frontend architecture decomposition:
-  - Moved feed API types and `fetchFeedPage` into `web/src/lib/feed.ts`.
-  - Moved media date formatting into `web/src/lib/date.ts`.
-  - Split presentational UI out of `App.svelte` into `FeedHeader`, `EmptyFeedState`, `FeedError`, `MediaCard`, and `FeedDebugOverlay` components.
-  - Kept pagination state, virtualization, measurement, scroll anchoring, overlay state, and expanded-card state in `App.svelte` as the page coordinator.
-  - Reduced `App.svelte` from 455 lines to 315 lines without changing the feed/player behavior.
-  - Verification completed: `npm run check` and `npm run build`.
-- Continued frontend decomposition for the video player:
-  - Moved video player constants, shared event names, Safari PiP typing, time formatting, editable-target detection, volume clamping, and localStorage helpers into `web/src/lib/videoPlayer.ts`.
-  - Kept DOM refs, timers, Svelte state, and event orchestration in `FeedVideoPlayer.svelte`.
-  - Verification completed: `npm run check` and `npm run build`.
+## Product Direction
 
-## 2026-05-02
+- Build a modern one-column Instagram-like infinite media feed for local photos and videos.
+- `test-content` is the source of test media for v1.
+- v1 intentionally does not include uploads, auth, likes, personalization, or a database.
+- Comments are required for v1 and must remain filesystem-backed.
 
-- Added agent workflow rule:
-  - The local server may be started only for short agent verification checks and must be stopped immediately afterward, unless the user explicitly asks to start or keep it running.
-- Updated product requirements for comments:
-  - Comments are now required for v1.
-  - The app should still avoid databases; comments should be stored in server-managed text files deterministically associated with media files.
-  - Feed cards should show the latest 1-2 comments inline.
-  - Clicking comments should open a panel with the full comment thread and an input field.
-  - Feed responses should include comment summary data so the frontend does not need to fetch every full thread up front.
-- Implemented filesystem-backed comments:
-  - Added `internal/media/CommentStore`, storing comments as append-only JSON Lines text files in `test-content/.comments/{mediaID}.jsonl`.
-  - `Library.Page` now enriches media items with `comments` containing the latest two comments and `commentCount`.
-  - Added `GET /api/media/{id}/comments` and `POST /api/media/{id}/comments`; both validate the media ID through the existing safe media lookup.
-  - Comment submission trims text, rejects empty comments, and enforces a 2000-byte limit.
-  - Added frontend comment API helpers, inline comment previews in media cards, and a responsive comments panel with loading, empty, error, and submit states.
-  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
-- Tried a more compact comments presentation:
-  - Moved the comment count and latest-comment preview into the existing media information overlay.
-  - Removed the separate comments block below each media frame so feed cards stay visually focused on the media.
-  - The compact overlay state still opens the full comments panel on click.
-  - Verification completed: `npm run check` and `npm run build`.
-- Refined compact overlays:
-  - The media information overlay now shows only the latest comment, clamped to two lines with a max-height cap so long comments cannot expand the panel excessively.
-  - Moved the video playback-speed indicator from the top-right area to the right-middle of the video to avoid intersecting with the media information overlay.
-  - Verification completed: `npm run check` and `npm run build`.
-- Changed media information overlay visibility:
-  - Each mounted media card now shows its information overlay immediately so comments are visible while scrolling without hover.
-  - The initial overlay visibility is tied to user interaction rather than a timer: it remains visible until pointer/touch/focus interaction with that card.
-  - After the first interaction, the intro state is dismissed and the existing reveal/autohide behavior takes over.
-  - Verification completed: `npm run check` and `npm run build`.
-- Added SSE for live comment updates:
-  - Added an in-memory comment event hub in `internal/server`.
-  - Added one global `GET /api/comments/events` stream, which emits `event: comment` SSE messages shaped as `{ mediaId, comment }` for newly created comments.
-  - `POST /api/media/{id}/comments` now publishes the created comment to active SSE subscribers after the filesystem write succeeds.
-  - `App.svelte` owns a single `EventSource`, updates compact previews for loaded feed items by `mediaId`, and passes the latest event to the open comments panel.
-  - The comments panel no longer creates per-media SSE connections; it consumes the shared stream event from `App.svelte`.
-  - Frontend comment merging deduplicates by comment ID so the local POST response and shared SSE event cannot create duplicate rows.
-  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
-- Fixed a feed pagination regression:
-  - The media scanner now skips the `.comments` directory explicitly.
-  - A broken comment summary file no longer fails the entire feed page; that item's comment summary is omitted instead.
-  - Frontend feed/comment API errors now surface the backend `error` message instead of only showing the HTTP status.
-  - Added regression coverage for broken comment summary files.
-  - Verification completed: `go test ./...`, `npm run check`, and `npm run build`.
-- Removed daisyUI from the frontend:
-  - Deleted the `@plugin 'daisyui'` Tailwind import.
-  - Removed the `daisyui` package dependency and lockfile entry.
-  - Replaced the only daisyUI spinner usage with the existing lucide `LoaderCircle` icon.
-- Reworked CSS ownership after frontend decomposition:
-  - Kept `web/src/app.css` limited to Tailwind import, theme, document defaults, and the app shell background.
-  - Moved header, empty/error states, media card overlay/frame, debug overlay, expanded-card wrapper, and video player styles into their owning Svelte components.
-  - Used explicit `:global(...)` only where the `App.svelte` card wrapper must style DOM rendered by `MediaCard`.
-  - Production CSS output dropped from roughly 43.6 kB to 24.6 kB after removing daisyUI and scoping styles.
-  - Verification completed: `npm run check` and `npm run build`.
-- Reworked the second CSS pass away from Tailwind `@apply`:
-  - Added a small global Tailwind-style design system in `web/src/app.css`: semantic colors (`primary`, `secondary`, `muted`, `danger`, `media`, `glass`), semantic radii (`card`, `overlay`, `control`, `toolbar`), and reusable global component classes (`glass-card`, `glass-panel`, `glass-button`, `glass-pill`, `glass-nav`, `glass-overlay`, `glass-icon-button`, `media-frame`, `card-overlay`, `debug-overlay`).
-  - Moved repeated layout, spacing, border, radius, sizing, and text color rules into Tailwind classes or reusable global UI classes instead of duplicating them across Svelte components.
-  - Kept only video-player-specific custom styling scoped in `FeedVideoPlayer.svelte`, while referencing the global theme tokens.
-  - Removed `@apply`, `@reference`, and component `lang="postcss"` because inline Tailwind classes work better with Svelte diagnostics and avoid utility expansion in scoped CSS.
-  - Verification completed: `npm run check` and `npm run build`.
-  - Production CSS is roughly 22.7 kB after centralizing repeated primitives and keeping only player-specific styling scoped.
+## Backend Decisions
 
-## 2026-05-03
+- Production uses one Go server. It serves the API, built Svelte SPA, and media files.
+- Use the standard Go `net/http` server.
+- Keep common Go layout:
+  - `cmd/server` for the executable entrypoint.
+  - `internal/media` for scanning, sorting, pagination, lookup, and comments storage.
+  - `internal/server` for routing, handlers, middleware, SSE, and static serving.
+- Media files are scanned from `test-content`, sorted by modification time descending, with filename as the stable tie-breaker.
+- Media IDs are server-controlled safe identities. Clients must not provide filesystem paths for media or comments.
+- Media serving and comment APIs must validate IDs through the same safe lookup model.
+- Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
+- The media scanner must ignore internal comment storage such as `test-content/.comments`.
 
-- Tried an in-card comments overlay:
-  - The expanded comments UI now renders as an absolute overlay inside the selected feed card instead of a global fixed side/bottom panel.
-  - The overlay covers the whole card, keeps the card's rounded clipping, and uses the existing glass visual system.
-  - Opening comments no longer locks body scrolling because comments are scoped to the card surface.
-  - Verification completed: `npm run check` and `npm run build`.
-- Preserved comment line breaks in the UI:
-  - Full comments now render with `white-space: pre-wrap` and safe wrapping so textarea newlines are visible.
-  - Compact comment previews also preserve line breaks while staying clamped to the existing two-line limit.
-  - Verification completed: `npm run check` and `npm run build`.
-- Improved comments overlay scroll behavior:
-  - Opening comments scrolls the list to the latest messages at the bottom.
-  - New comments appended through submit or SSE automatically scroll the list to the newest comment.
-  - Verification completed: `npm run check` and `npm run build`.
-- Added comment keyboard submission:
-  - Enter submits the comment from the textarea.
-  - Shift+Enter keeps the native newline behavior.
-  - IME composition is respected so Enter does not submit while composing text.
-  - Verification completed: `npm run check` and `npm run build`.
-- Adjusted the comment composer layout:
-  - Removed the visible send button; comments are submitted with Enter, while Shift+Enter inserts a newline.
-  - The textarea now uses the full form width.
-  - Verification completed: `npm run check` and `npm run build`.
-- Started feed card layout decomposition:
-  - Added a reusable `FeedCardFrame` that owns the card overlay structure: top info stack, future top accessory slot, media content, bottom accessory slot, and compact comments preview.
-  - Moved the fixed media information panel and compact comments preview into `FeedCardInfoPanel` and `FeedCardCommentsPreview`.
-  - Changed video controls to render through the frame's bottom accessory markup above the compact comments preview instead of positioning themselves independently at the bottom of the media surface.
-  - Verification completed: `npm run check` and `npm run build`.
-- Refined feed card overlay animation:
-  - Top and bottom overlay stacks now slide fully from outside the card bounds without animating opacity.
-  - Video controls no longer animate independently; they are static bottom-accessory content whose visibility and movement are owned by `FeedCardFrame`.
-  - Verification completed: `npm run check` and `npm run build`.
-- Added a feed card content overlay layer:
-  - `FeedCardFrame` now supports a `contentOverlay` snippet rendered as its own full-card layer between media content and the top/bottom chrome stacks.
-  - `FeedVideoOverlay` moved out of the video content wrapper into this `contentOverlay` layer, while video playback state remains owned by `FeedVideoPlayer`.
-  - Verification completed: `npm run check` and `npm run build`.
+## Comments Decisions
+
+- Comments are stored in server-managed append-friendly text files deterministically associated with media IDs.
+- Current storage format is JSON Lines under `test-content/.comments/{mediaID}.jsonl`.
+- Creating a comment creates the comment file if needed and appends the new comment.
+- Comment text is trimmed and validated; empty comments are rejected.
+- Comment parsing must be deterministic and robust against newlines or delimiter characters in user text.
+- Feed responses include comment summary data so cards can render the latest 1-2 comments without fetching every full thread.
+- Full comment threads are loaded through media-specific comment endpoints.
+- Live comment updates use one global SSE stream, not WebSocket.
+
+## Frontend Decisions
+
+- Use Svelte 5 with runes, Vite, Tailwind CSS 4.x, and lucide-svelte icons.
+- daisyUI was removed; keep styling in Tailwind classes, scoped component CSS, and the small global theme/component primitives in `web/src/app.css`.
+- `App.svelte` is the feed coordinator: pagination, virtualization, measurement, scroll anchoring, overlay state, expanded media state, comments panel state, and SSE subscription.
+- Keep presentational pieces split into focused components instead of growing `App.svelte`.
+- Feed virtualization keeps only the viewport window plus overscan mounted. Dynamic card height changes above the viewport compensate scroll position manually.
+- The app must handle an empty `test-content` directory gracefully.
+
+## Feed Card Layout Decisions
+
+- `FeedCardFrame` owns card geometry and overlay layering.
+- Card layers are:
+  - media content,
+  - optional `contentOverlay`,
+  - top overlay stack,
+  - bottom overlay stack.
+- The top overlay stack contains the persistent media information panel and an optional future top accessory snippet.
+- The bottom overlay stack contains an optional bottom accessory snippet and the compact comments preview.
+- Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`.
+- Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
+- Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
+
+## Video Player Decisions
+
+- Use a custom feed video player rather than native browser controls.
+- The active video player owns keyboard shortcuts; shortcuts should not affect every mounted video.
+- Keyboard behavior:
+  - Space toggles play/pause; holding Space temporarily plays at 2x.
+  - ArrowLeft/ArrowRight seek; holding ArrowRight fast-forwards, holding ArrowLeft rewinds repeatedly.
+  - ArrowUp/ArrowDown change playback speed.
+- Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
+- Only one mounted video should play at a time; players coordinate through a shared browser event.
+- Per-video watch progress, shared volume/mute state, and debug overlay collapsed state are persisted in `localStorage`.
+- First-run default video volume is 50% when no saved browser volume exists.
+- Safari-specific behavior matters:
+  - handle `video.play()` and PiP failures without unhandled promise errors;
+  - support Safari PiP fallback where possible;
+  - hide the volume slider if programmatic volume control is unsupported;
+  - use a small preview-frame nudge after metadata loads so paused videos can show a first frame.
+
+## UI Behavior Decisions
+
+- Expanded media reuses the same image/video DOM node and fixes the media frame to the browser viewport. Do not mount a duplicate media element for fullscreen.
+- Expanded media locks background scroll and closes with Escape or the close button.
+- Comments open as an in-card overlay over the selected feed card, not as a global fixed side/bottom panel.
+- Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.
+- Full comments and compact comment previews preserve user line breaks with safe wrapping.
+- The comment composer submits with Enter; Shift+Enter inserts a newline; IME composition must not submit prematurely.
+
+## Agent Workflow Constraints
+
+- Agents may start the local server only for short verification checks and must stop it immediately afterward, unless the user explicitly asks to start or keep it running.
+- Record only important new decisions, constraints, verification-relevant outcomes, and known issues here. Do not append routine changelog entries.
+
+## Known Environment Notes
+
+- The local Go toolchain previously reported `log/slog` missing from stdlib, so the server used standard `log`.
+- Go commands may need sandbox escalation when the Go build cache is outside the workspace.
+- Dependency installation may need sandbox escalation for registry access.
