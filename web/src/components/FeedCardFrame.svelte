@@ -68,11 +68,15 @@
     {/if}
   </div>
 
-  <div class="feed-card-bottom-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
+  <div class="feed-card-bottom-stack">
     {#if bottomAccessory}
-      <section class="feed-card-panel" aria-label="Media controls">
-        {@render bottomAccessory()}
-      </section>
+      <div class="feed-card-bottom-accessory" class:feed-card-bottom-accessory-visible={overlayVisible}>
+        <div class="feed-card-bottom-accessory-inner">
+          <section class="feed-card-panel" aria-label="Media controls">
+            {@render bottomAccessory()}
+          </section>
+        </div>
+      </div>
     {/if}
 
     <section class="feed-card-panel" aria-label="Comment summary">
@@ -121,12 +125,41 @@
   }
 
   .feed-card-bottom-stack {
+    position: absolute;
+    right: 0.75rem;
     bottom: 0.75rem;
-    transform: translateY(calc(100% + 0.75rem));
+    left: 0.75rem;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
   }
 
   .feed-card-overlay-visible {
     pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .feed-card-bottom-accessory {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    pointer-events: none;
+    transition: grid-template-rows 180ms ease;
+  }
+
+  .feed-card-bottom-accessory-visible {
+    grid-template-rows: 1fr;
+    pointer-events: auto;
+  }
+
+  .feed-card-bottom-accessory-inner {
+    min-height: 0;
+    transform: translateY(0.75rem);
+    transition: transform 180ms ease;
+  }
+
+  .feed-card-bottom-accessory-visible .feed-card-bottom-accessory-inner {
     transform: translateY(0);
   }
 
@@ -137,8 +170,8 @@
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-overlay);
     color: var(--color-primary);
-    backdrop-filter: blur(28px) saturate(200%);
-    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
   }
 
   @media (width < 520px) {

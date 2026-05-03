@@ -35,7 +35,7 @@
   --background-image-glass-strong: linear-gradient(180deg, rgb(20 20 24 / 0.32), rgb(10 10 14 / 0.20)), rgb(0 0 0 / 0.14);
   --background-image-glass-play: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04)), rgb(0 0 0 / 0.1);
   /* Overlay Glass — more opaque values for panels above media */
-  --background-image-glass-overlay: linear-gradient(180deg, rgb(20 20 24 / 0.58), rgb(10 10 14 / 0.42)), rgb(0 0 0 / 0.28);
+  --background-image-glass-overlay: rgb(0 0 0 / 0.22);
 
   /* Shadows */
   --shadow-card: 0 1px 0 var(--color-glass-border) inset, 0 28px 70px rgb(0 0 0 / 0.18), 0 8px 24px rgb(0 0 0 / 0.12);

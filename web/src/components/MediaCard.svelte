@@ -23,31 +23,15 @@
     onOpenComments: (id: string) => void;
   } = $props();
 
-  let introOverlayVisible = $state(true);
-
-  const infoPanelVisible = $derived(overlayVisible || introOverlayVisible);
-
-  $effect(() => {
-    item.id;
-    introOverlayVisible = true;
-  });
-
-  function dismissIntroOverlay() {
-    introOverlayVisible = false;
-  }
-
   function revealOverlay() {
-    dismissIntroOverlay();
     onReveal(item.id);
   }
 
   function keepOverlay() {
-    dismissIntroOverlay();
     onKeep(item.id);
   }
 
   function hideOverlay() {
-    dismissIntroOverlay();
     onHide(item.id);
   }
 </script>
@@ -56,7 +40,7 @@
   <FeedVideoPlayer
     {item}
     {expanded}
-    overlayVisible={infoPanelVisible}
+    {overlayVisible}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
@@ -67,7 +51,7 @@
   <FeedCardFrame
     {item}
     {expanded}
-    overlayVisible={infoPanelVisible}
+    {overlayVisible}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
