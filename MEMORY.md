@@ -20,6 +20,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Media files are scanned from `test-content`, sorted by modification time descending, with filename as the stable tie-breaker.
 - Media IDs are server-controlled safe identities. Clients must not provide filesystem paths for media or comments.
 - Media serving and comment APIs must validate IDs through the same safe lookup model.
+- Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
 - Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
 
@@ -41,7 +42,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - daisyUI was removed; keep styling in Tailwind classes, scoped component CSS, and the small global theme/component primitives in `web/src/app.css`.
 - `App.svelte` is the feed coordinator: pagination, virtualization, measurement, scroll anchoring, overlay state, expanded media state, comments panel state, and SSE subscription.
 - Keep presentational pieces split into focused components instead of growing `App.svelte`.
-- Feed virtualization keeps only the viewport window plus overscan mounted. Dynamic card height changes above the viewport compensate scroll position manually.
+- Feed virtualization keeps only the viewport window plus two overscan cards before and after it mounted. Dynamic card height changes above the viewport compensate scroll position manually.
+- Feed pagination uses small pages of 6 items so approaching the end of the loaded set does not append a large batch of new posts at once.
+- Viewport updates for virtualization are scheduled through `requestAnimationFrame` so rapid scroll/resize events coalesce into one Svelte state update per frame.
 - The app must handle an empty `test-content` directory gracefully.
 
 ## Feed Card Layout Decisions
@@ -49,6 +52,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - `FeedCardFrame` owns card geometry and overlay layering.
 - Feed card shells keep their page-background glass effect through a `::before` backing layer. Do not put `backdrop-filter` directly on `.glass-card`, because nested overlay panels need to blur their own backdrop rather than inheriting a flattened card backdrop.
 - Added a subtle 45-degree diagonal grid pattern to the glass card background backing layer. Large gradient highlights were removed, but symmetrical 1px accents were added to the top and bottom edges for a balanced, premium look.
+- Card visual effects are being restored in stages for scroll performance testing. Ambient media layer and ambient blur are enabled; card backing pattern, glass transparency, shell backdrop blur, media drop shadow, and shell inset shadows remain disabled. Global background particles are enabled again and may react to scroll only through a clamped, eased draw offset; direct scroll-velocity mutation caused visible jitter in Safari.
 - Card layers are:
   - media content,
   - optional `contentOverlay`,
@@ -73,6 +77,18 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Only one mounted video should play at a time; players coordinate through a shared browser event.
 - Per-video watch progress, shared volume/mute state, and debug overlay collapsed state are persisted in `localStorage`.
 - First-run default video volume is 50% when no saved browser volume exists.
+- Ambient backgrounds should render as soon as media data is available, not after user interaction, lazy loading, or idle scheduling; video uses `preload="auto"` and draws the ambient canvas immediately on `loadeddata`.
+- Video ambient canvas updates dynamically during playback, but draws only every fifth animation frame. Safari can stutter when `drawImage(video)` updates a blurred canvas on every frame, so keep this throttled unless profiling shows enough headroom.
+- Idle feed videos use metadata preload for duration/seek controls and switch to `auto` only while playing or expanded. Avoid client-side preview seeks during scroll, especially in Safari.
+- Video preview frames are served as cached JPEG posters through `GET /api/media/{id}/poster?time=`. The frontend chooses the poster time from saved per-video watch progress, falling back to the first frame when the user has not watched that video.
+- Idle video ambient backgrounds use the same poster JPEG as the video element instead of seeking/loading the video.
+- After any user interaction with a mounted video card, remove the poster cover, remove the video `poster` attribute, and stop using poster ambient for that card lifetime. From that point, the real video element/canvas owns visuals.
+- In Safari, mounted idle videos lazily load metadata immediately so duration and seek controls are available, but metadata load must not seek the video for a preview frame; posters remain responsible for idle visuals.
+- Video controls display saved watch progress immediately from `localStorage` so the seekbar matches the poster before playback starts; this display state must not seek the video until the user plays or manually seeks.
+- Manual seeking while paused must not request a fresh poster. Once the user interacts with a video, seek the real video element; poster generation is only for scroll/idle optimization.
+- Ambient media activation is observer-driven: mounted overscan cards prepare their ambient background and idle video preview seek only when they approach the viewport, rather than immediately at mount.
+- The debug overlay includes a persisted card background mode switch: `simple` disables ambient card backgrounds, `ambient` uses the observer-driven ambient preparation path. This switch must not disable normal video preview/progress seeking.
+- Safari and Chrome both use the blurred ambient media card background; video ambient canvas is prepared through the same observer-driven ambient path as the rest of the card background.
 - Safari-specific behavior matters:
   - handle `video.play()` and PiP failures without unhandled promise errors;
   - support Safari PiP fallback where possible;

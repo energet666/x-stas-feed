@@ -17,7 +17,9 @@
     topSpacer,
     bottomSpacer,
     measuredCount,
-    onToggle
+    cardBackgroundMode,
+    onToggle,
+    onCardBackgroundModeChange
   }: {
     collapsed: boolean;
     loadedCount: number;
@@ -34,7 +36,9 @@
     topSpacer: number;
     bottomSpacer: number;
     measuredCount: number;
+    cardBackgroundMode: 'simple' | 'ambient';
     onToggle: () => void;
+    onCardBackgroundModeChange: (mode: 'simple' | 'ambient') => void;
   } = $props();
 </script>
 
@@ -57,6 +61,26 @@
   </button>
 
   {#if !collapsed}
+    <div class="debug-control-row">
+      <span>Card bg</span>
+      <div class="debug-segmented" role="group" aria-label="Card background mode">
+        <button
+          class:debug-segment-active={cardBackgroundMode === 'simple'}
+          type="button"
+          onclick={() => onCardBackgroundModeChange('simple')}
+        >
+          Simple
+        </button>
+        <button
+          class:debug-segment-active={cardBackgroundMode === 'ambient'}
+          type="button"
+          onclick={() => onCardBackgroundModeChange('ambient')}
+        >
+          Ambient
+        </button>
+      </div>
+    </div>
+
     <dl class="debug-grid">
       <div>
         <dt>Loaded</dt>

@@ -131,7 +131,7 @@ func (l *Library) Scan() ([]Item, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != root && entry.Name() == commentsDirName {
+			if path != root && (entry.Name() == commentsDirName || entry.Name() == posterDirName) {
 				return filepath.SkipDir
 			}
 			return nil

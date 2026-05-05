@@ -108,6 +108,24 @@ func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
 	}
 }
 
+func TestScanIgnoresGeneratedPosterDirectory(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "video.mp4", modTime)
+	if err := os.MkdirAll(filepath.Join(dir, posterDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, posterDirName), "poster.jpg", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Filename != "video.mp4" {
+		t.Fatalf("expected generated posters to be ignored, got %#v", items)
+	}
+}
+
 func TestPathForIDRejectsEscapesAndUnsupportedFiles(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

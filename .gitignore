@@ -9,6 +9,7 @@ TODO.txt
 # Frontend
 /web/node_modules/
 /web/dist/
+/build/
 
 # Local media fixtures
 /test-content/

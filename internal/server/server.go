@@ -14,6 +14,8 @@ import (
 	"feed-ai/internal/media"
 )
 
+const mediaCacheControl = "public, max-age=3600"
+
 type Server struct {
 	mux       *http.ServeMux
 	library   *media.Library
@@ -43,6 +45,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
+	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
 }
@@ -132,7 +135,25 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mimeType)
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Cache-Control", mediaCacheControl)
+	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleMediaPoster(w http.ResponseWriter, r *http.Request) {
+	seconds, err := strconv.ParseFloat(r.URL.Query().Get("time"), 64)
+	if err != nil && r.URL.Query().Get("time") != "" {
+		writeError(w, http.StatusBadRequest, "invalid poster time")
+		return
+	}
+
+	path, err := s.library.PosterForID(r.PathValue("id"), seconds)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, path)
 }
 

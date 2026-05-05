@@ -6,6 +6,7 @@
   let {
     item,
     expanded,
+    ambientActive,
     overlayVisible,
     onReveal,
     onKeep,
@@ -15,6 +16,7 @@
   }: {
     item: MediaItem;
     expanded: boolean;
+    ambientActive: boolean;
     overlayVisible: boolean;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
@@ -40,6 +42,7 @@
   <FeedVideoPlayer
     {item}
     {expanded}
+    {ambientActive}
     {overlayVisible}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
@@ -51,6 +54,7 @@
   <FeedCardFrame
     {item}
     {expanded}
+    {ambientActive}
     {overlayVisible}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
@@ -60,7 +64,7 @@
   >
     {#snippet content()}
       <img
-        class="block h-full w-full object-contain"
+        class="block h-full w-full object-contain media-content-shadow"
         src={item.url}
         alt={item.filename}
         loading="lazy"

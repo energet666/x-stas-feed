@@ -4,10 +4,11 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import FeedCardFrame from '../FeedCardFrame.svelte';
   import FeedVideoControls from './FeedVideoControls.svelte';
   import FeedVideoOverlay from './FeedVideoOverlay.svelte';
+  import { mediaPosterURL } from '../../lib/feed';
   import type { MediaItem } from '../../lib/feed';
   import {
     AVAILABLE_SPEEDS,
@@ -32,6 +33,7 @@
   let {
     item,
     expanded,
+    ambientActive,
     overlayVisible,
     onReveal,
     onKeep,
@@ -41,6 +43,7 @@
   }: {
     item: MediaItem;
     expanded: boolean;
+    ambientActive: boolean;
     overlayVisible: boolean;
     onReveal: () => void;
     onKeep: () => void;
@@ -84,10 +87,31 @@
   let progressRestored = false;
   let hasProgressInteraction = false;
   let lastProgressSaveAt = 0;
+  let ambientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
+  let ambientAnimationFrameId: number | undefined = undefined;
+  let ambientFrameTick = 0;
+  let isSafari = $state(false);
+  let posterTime = $state(0);
+  let posterCoverVisible = $state(true);
+  let metadataWanted = $state(false);
+  let hasVideoInteraction = $state(false);
+  let hasDecodedFrame = $state(false);
   const playerId = nextPlayerId++;
 
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
   const supportsPip = $derived(supportsPictureInPicture(video));
+  const videoPreload = $derived(expanded || !paused ? 'auto' : isSafari && !metadataWanted ? 'none' : 'metadata');
+  const posterURL = $derived(mediaPosterURL(item.id, posterTime));
+  const activePosterURL = $derived(hasVideoInteraction ? undefined : posterURL);
+
+  onMount(() => {
+    const userAgent = navigator.userAgent;
+    isSafari = /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Edg\//.test(userAgent);
+    const storedTime = readStoredProgress(item.id);
+    posterTime = storedTime;
+    currentTime = storedTime;
+    metadataWanted = true;
+  });
 
   function revealControls() {
     setActivePlayer();
@@ -122,6 +146,7 @@
   }
 
   function enterControls() {
+    metadataWanted = true;
     isOverControls = true;
     keepControls();
   }
@@ -168,10 +193,19 @@
     applyVolume(detail.volume, detail.muted);
   }
 
+  function markVideoInteraction() {
+    hasVideoInteraction = true;
+    posterCoverVisible = false;
+  }
+
   async function togglePlay() {
     if (!video) return;
     setActivePlayer();
+    metadataWanted = true;
+    markVideoInteraction();
     markProgressInteraction();
+    applySavedStartPosition();
+    prepareIdleVideoFrame();
     playBlocked = false;
 
     try {
@@ -195,8 +229,40 @@
     video.playbackRate = userPlaybackRate;
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
+    validateDisplayedProgress();
+    applySavedStartPosition();
+  }
+
+  function validateDisplayedProgress() {
+    if (duration <= 0) return;
+    if (currentTime <= 0.5) return;
+    if (currentTime >= duration - 1) {
+      currentTime = 0;
+      posterTime = 0;
+      clearStoredProgress(item.id);
+    }
+  }
+
+  function prepareIdleVideoFrame() {
     restoreProgress();
     requestPreviewFrame();
+  }
+
+  function applySavedStartPosition() {
+    if (!video || !hasVideoInteraction || duration <= 0 || video.currentTime > 0.5) return;
+    const storedTime = readStoredProgress(item.id);
+    if (storedTime <= 0.5) return;
+    if (storedTime >= duration - 1) {
+      clearStoredProgress(item.id);
+      return;
+    }
+
+    try {
+      video.currentTime = storedTime;
+      currentTime = storedTime;
+    } catch {
+      // If the browser refuses the seek now, normal playback can continue.
+    }
   }
 
   function requestPreviewFrame() {
@@ -214,6 +280,7 @@
     const target = event.target as HTMLElement;
     if (target.closest('.video-controls')) return;
     setActivePlayer();
+    markVideoInteraction();
     clearTimeout(clickTimer);
 
     if (event.detail === 1) {
@@ -234,14 +301,18 @@
   }
 
   function handleContainerTouch() {
+    markVideoInteraction();
     revealControls();
   }
 
   function handleSeek(event: Event) {
     if (!video) return;
     const target = event.target as HTMLInputElement;
+    metadataWanted = true;
+    markVideoInteraction();
     markProgressInteraction();
     currentTime = Number(target.value);
+    if (!Number.isFinite(currentTime) || duration <= 0) return;
     video.currentTime = currentTime;
     saveProgress();
   }
@@ -249,12 +320,14 @@
   function handleVolume(event: Event) {
     if (!video || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
+    markVideoInteraction();
     const nextVolume = Number(target.value);
     applyVolume(nextVolume, nextVolume === 0, true);
   }
 
   function toggleMute() {
     if (!video) return;
+    markVideoInteraction();
     const nextMuted = !muted;
     const nextVolume = !nextMuted && volume === 0 ? 1 : volume;
     applyVolume(nextVolume, nextMuted, true);
@@ -263,6 +336,7 @@
 
   async function togglePip() {
     if (!video) return;
+    markVideoInteraction();
     const safariVideo = video as SafariVideoElement;
 
     try {
@@ -293,7 +367,10 @@
 
   function safePlay() {
     if (!video) return;
+    metadataWanted = true;
+    markVideoInteraction();
     markProgressInteraction();
+    applySavedStartPosition();
     playBlocked = false;
     video.play().catch(() => {
       playBlocked = true;
@@ -308,6 +385,7 @@
 
   function seekBy(seconds: number) {
     if (!video) return;
+    markVideoInteraction();
     markProgressInteraction();
     video.currentTime = clampPlaybackTime(video.currentTime + seconds);
     currentTime = video.currentTime;
@@ -373,6 +451,7 @@
     if (event.code === 'Space') {
       event.preventDefault();
       if (isSpaceDown) return;
+      markVideoInteraction();
       isSpaceDown = true;
       isSpaceLongPress = false;
 
@@ -394,6 +473,7 @@
     if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
       event.preventDefault();
       if (isArrowDown) return;
+      markVideoInteraction();
       isArrowDown = true;
       isArrowLongPress = false;
       arrowRightTemporarilyPlayed = false;
@@ -457,6 +537,7 @@
     if (Math.abs(event.deltaX) < Math.abs(event.deltaY)) return;
     event.preventDefault();
     setActivePlayer();
+    markVideoInteraction();
     seekBy(-event.deltaX * TOUCHPAD_SEEK_SENSITIVITY);
   }
 
@@ -519,6 +600,77 @@
     };
   });
 
+  function syncAmbientFrame() {
+    drawFrame();
+  }
+
+  function startAmbientSync() {
+    if (ambientAnimationFrameId || !ambientActive) return;
+
+    const loop = () => {
+      if (!video || video.paused || video.ended || !ambientActive) {
+        stopAmbientSync();
+        return;
+      }
+
+      ambientFrameTick += 1;
+      if (ambientFrameTick % 5 === 0) {
+        drawFrame();
+      }
+
+      ambientAnimationFrameId = requestAnimationFrame(loop);
+    };
+
+    ambientAnimationFrameId = requestAnimationFrame(loop);
+  }
+
+  function stopAmbientSync() {
+    if (ambientAnimationFrameId) {
+      cancelAnimationFrame(ambientAnimationFrameId);
+      ambientAnimationFrameId = undefined;
+    }
+    ambientFrameTick = 0;
+  }
+
+  function drawFrame() {
+    if (!video || !ambientCanvas || video.readyState < 2) return;
+    const ctx = ambientCanvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'low';
+    ctx.drawImage(video, 0, 0, ambientCanvas.width, ambientCanvas.height);
+    hasDecodedFrame = true;
+  }
+
+  $effect(() => {
+    if (ambientActive && video && duration > 0) {
+      drawFrame();
+    }
+  });
+
+  $effect(() => {
+    if (video && ambientCanvas) {
+      if (video.readyState >= 2) {
+        drawFrame();
+      }
+
+      const handler = () => {
+        drawFrame();
+        if (!paused) startAmbientSync();
+      };
+      video.addEventListener('loadeddata', handler, { once: true });
+      return () => video?.removeEventListener('loadeddata', handler);
+    }
+  });
+
+  $effect(() => {
+    if (ambientActive && !paused) {
+      startAmbientSync();
+    } else {
+      stopAmbientSync();
+    }
+  });
+
   onDestroy(() => {
     saveProgress();
     clearTimeout(hideTimer);
@@ -529,6 +681,7 @@
     clearTimeout(arrowTimer);
     clearInterval(rewindTimer);
     if (activePlayerId === playerId) activePlayerId = undefined;
+    stopAmbientSync();
   });
 </script>
 
@@ -540,6 +693,7 @@
 <FeedCardFrame
   {item}
   {expanded}
+  {ambientActive}
   {overlayVisible}
   {onReveal}
   {onKeep}
@@ -547,10 +701,29 @@
   {onToggleExpanded}
   {onOpenComments}
 >
+  {#snippet ambientBackground()}
+    {#if ambientActive}
+      {#if paused && !hasVideoInteraction && !hasDecodedFrame}
+        <img
+          src={posterURL}
+          alt=""
+          class="ambient-media"
+          decoding="async"
+        />
+      {:else}
+        <canvas
+          bind:this={ambientCanvas}
+          class="ambient-media"
+          width="32"
+          height="32"
+        ></canvas>
+      {/if}
+    {/if}
+  {/snippet}
   {#snippet content()}
     <div
       bind:this={container}
-      class="feed-video-player relative h-full w-full overflow-hidden"
+      class="feed-video-player relative z-[1] h-full w-full overflow-hidden"
       class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
       role="presentation"
       aria-label={`Video player: ${item.filename}`}
@@ -566,9 +739,10 @@
       <!-- svelte-ignore a11y_media_has_caption -->
       <video
         bind:this={video}
-        class="block h-full w-full object-contain"
+        class="block h-full w-full object-contain media-content-shadow"
         playsinline
-        preload="metadata"
+        preload={videoPreload}
+        poster={activePosterURL}
         src={item.url}
         onclick={handleVideoClick}
         onloadedmetadata={syncMetadata}
@@ -582,18 +756,36 @@
           paused = false;
           announcePlayback();
           revealControls();
+          startAmbientSync();
+        }}
+        onseeking={() => {
+          syncAmbientFrame();
+        }}
+        onseeked={() => {
+          syncAmbientFrame();
         }}
         onpause={() => {
           paused = true;
           saveProgress();
           revealControls();
+          stopAmbientSync();
         }}
         onended={() => {
           paused = true;
+          posterTime = 0;
           clearStoredProgress(item.id);
           revealControls();
+          stopAmbientSync();
         }}
       ></video>
+      {#if posterCoverVisible}
+        <img
+          src={posterURL}
+          alt=""
+          class="pointer-events-none absolute inset-0 z-[2] block h-full w-full object-contain media-content-shadow"
+          decoding="async"
+        />
+      {/if}
     </div>
   {/snippet}
 
@@ -632,16 +824,3 @@
     />
   {/snippet}
 </FeedCardFrame>
-
-<style>
-  .feed-video-player {
-    z-index: 1;
-  }
-
-  .video-cursor-hidden,
-  .video-cursor-hidden video {
-    cursor: none;
-  }
-
-  /* Controls and overlays styles were moved to their respective components */
-</style>

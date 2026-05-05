@@ -7,8 +7,10 @@
   let {
     item,
     expanded,
+    ambientActive = true,
     overlayVisible,
     content,
+    ambientBackground,
     contentOverlay,
     topAccessory,
     bottomAccessory,
@@ -20,8 +22,10 @@
   }: {
     item: MediaItem;
     expanded: boolean;
+    ambientActive?: boolean;
     overlayVisible: boolean;
     content: Snippet;
+    ambientBackground?: Snippet;
     contentOverlay?: Snippet;
     topAccessory?: Snippet;
     bottomAccessory?: Snippet;
@@ -46,6 +50,32 @@
   onfocusin={onKeep}
   onmouseleave={onHide}
 >
+  <div class="feed-card-ambient-bg" aria-hidden="true">
+    {#if ambientActive}
+      {#if ambientBackground}
+        {@render ambientBackground()}
+      {:else if item.type === 'video'}
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video
+          src={item.url}
+          muted
+          loop
+          playsinline
+          autoplay
+          class="ambient-media"
+        ></video>
+      {:else}
+        <img
+          src={item.url}
+          alt=""
+          class="ambient-media"
+          decoding="async"
+        />
+      {/if}
+    {/if}
+    <div class="feed-card-ambient-grid"></div>
+  </div>
+
   <div class="feed-card-content">
     {@render content()}
   </div>
@@ -89,8 +119,9 @@
   .feed-card-content {
     position: absolute;
     inset: 0;
-    z-index: 1;
+    z-index: 2;
   }
+
 
   .feed-card-content-overlay {
     position: absolute;

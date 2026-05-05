@@ -11,11 +11,14 @@
   import UserSidebar from './components/UserSidebar.svelte';
   import { commentEventsURL, fetchFeedPage, type Comment, type CommentEvent, type MediaItem } from './lib/feed';
 
-  const pageSize = 24;
+  const pageSize = 6;
   const estimatedCardHeight = 760;
   const itemGap = 16;
-  const overscan = 1600;
+  const overscanRows = 2;
   const usernameStorageKey = 'feed-ai:comment-username';
+  const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
+
+  type CardBackgroundMode = 'simple' | 'ambient';
 
   type FeedRow = {
     item: MediaItem;
@@ -41,7 +44,11 @@
   let latestCommentEvent = $state<CommentEvent | null>(null);
   let username = $state('Guest');
   let usernameStorageReady = $state(false);
+  let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
+  let cardBackgroundModeStorageReady = $state(false);
+  let ambientReadyIDs = $state<Record<string, boolean>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  let viewportFrameID: number | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
@@ -58,13 +65,35 @@
     });
   });
   const totalHeight = $derived(rows.reduce((total, row) => total + row.height, 0));
+  const visibleRange = $derived.by(() => {
+    if (rows.length === 0) {
+      return { start: -1, end: -1 };
+    }
+
+    const firstVisible = rows.findIndex((row) => row.top + row.height >= viewportStart);
+    if (firstVisible === -1) {
+      const lastIndex = rows.length - 1;
+      return {
+        start: Math.max(0, lastIndex - overscanRows),
+        end: lastIndex
+      };
+    }
+
+    let lastVisible = firstVisible;
+    while (lastVisible + 1 < rows.length && rows[lastVisible + 1].top <= viewportEnd) {
+      lastVisible += 1;
+    }
+
+    return {
+      start: Math.max(0, firstVisible - overscanRows),
+      end: Math.min(rows.length - 1, lastVisible + overscanRows)
+    };
+  });
   const visibleRows = $derived(
-    rows.filter((row) => row.top + row.height >= viewportStart - overscan && row.top <= viewportEnd + overscan)
+    visibleRange.start >= 0 ? rows.slice(visibleRange.start, visibleRange.end + 1) : []
   );
-  const visibleStartIndex = $derived(
-    visibleRows.length > 0 ? items.findIndex((item) => item.id === visibleRows[0].item.id) : -1
-  );
-  const visibleEndIndex = $derived(visibleStartIndex >= 0 ? visibleStartIndex + visibleRows.length - 1 : -1);
+  const visibleStartIndex = $derived(visibleRange.start);
+  const visibleEndIndex = $derived(visibleRange.end);
   const topSpacer = $derived(visibleRows[0]?.top ?? 0);
   const bottomSpacer = $derived.by(() => {
     const last = visibleRows.at(-1);
@@ -77,20 +106,27 @@
   const commentUsername = $derived(username.trim() || 'Guest');
 
   onMount(() => {
+    document.documentElement.classList.toggle('safari-browser', isSafariBrowser());
     debugCollapsed = readStoredDebugCollapsed();
     username = readStoredUsername();
     usernameStorageReady = true;
+    cardBackgroundMode = readStoredCardBackgroundMode();
+    cardBackgroundModeStorageReady = true;
     updateViewport();
-    window.addEventListener('scroll', updateViewport, { passive: true });
-    window.addEventListener('resize', updateViewport);
+    window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
+    window.addEventListener('resize', scheduleViewportUpdate);
     subscribeToCommentEvents();
     void loadPage();
 
     return () => {
+      document.documentElement.classList.remove('safari-browser');
       clearTimeout(overlayHideTimer);
+      if (viewportFrameID !== undefined) {
+        cancelAnimationFrame(viewportFrameID);
+      }
       commentEvents?.close();
-      window.removeEventListener('scroll', updateViewport);
-      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('scroll', scheduleViewportUpdate);
+      window.removeEventListener('resize', scheduleViewportUpdate);
     };
   });
 
@@ -126,6 +162,11 @@
     persistUsername(username);
   });
 
+  $effect(() => {
+    if (!cardBackgroundModeStorageReady) return;
+    persistCardBackgroundMode(cardBackgroundMode);
+  });
+
   async function loadPage() {
     if (loading || (initialLoaded && !nextCursor)) return;
 
@@ -150,11 +191,22 @@
   }
 
   function updateViewport() {
+    viewportFrameID = undefined;
     scrollY = window.scrollY;
     viewportHeight = window.innerHeight;
     if (listEl) {
       listTop = listEl.getBoundingClientRect().top + window.scrollY;
     }
+  }
+
+  function scheduleViewportUpdate() {
+    if (viewportFrameID !== undefined) return;
+    viewportFrameID = requestAnimationFrame(updateViewport);
+  }
+
+  function isSafariBrowser() {
+    const userAgent = navigator.userAgent;
+    return /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Edg\//.test(userAgent);
   }
 
   function measureCard(node: HTMLElement, id: string) {
@@ -180,6 +232,38 @@
       update(nextID: string) {
         id = nextID;
         update();
+      },
+      destroy() {
+        observer.disconnect();
+      }
+    };
+  }
+
+  function prepareAmbient(node: HTMLElement, id: string) {
+    const markReady = () => {
+      if (!ambientReadyIDs[id]) {
+        ambientReadyIDs = { ...ambientReadyIDs, [id]: true };
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          markReady();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '720px 0px 720px 0px' }
+    );
+
+    observer.observe(node);
+
+    return {
+      update(nextID: string) {
+        id = nextID;
+        if (ambientReadyIDs[id]) {
+          observer.disconnect();
+        }
       },
       destroy() {
         observer.disconnect();
@@ -246,12 +330,28 @@
     }
   }
 
+  function persistCardBackgroundMode(nextMode: CardBackgroundMode) {
+    try {
+      window.localStorage.setItem(cardBackgroundModeStorageKey, nextMode);
+    } catch {
+      // Ignore storage failures; the in-memory debug setting still applies.
+    }
+  }
+
   function readStoredUsername() {
     try {
       const storedUsername = window.localStorage.getItem(usernameStorageKey)?.trim();
       return storedUsername || 'Guest';
     } catch {
       return 'Guest';
+    }
+  }
+
+  function readStoredCardBackgroundMode(): CardBackgroundMode {
+    try {
+      return window.localStorage.getItem(cardBackgroundModeStorageKey) === 'simple' ? 'simple' : 'ambient';
+    } catch {
+      return 'ambient';
     }
   }
 
@@ -378,10 +478,15 @@
         class="glass-card mb-4 overflow-hidden"
         class:media-card-expanded={expandedItemID === item.id}
         use:measureCard={item.id}
+        use:prepareAmbient={item.id}
       >
         <MediaCard
           {item}
           expanded={expandedItemID === item.id}
+          ambientActive={
+            cardBackgroundMode === 'ambient' &&
+            (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
+          }
           overlayVisible={activeOverlayID === item.id}
           onReveal={revealCardOverlay}
           onKeep={keepCardOverlay}
@@ -435,5 +540,7 @@
   {topSpacer}
   {bottomSpacer}
   {measuredCount}
+  {cardBackgroundMode}
   onToggle={toggleDebugCollapsed}
+  onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
 />

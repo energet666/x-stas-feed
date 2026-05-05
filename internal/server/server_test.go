@@ -54,6 +54,9 @@ func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", res.Code)
 	}
+	if cacheControl := res.Header().Get("Cache-Control"); cacheControl != mediaCacheControl {
+		t.Fatalf("expected media Cache-Control %q, got %q", mediaCacheControl, cacheControl)
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/media/"+media.EncodeID("../secret.png"), nil)
 	res = httptest.NewRecorder()

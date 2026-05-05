@@ -69,6 +69,11 @@ export function commentEventsURL() {
   return '/api/comments/events';
 }
 
+export function mediaPosterURL(mediaId: string, seconds: number) {
+  const time = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 2) / 2 : 0;
+  return `/api/media/${encodeURIComponent(mediaId)}/poster?time=${time.toFixed(1)}`;
+}
+
 async function responseErrorMessage(response: Response) {
   return response
     .json()
