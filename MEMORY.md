@@ -87,6 +87,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Video controls display saved watch progress immediately from `localStorage` so the seekbar matches the poster before playback starts; this display state must not seek the video until the user plays or manually seeks.
 - Idle `timeupdate` events from metadata/preload must not overwrite the display-only saved progress before user interaction; Chrome can emit these with `video.currentTime` still at 0.
 - Manual seeking while paused must not request a fresh poster. Once the user interacts with a video, seek the real video element; poster generation is only for scroll/idle optimization.
+- A video becomes the active keyboard target only after explicit interaction with that player or its controls. Hover, pointer movement, and focus used only to reveal controls must not activate video keyboard handling. Pointer-down on empty page background dispatches a clear-active-video event.
 - Save and reuse per-video watch progress only for videos at least 120 seconds long. Short videos always use first-frame posters so partially watched shorts do not expand the server poster cache on later visits.
 - Ambient media activation is observer-driven: mounted overscan cards prepare their ambient background and idle video preview seek only when they approach the viewport, rather than immediately at mount.
 - The debug overlay includes a persisted card background mode switch: `simple` disables ambient card backgrounds, `ambient` uses the observer-driven ambient preparation path. This switch must not disable normal video preview/progress seeking.
@@ -100,6 +101,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 ## UI Behavior Decisions
 
 - Expanded media reuses the same image/video DOM node and fixes the media frame to the browser viewport. Do not mount a duplicate media element for fullscreen.
+- The page background includes an `AsteroidsShip` fixed overlay. It starts parked horizontally in the top-left header area on a lower layer so the sticky header overlays it. ArrowLeft/ArrowRight rotate the ship, ArrowUp applies thrust, ArrowDown applies reverse thrust, Space fires short-lived glowing bullets, and the ship/bullets wrap at viewport edges. Ship keyboard handling must ignore text entry targets and must yield all ship keys while a video is the active keyboard target, so video Space/arrow shortcuts keep working until page-background click clears video activity.
 - Expanded media locks background scroll and closes with Escape or the close button.
 - Comments open as an in-card overlay over the selected feed card, not as a global fixed side/bottom panel.
 - Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.

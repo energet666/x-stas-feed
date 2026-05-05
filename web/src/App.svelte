@@ -1,6 +1,7 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
   import { LoaderCircle } from 'lucide-svelte';
+  import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
   import CommentsPanel from './components/CommentsPanel.svelte';
   import EmptyFeedState from './components/EmptyFeedState.svelte';
@@ -17,6 +18,7 @@
   const overscanRows = 2;
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
+  const clearActiveVideoEvent = 'feed-ai:video-clear-active';
 
   type CardBackgroundMode = 'simple' | 'ambient';
 
@@ -440,6 +442,16 @@
       closeExpandedItem();
     }
   }
+
+  function clearActiveVideoFromPageBackground(event: PointerEvent) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest('article, header, aside, .debug-overlay, button, input, textarea, select, a, [role="button"]')) {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
+  }
 </script>
 
 <svelte:head>
@@ -452,8 +464,9 @@
 
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<main class="app-shell min-h-screen">
+<main class="app-shell min-h-screen" onpointerdown={clearActiveVideoFromPageBackground}>
   <BackgroundParticles />
+  <AsteroidsShip />
   <FeedHeader loadedCount={items.length} />
   <UserSidebar bind:username />
 

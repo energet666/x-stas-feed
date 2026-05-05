@@ -1,4 +1,6 @@
 <script module lang="ts">
+  const FEED_VIDEO_CLEAR_ACTIVE_EVENT = 'feed-ai:video-clear-active';
+  const FEED_VIDEO_ACTIVE_EVENT = 'feed-ai:video-active';
   let nextPlayerId = 0;
   let activePlayerId: number | undefined = undefined;
 </script>
@@ -116,7 +118,6 @@
   });
 
   function revealControls() {
-    setActivePlayer();
     showControls = true;
     showCursor = true;
     scheduleControlsHide();
@@ -134,7 +135,6 @@
   }
 
   function keepControls() {
-    setActivePlayer();
     showControls = true;
     showCursor = true;
     clearTimeout(hideTimer);
@@ -310,6 +310,7 @@
   }
 
   function handleContainerTouch() {
+    setActivePlayer();
     markVideoInteraction();
     revealControls();
   }
@@ -317,6 +318,7 @@
   function handleSeek(event: Event) {
     if (!video) return;
     const target = event.target as HTMLInputElement;
+    setActivePlayer();
     metadataWanted = true;
     markVideoInteraction();
     markProgressInteraction();
@@ -329,6 +331,7 @@
   function handleVolume(event: Event) {
     if (!video || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
+    setActivePlayer();
     markVideoInteraction();
     const nextVolume = Number(target.value);
     applyVolume(nextVolume, nextVolume === 0, true);
@@ -336,6 +339,7 @@
 
   function toggleMute() {
     if (!video) return;
+    setActivePlayer();
     markVideoInteraction();
     const nextMuted = !muted;
     const nextVolume = !nextMuted && volume === 0 ? 1 : volume;
@@ -345,6 +349,7 @@
 
   async function togglePip() {
     if (!video) return;
+    setActivePlayer();
     markVideoInteraction();
     const safariVideo = video as SafariVideoElement;
 
@@ -368,10 +373,17 @@
 
   function setActivePlayer() {
     activePlayerId = playerId;
+    window.dispatchEvent(new CustomEvent(FEED_VIDEO_ACTIVE_EVENT));
   }
 
   function isActivePlayer() {
     return activePlayerId === playerId;
+  }
+
+  function clearActivePlayer() {
+    if (activePlayerId === playerId) {
+      activePlayerId = undefined;
+    }
   }
 
   function safePlay() {
@@ -394,6 +406,7 @@
 
   function seekBy(seconds: number) {
     if (!video) return;
+    setActivePlayer();
     markVideoInteraction();
     markProgressInteraction();
     video.currentTime = clampPlaybackTime(video.currentTime + seconds);
@@ -610,10 +623,12 @@
   $effect(() => {
     window.addEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
     window.addEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
+    window.addEventListener(FEED_VIDEO_CLEAR_ACTIVE_EVENT, clearActivePlayer);
 
     return () => {
       window.removeEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
       window.removeEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
+      window.removeEventListener(FEED_VIDEO_CLEAR_ACTIVE_EVENT, clearActivePlayer);
     };
   });
 
@@ -751,7 +766,6 @@
       ontouchstart={handleContainerTouch}
       onfocusin={keepControls}
       onmouseleave={hideControls}
-      onclick={setActivePlayer}
     >
       <!-- svelte-ignore a11y_media_has_caption -->
       <video
