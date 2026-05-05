@@ -4,6 +4,7 @@ export const FEED_VIDEO_VOLUME_EVENT = 'feed-video-volume';
 export const LONG_PRESS_DELAY_MS = 200;
 export const SEEK_FEEDBACK_ACCUMULATION_MS = 600;
 export const TOUCHPAD_SEEK_SENSITIVITY = 0.05;
+export const MIN_PROGRESS_SAVE_DURATION_SECONDS = 120;
 
 const videoVolumeKey = 'feed-ai:video-volume';
 const videoMutedKey = 'feed-ai:video-muted';
@@ -84,7 +85,7 @@ export function readStoredProgress(mediaId: string) {
 }
 
 export function saveStoredProgress(mediaId: string, time: number, duration: number) {
-  if (!Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
+  if (duration < MIN_PROGRESS_SAVE_DURATION_SECONDS || !Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
     clearStoredProgress(mediaId);
     return;
   }

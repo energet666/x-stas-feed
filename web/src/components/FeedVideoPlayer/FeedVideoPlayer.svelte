@@ -15,6 +15,7 @@
     FEED_VIDEO_PLAY_EVENT,
     FEED_VIDEO_VOLUME_EVENT,
     LONG_PRESS_DELAY_MS,
+    MIN_PROGRESS_SAVE_DURATION_SECONDS,
     SEEK_FEEDBACK_ACCUMULATION_MS,
     TOUCHPAD_SEEK_SENSITIVITY,
     canSetVolume,
@@ -98,6 +99,7 @@
   let hasDecodedFrame = $state(false);
   const playerId = nextPlayerId++;
 
+  const canPersistProgress = $derived(duration >= MIN_PROGRESS_SAVE_DURATION_SECONDS);
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
   const supportsPip = $derived(supportsPictureInPicture(video));
   const videoPreload = $derived(expanded || !paused ? 'auto' : isSafari && !metadataWanted ? 'none' : 'metadata');
@@ -235,6 +237,12 @@
 
   function validateDisplayedProgress() {
     if (duration <= 0) return;
+    if (!canPersistProgress) {
+      currentTime = 0;
+      posterTime = 0;
+      clearStoredProgress(item.id);
+      return;
+    }
     if (currentTime <= 0.5) return;
     if (currentTime >= duration - 1) {
       currentTime = 0;
@@ -250,6 +258,7 @@
 
   function applySavedStartPosition() {
     if (!video || !hasVideoInteraction || duration <= 0 || video.currentTime > 0.5) return;
+    if (!canPersistProgress) return;
     const storedTime = readStoredProgress(item.id);
     if (storedTime <= 0.5) return;
     if (storedTime >= duration - 1) {
@@ -544,6 +553,10 @@
   function restoreProgress() {
     if (!video || progressRestored || duration <= 0) return;
     progressRestored = true;
+    if (!canPersistProgress) {
+      clearStoredProgress(item.id);
+      return;
+    }
 
     const storedTime = readStoredProgress(item.id);
     if (storedTime <= 0.5) return;
@@ -569,6 +582,10 @@
 
   function saveProgress() {
     if (!hasProgressInteraction || !video || duration <= 0) return;
+    if (!canPersistProgress) {
+      clearStoredProgress(item.id);
+      return;
+    }
     const time = video.currentTime;
 
     if (!Number.isFinite(time) || time <= 0.5 || time >= duration - 1) {
@@ -748,7 +765,7 @@
         onloadedmetadata={syncMetadata}
         ondurationchange={syncMetadata}
         ontimeupdate={() => {
-          if (!isDragging) currentTime = video?.currentTime ?? 0;
+          if (!isDragging && (hasVideoInteraction || !paused)) currentTime = video?.currentTime ?? 0;
           saveProgressThrottled();
         }}
         onplay={() => {

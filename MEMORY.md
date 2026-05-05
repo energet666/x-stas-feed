@@ -85,7 +85,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - After any user interaction with a mounted video card, remove the poster cover, remove the video `poster` attribute, and stop using poster ambient for that card lifetime. From that point, the real video element/canvas owns visuals.
 - In Safari, mounted idle videos lazily load metadata immediately so duration and seek controls are available, but metadata load must not seek the video for a preview frame; posters remain responsible for idle visuals.
 - Video controls display saved watch progress immediately from `localStorage` so the seekbar matches the poster before playback starts; this display state must not seek the video until the user plays or manually seeks.
+- Idle `timeupdate` events from metadata/preload must not overwrite the display-only saved progress before user interaction; Chrome can emit these with `video.currentTime` still at 0.
 - Manual seeking while paused must not request a fresh poster. Once the user interacts with a video, seek the real video element; poster generation is only for scroll/idle optimization.
+- Save and reuse per-video watch progress only for videos at least 120 seconds long. Short videos always use first-frame posters so partially watched shorts do not expand the server poster cache on later visits.
 - Ambient media activation is observer-driven: mounted overscan cards prepare their ambient background and idle video preview seek only when they approach the viewport, rather than immediately at mount.
 - The debug overlay includes a persisted card background mode switch: `simple` disables ambient card backgrounds, `ambient` uses the observer-driven ambient preparation path. This switch must not disable normal video preview/progress seeking.
 - Safari and Chrome both use the blurred ambient media card background; video ambient canvas is prepared through the same observer-driven ambient path as the rest of the card background.
