@@ -114,6 +114,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 ## Agent Workflow Constraints
 
 - Agents may start the local server only for short verification checks and must stop it immediately afterward, unless the user explicitly asks to start or keep it running.
+- Use `make package-win` to rebuild the root Windows package: frontend into `build/feed-ai-win64/web/dist`, Go `server.exe` for Windows amd64, and `build/feed-ai-win64.zip`.
 - Record only important new decisions, constraints, verification-relevant outcomes, and known issues here. Do not append routine changelog entries.
 
 ## Known Environment Notes
