@@ -91,6 +91,8 @@
   let hasProgressInteraction = false;
   let lastProgressSaveAt = 0;
   let ambientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
+  let ambientCanvasWidth = $state(32);
+  let ambientCanvasHeight = $state(32);
   let ambientAnimationFrameId: number | undefined = undefined;
   let ambientFrameTick = 0;
   let isSafari = $state(false);
@@ -231,6 +233,7 @@
     video.playbackRate = userPlaybackRate;
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
+    syncAmbientCanvasSize();
     validateDisplayedProgress();
     applySavedStartPosition();
   }
@@ -666,12 +669,22 @@
 
   function drawFrame() {
     if (!video || !ambientCanvas || video.readyState < 2) return;
+    syncAmbientCanvasSize();
     const ctx = ambientCanvas.getContext('2d', { alpha: false });
     if (!ctx) return;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'low';
     ctx.drawImage(video, 0, 0, ambientCanvas.width, ambientCanvas.height);
     hasDecodedFrame = true;
+  }
+
+  function syncAmbientCanvasSize() {
+    if (!video?.videoWidth || !video.videoHeight) return;
+
+    const maxSide = 64;
+    const scale = maxSide / Math.max(video.videoWidth, video.videoHeight);
+    ambientCanvasWidth = Math.max(1, Math.round(video.videoWidth * scale));
+    ambientCanvasHeight = Math.max(1, Math.round(video.videoHeight * scale));
   }
 
   $effect(() => {
@@ -746,8 +759,8 @@
         <canvas
           bind:this={ambientCanvas}
           class="ambient-media"
-          width="32"
-          height="32"
+          width={ambientCanvasWidth}
+          height={ambientCanvasHeight}
         ></canvas>
       {/if}
     {/if}

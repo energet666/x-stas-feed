@@ -83,6 +83,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Video preview frames are served as cached JPEG posters through `GET /api/media/{id}/poster?time=`. The frontend chooses the poster time from saved per-video watch progress, falling back to the first frame when the user has not watched that video.
 - Idle video ambient backgrounds use the same poster JPEG as the video element instead of seeking/loading the video.
 - After any user interaction with a mounted video card, remove the poster cover, remove the video `poster` attribute, and stop using poster ambient for that card lifetime. From that point, the real video element/canvas owns visuals.
+- Video ambient canvas dimensions track the source video aspect ratio; keeping a square canvas makes `object-fit: cover` crop live ambient differently from poster ambient.
 - In Safari, mounted idle videos lazily load metadata immediately so duration and seek controls are available, but metadata load must not seek the video for a preview frame; posters remain responsible for idle visuals.
 - Video controls display saved watch progress immediately from `localStorage` so the seekbar matches the poster before playback starts; this display state must not seek the video until the user plays or manually seeks.
 - Idle `timeupdate` events from metadata/preload must not overwrite the display-only saved progress before user interaction; Chrome can emit these with `video.currentTime` still at 0.
