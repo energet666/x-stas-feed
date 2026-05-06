@@ -132,8 +132,21 @@ video {
     inset: 0;
     border-radius: inherit;
     background: var(--color-media);
-    box-shadow: none;
     content: '';
+  }
+
+  .glass-card::after {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.12) inset,
+      0 -1px 0 rgb(255 255 255 / 0.18) inset,
+      1px 0 0 rgb(255 255 255 / 0.085) inset,
+      -1px 0 0 rgb(255 255 255 / 0.085) inset;
+    content: '';
+    pointer-events: none;
   }
 
   .glass-card>*,
@@ -373,6 +386,10 @@ video {
     backdrop-filter: blur(18px) saturate(130%);
     -webkit-backdrop-filter: blur(18px) saturate(130%);
     content: '';
+  }
+
+  .media-card-expanded::after {
+    content: none;
   }
 
   .media-card-expanded .media-frame {
