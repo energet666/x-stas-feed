@@ -410,9 +410,10 @@
   function seekBy(seconds: number) {
     if (!video) return;
     setActivePlayer();
+    const baseTime = !hasVideoInteraction && currentTime > 0.5 ? currentTime : video.currentTime;
     markVideoInteraction();
     markProgressInteraction();
-    video.currentTime = clampPlaybackTime(video.currentTime + seconds);
+    video.currentTime = clampPlaybackTime(baseTime + seconds);
     currentTime = video.currentTime;
     saveProgress();
     revealControls();
@@ -561,8 +562,6 @@
   function handleWheel(event: WheelEvent) {
     if (Math.abs(event.deltaX) < Math.abs(event.deltaY)) return;
     event.preventDefault();
-    setActivePlayer();
-    markVideoInteraction();
     seekBy(-event.deltaX * TOUCHPAD_SEEK_SENSITIVITY);
   }
 
