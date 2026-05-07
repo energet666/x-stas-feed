@@ -20,6 +20,7 @@ type Server struct {
 	mux       *http.ServeMux
 	library   *media.Library
 	comments  *commentHub
+	ships     *shipHub
 	staticDir string
 	logger    *log.Logger
 }
@@ -29,6 +30,7 @@ func New(library *media.Library, staticDir string, logger *log.Logger) *Server {
 		mux:       http.NewServeMux(),
 		library:   library,
 		comments:  newCommentHub(),
+		ships:     newShipHub(),
 		staticDir: staticDir,
 		logger:    logger,
 	}
@@ -43,6 +45,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/feed", s.handleFeed)
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
+	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)

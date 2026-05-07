@@ -10,6 +10,45 @@ export type CommentEvent = {
   comment: Comment;
 };
 
+export type ShipState = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  angle: number;
+  thrusting: boolean;
+  bullets?: ShipBullet[];
+  asteroid?: ShipAsteroid;
+  updatedAt?: string;
+};
+
+export type ShipBullet = {
+  x: number;
+  y: number;
+};
+
+export type ShipAsteroid = {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  angle: number;
+  path: string;
+};
+
+export type ShipEvent = {
+  type: 'asteroid-destroyed';
+  ownerId?: string;
+  asteroidId?: number;
+  x?: number;
+  y?: number;
+};
+
+export type ShipSnapshot = {
+  ships: ShipState[];
+  events?: ShipEvent[];
+};
+
 export type MediaItem = {
   id: string;
   filename: string;
@@ -67,6 +106,11 @@ export async function createComment(mediaId: string, text: string, author: strin
 
 export function commentEventsURL() {
   return '/api/comments/events';
+}
+
+export function shipSocketURL() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/api/ships/socket`;
 }
 
 export function mediaPosterURL(mediaId: string, seconds: number) {

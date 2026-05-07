@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { shipSocketURL, type ShipSnapshot, type ShipState as NetworkShipState } from '../lib/feed';
 
   type ShipState = {
     x: number;
@@ -53,7 +54,12 @@
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
+  const gameStartedEvent = 'feed-ai:game-started';
+  const shipPostIntervalMs = 16;
+  const shipSessionStorageKey = 'feed-ai:ship-session-id';
   const keys = new Set<string>();
+
+  let { username = 'Guest' }: { username: string } = $props();
 
   let ship = $state<ShipState>({
     x: 8,
@@ -76,6 +82,13 @@
   let nextExplosionID = 1;
   let videoActive = false;
   let shipControlled = false;
+  let sessionID = '';
+  let lastShipPostAt = 0;
+  let remoteShips = $state<NetworkShipState[]>([]);
+  let shipSocket: WebSocket | undefined = undefined;
+  let audioContext: AudioContext | undefined = undefined;
+  let lastThrustSoundAt = 0;
+  const pendingAsteroidHits = new Set<string>();
 
   const shipTransform = $derived(
     `translate3d(${ship.x}px, ${ship.y}px, 0) rotate(${ship.angle + Math.PI / 2}rad)`
@@ -93,6 +106,7 @@
       return;
     }
     if (!isShipKey(event) || isTextEntryTarget(event.target)) return;
+    primeAudio();
     if (event.code !== 'Space') {
       startAsteroidGame();
     }
@@ -146,6 +160,7 @@
     };
 
     bullets = [bullet];
+    playShootSound();
   }
 
   function resize() {
@@ -171,6 +186,10 @@
     }
 
     ship.thrusting = keys.has('ArrowUp');
+    if (ship.thrusting && now - lastThrustSoundAt > 130) {
+      lastThrustSoundAt = now;
+      playThrustSound();
+    }
     if (ship.thrusting || keys.has('ArrowDown')) {
       const force = ship.thrusting ? thrust : -reverseThrust;
       ship.vx += Math.cos(ship.angle) * force * delta;
@@ -203,6 +222,13 @@
       detectAsteroidHit();
       detectShipCollision();
     }
+    if (shipControlled) {
+      detectRemoteShipCollision();
+      detectRemoteAsteroidHit();
+      detectRemoteBulletCollision();
+      detectRemoteAsteroidCollision();
+      publishShipThrottled(now);
+    }
 
     animationFrameID = requestAnimationFrame(animate);
   }
@@ -210,6 +236,7 @@
   function startAsteroidGame() {
     if (shipControlled) return;
     shipControlled = true;
+    window.dispatchEvent(new CustomEvent(gameStartedEvent));
     spawnAsteroid();
   }
 
@@ -283,6 +310,93 @@
     bullets = [];
     resetShip();
     destroyAsteroid(asteroid.x, asteroid.y);
+    playShipDestroySound();
+    void publishShip();
+  }
+
+  function detectRemoteShipCollision() {
+    const center = shipCenter();
+    const hit = remoteShips.find(
+      (remoteShip) => Math.hypot(center.x - remoteShip.x, center.y - remoteShip.y) <= shipCollisionRadius * 2
+    );
+    if (!hit) return;
+
+    bullets = [];
+    resetShip();
+    explosion = {
+      id: nextExplosionID++,
+      x: (center.x + hit.x) / 2,
+      y: (center.y + hit.y) / 2
+    };
+    window.setTimeout(() => {
+      explosion = undefined;
+    }, 360);
+    playShipDestroySound();
+    void publishShip();
+  }
+
+  function detectRemoteAsteroidHit() {
+    if (bullets.length === 0) return;
+
+    for (const remoteShip of remoteShips) {
+      const remoteAsteroid = remoteShip.asteroid;
+      if (!remoteAsteroid) continue;
+      const hitKey = `${remoteShip.id}:${remoteAsteroid.id}`;
+      if (pendingAsteroidHits.has(hitKey)) continue;
+
+      const hit = bullets.find(
+        (bullet) => Math.hypot(bullet.x - remoteAsteroid.x, bullet.y - remoteAsteroid.y) <= remoteAsteroid.radius + 5
+      );
+      if (!hit) continue;
+
+      bullets = bullets.filter((bullet) => bullet.id !== hit.id);
+      pendingAsteroidHits.add(hitKey);
+      sendAsteroidHit(remoteShip.id, remoteAsteroid.id, hit.x, hit.y);
+      void publishShip();
+      return;
+    }
+  }
+
+  function detectRemoteBulletCollision() {
+    const center = shipCenter();
+    for (const remoteShip of remoteShips) {
+      const hit = remoteShip.bullets?.find(
+        (bullet) => Math.hypot(center.x - bullet.x, center.y - bullet.y) <= shipCollisionRadius + 5
+      );
+      if (!hit) continue;
+
+      resetAfterRemoteHit((center.x + hit.x) / 2, (center.y + hit.y) / 2);
+      return;
+    }
+  }
+
+  function detectRemoteAsteroidCollision() {
+    const center = shipCenter();
+    const hit = remoteShips.find((remoteShip) => {
+      const remoteAsteroid = remoteShip.asteroid;
+      return (
+        remoteAsteroid &&
+        Math.hypot(center.x - remoteAsteroid.x, center.y - remoteAsteroid.y) <= remoteAsteroid.radius + shipCollisionRadius
+      );
+    });
+    if (!hit?.asteroid) return;
+
+    resetAfterRemoteHit(hit.asteroid.x, hit.asteroid.y);
+  }
+
+  function resetAfterRemoteHit(x: number, y: number) {
+    bullets = [];
+    resetShip();
+    explosion = {
+      id: nextExplosionID++,
+      x,
+      y
+    };
+    window.setTimeout(() => {
+      explosion = undefined;
+    }, 360);
+    playShipDestroySound();
+    void publishShip();
   }
 
   function destroyAsteroid(x: number, y: number) {
@@ -295,6 +409,7 @@
     window.setTimeout(() => {
       explosion = undefined;
     }, 360);
+    playExplosionSound();
     clearTimeout(asteroidRespawnTimer);
     asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
   }
@@ -307,6 +422,7 @@
     ship.vy = 0;
     ship.angle = 0;
     ship.thrusting = false;
+    shipControlled = false;
   }
 
   function shipCenter() {
@@ -322,6 +438,244 @@
     return ((((value - min) % range) + range) % range) + min;
   }
 
+  function connectShipSocket() {
+    shipSocket?.close();
+    shipSocket = new WebSocket(shipSocketURL());
+    shipSocket.addEventListener('message', (event) => {
+      try {
+        const snapshot = JSON.parse(event.data) as ShipSnapshot;
+        remoteShips = snapshot.ships.filter((remoteShip) => remoteShip.id !== sessionID);
+        handleShipEvents(snapshot);
+      } catch {
+        // Ignore malformed game messages; the next snapshot can recover state.
+      }
+    });
+    shipSocket.addEventListener('open', () => {
+      if (shipControlled) {
+        publishShip();
+      }
+    });
+  }
+
+  function publishShipThrottled(now: number) {
+    if (now - lastShipPostAt < shipPostIntervalMs) return;
+    lastShipPostAt = now;
+    void publishShip();
+  }
+
+  function publishShip() {
+    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
+    try {
+      const center = shipCenter();
+      shipSocket.send(
+        JSON.stringify({
+          type: 'state',
+          ship: {
+            id: sessionID,
+            name: username.trim() || 'Guest',
+            x: center.x,
+            y: center.y,
+            angle: ship.angle,
+            thrusting: ship.thrusting,
+            bullets: bullets.map((bullet) => ({ x: bullet.x, y: bullet.y })),
+            asteroid: asteroid
+              ? {
+                  id: asteroid.id,
+                  x: asteroid.x,
+                  y: asteroid.y,
+                  radius: asteroid.radius,
+                  angle: asteroid.angle,
+                  path: asteroid.path
+                }
+              : undefined
+          }
+        })
+      );
+    } catch {
+      // Multiplayer state is decorative; local ship controls should remain responsive.
+    }
+  }
+
+  function sendAsteroidHit(ownerId: string, asteroidId: number, x: number, y: number) {
+    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
+    try {
+      shipSocket.send(
+        JSON.stringify({
+          type: 'asteroid-hit',
+          ownerId,
+          asteroidId,
+          x,
+          y
+        })
+      );
+    } catch {
+      pendingAsteroidHits.delete(`${ownerId}:${asteroidId}`);
+    }
+  }
+
+  function handleShipEvents(snapshot: ShipSnapshot) {
+    for (const event of snapshot.events ?? []) {
+      if (event.type !== 'asteroid-destroyed' || !event.ownerId || !event.asteroidId) continue;
+      pendingAsteroidHits.delete(`${event.ownerId}:${event.asteroidId}`);
+      if (event.ownerId === sessionID && asteroid?.id === event.asteroidId) {
+        asteroid = undefined;
+        clearTimeout(asteroidRespawnTimer);
+        asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
+      }
+      if (Number.isFinite(event.x) && Number.isFinite(event.y)) {
+        explosion = {
+          id: nextExplosionID++,
+          x: event.x ?? 0,
+          y: event.y ?? 0
+        };
+        window.setTimeout(() => {
+          explosion = undefined;
+        }, 360);
+        playExplosionSound();
+      }
+    }
+  }
+
+  function primeAudio() {
+    audioContext ??= new AudioContext();
+    if (audioContext.state === 'suspended') {
+      void audioContext.resume();
+    }
+  }
+
+  function playShootSound() {
+    const audio = audioContext;
+    if (!audio) return;
+    const now = audio.currentTime;
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+
+    oscillator.type = 'square';
+    oscillator.frequency.setValueAtTime(920, now);
+    oscillator.frequency.exponentialRampToValueAtTime(180, now + 0.09);
+    gain.gain.setValueAtTime(0.075, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.11);
+  }
+
+  function playThrustSound() {
+    const audio = audioContext;
+    if (!audio) return;
+    const now = audio.currentTime;
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(72, now);
+    oscillator.frequency.linearRampToValueAtTime(54, now + 0.08);
+    gain.gain.setValueAtTime(0.028, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.12);
+  }
+
+  function playExplosionSound() {
+    const audio = audioContext;
+    if (!audio) return;
+    const now = audio.currentTime;
+    playExplosionThump(now, 112, 0.075);
+    playExplosionThump(now + 0.082, 78, 0.11);
+    playExplosionHiss(now + 0.12);
+  }
+
+  function playExplosionThump(startAt: number, startFrequency: number, volume: number) {
+    const audio = audioContext;
+    if (!audio) return;
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    const filter = audio.createBiquadFilter();
+
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(startFrequency, startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(42, startAt + 0.13);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(520, startAt);
+    filter.frequency.exponentialRampToValueAtTime(180, startAt + 0.12);
+    gain.gain.setValueAtTime(volume, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.15);
+
+    oscillator.connect(filter).connect(gain).connect(audio.destination);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + 0.16);
+  }
+
+  function playExplosionHiss(startAt: number) {
+    const audio = audioContext;
+    if (!audio) return;
+    const noise = audio.createBufferSource();
+    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.16), audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    const filter = audio.createBiquadFilter();
+    const gain = audio.createGain();
+
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2.2);
+    }
+    noise.buffer = buffer;
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(950, startAt);
+    filter.frequency.exponentialRampToValueAtTime(420, startAt + 0.13);
+    gain.gain.setValueAtTime(0.035, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.16);
+
+    noise.connect(filter).connect(gain).connect(audio.destination);
+    noise.start(startAt);
+    noise.stop(startAt + 0.17);
+  }
+
+  function playShipDestroySound() {
+    const audio = audioContext;
+    if (!audio) return;
+    const now = audio.currentTime;
+    const fall = audio.createOscillator();
+    const fallGain = audio.createGain();
+    const noise = audio.createBufferSource();
+    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.16), audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    const noiseGain = audio.createGain();
+
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+    noise.buffer = buffer;
+    fall.type = 'triangle';
+    fall.frequency.setValueAtTime(420, now);
+    fall.frequency.exponentialRampToValueAtTime(42, now + 0.28);
+    fallGain.gain.setValueAtTime(0.12, now);
+    fallGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    noiseGain.gain.setValueAtTime(0.055, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    fall.connect(fallGain).connect(audio.destination);
+    noise.connect(noiseGain).connect(audio.destination);
+    fall.start(now);
+    noise.start(now);
+    noise.stop(now + 0.16);
+    fall.stop(now + 0.31);
+  }
+
+  function readShipSessionID() {
+    try {
+      const existing = window.sessionStorage.getItem(shipSessionStorageKey);
+      if (existing) return existing;
+      const nextID = crypto.randomUUID();
+      window.sessionStorage.setItem(shipSessionStorageKey, nextID);
+      return nextID;
+    } catch {
+      return `ship-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+  }
+
   onMount(() => {
     const markVideoActive = () => {
       videoActive = true;
@@ -332,7 +686,9 @@
       videoActive = false;
     };
 
+    sessionID = readShipSessionID();
     resize();
+    connectShipSocket();
     window.addEventListener('resize', resize);
     window.addEventListener('keydown', handleKeydown);
     window.addEventListener('keyup', handleKeyup);
@@ -347,6 +703,8 @@
       window.removeEventListener('keyup', handleKeyup);
       window.removeEventListener(activeVideoEvent, markVideoActive);
       window.removeEventListener(clearActiveVideoEvent, markVideoInactive);
+      shipSocket?.close();
+      void audioContext?.close();
       clearTimeout(asteroidRespawnTimer);
       if (animationFrameID !== undefined) {
         cancelAnimationFrame(animationFrameID);
@@ -385,6 +743,48 @@
   ></span>
 {/if}
 
+{#each remoteShips as remoteShip (remoteShip.id)}
+  {#if remoteShip.asteroid}
+    <svg
+      class="asteroids-rock asteroids-remote-rock"
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      style:width={`${remoteShip.asteroid.radius * 2}px`}
+      style:height={`${remoteShip.asteroid.radius * 2}px`}
+      style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
+    >
+      <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
+      <path class="remote-rock-line" d={remoteShip.asteroid.path} />
+    </svg>
+  {/if}
+  {#each remoteShip.bullets ?? [] as bullet, index (`${remoteShip.id}-${index}`)}
+    <span
+      class="asteroids-bullet asteroids-remote-bullet"
+      aria-hidden="true"
+      style:transform={`translate3d(${bullet.x}px, ${bullet.y}px, 0) translate(-50%, -50%)`}
+    ></span>
+  {/each}
+  <div
+    class="asteroids-remote-ship"
+    aria-hidden="true"
+    style:transform={`translate3d(${remoteShip.x - shipWidth / 2}px, ${remoteShip.y - shipHeight / 2}px, 0) rotate(${remoteShip.angle + Math.PI / 2}rad)`}
+  >
+    <svg viewBox="0 0 42 54" role="img">
+      <path class="remote-ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
+      <path class="remote-ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
+      <path class="remote-ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
+      <path class="remote-ship-flame" class:remote-ship-flame-active={remoteShip.thrusting} d="M21 42 27 55 21 50 15 55 21 42Z" />
+    </svg>
+  </div>
+  <span
+    class="asteroids-remote-name"
+    aria-hidden="true"
+    style:transform={`translate3d(${remoteShip.x}px, ${remoteShip.y + shipHeight / 2 + 8}px, 0) translate(-50%, 0)`}
+  >
+    {remoteShip.name}
+  </span>
+{/each}
+
 <div
   class="asteroids-ship"
   class:asteroids-ship-thrusting={ship.thrusting}
@@ -410,6 +810,20 @@
     pointer-events: none;
     transform-origin: 50% 50%;
     filter: drop-shadow(0 0 10px rgb(125 211 252 / 0.5));
+    will-change: transform;
+  }
+
+  .asteroids-remote-ship {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: 2.7rem;
+    height: 3.45rem;
+    pointer-events: none;
+    transform-origin: 50% 50%;
+    filter: drop-shadow(0 0 10px rgb(244 114 182 / 0.42));
+    opacity: 0.86;
     will-change: transform;
   }
 
@@ -453,6 +867,30 @@
     stroke-width: 4;
   }
 
+  .asteroids-remote-rock {
+    opacity: 0.76;
+    filter: drop-shadow(0 0 12px rgb(244 114 182 / 0.22));
+  }
+
+  .remote-rock-fill {
+    fill: rgb(39 7 24 / 0.48);
+    stroke: none;
+  }
+
+  .remote-rock-line {
+    fill: none;
+    stroke: rgb(251 207 232 / 0.62);
+    stroke-linejoin: round;
+    stroke-width: 4;
+  }
+
+  .asteroids-remote-bullet {
+    background: rgb(244 114 182 / 0.96);
+    box-shadow:
+      0 0 6px rgb(244 114 182 / 0.86),
+      0 0 14px rgb(125 211 252 / 0.42);
+  }
+
   .asteroids-explosion {
     position: fixed;
     top: 0;
@@ -477,6 +915,13 @@
     overflow: visible;
   }
 
+  .asteroids-remote-ship svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
   .ship-glow {
     fill: rgb(125 211 252 / 0.12);
     stroke: rgb(125 211 252 / 0.26);
@@ -495,6 +940,60 @@
     stroke: rgb(165 243 252 / 0.74);
     stroke-linejoin: round;
     stroke-width: 1.4;
+  }
+
+  .remote-ship-glow {
+    fill: rgb(244 114 182 / 0.12);
+    stroke: rgb(244 114 182 / 0.26);
+    stroke-width: 7;
+  }
+
+  .remote-ship-outline {
+    fill: rgb(3 7 18 / 0.48);
+    stroke: rgb(251 207 232 / 0.88);
+    stroke-linejoin: round;
+    stroke-width: 2.25;
+  }
+
+  .remote-ship-window {
+    fill: rgb(244 114 182 / 0.26);
+    stroke: rgb(251 207 232 / 0.72);
+    stroke-linejoin: round;
+    stroke-width: 1.4;
+  }
+
+  .remote-ship-flame {
+    fill: rgb(251 146 60 / 0);
+    stroke: rgb(251 191 36 / 0);
+    stroke-linejoin: round;
+    stroke-width: 1.7;
+    transform-origin: 50% 84%;
+  }
+
+  .remote-ship-flame-active {
+    animation: ship-thrust 120ms steps(2, end) infinite;
+    fill: rgb(251 146 60 / 0.78);
+    stroke: rgb(254 240 138 / 0.74);
+  }
+
+  .asteroids-remote-name {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    max-width: 9rem;
+    overflow: hidden;
+    border: 1px solid rgb(251 207 232 / 0.24);
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.3);
+    padding: 0.12rem 0.42rem;
+    color: rgb(251 207 232 / 0.92);
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+    white-space: nowrap;
   }
 
   .ship-flame {

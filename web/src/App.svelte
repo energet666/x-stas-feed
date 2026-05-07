@@ -19,6 +19,7 @@
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
+  const gameStartedEvent = 'feed-ai:game-started';
 
   type CardBackgroundMode = 'simple' | 'ambient';
 
@@ -48,6 +49,7 @@
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
+  let gameActive = $state(false);
   let ambientReadyIDs = $state<Record<string, boolean>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let viewportFrameID: number | undefined = undefined;
@@ -117,6 +119,7 @@
     updateViewport();
     window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
     window.addEventListener('resize', scheduleViewportUpdate);
+    window.addEventListener(gameStartedEvent, activateGameMode);
     subscribeToCommentEvents();
     void loadPage();
 
@@ -129,6 +132,7 @@
       commentEvents?.close();
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
+      window.removeEventListener(gameStartedEvent, activateGameMode);
     };
   });
 
@@ -452,6 +456,14 @@
 
     window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
   }
+
+  function activateGameMode() {
+    gameActive = true;
+    commentsPanelItemID = null;
+    expandedItemID = null;
+    activeOverlayID = null;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }
 </script>
 
 <svelte:head>
@@ -466,94 +478,98 @@
 
 <main class="app-shell min-h-screen" onpointerdown={clearActiveVideoFromPageBackground}>
   <BackgroundParticles />
-  <AsteroidsShip />
-  <FeedHeader loadedCount={items.length} />
-  <UserSidebar bind:username />
+  <AsteroidsShip username={commentUsername} />
+  {#if !gameActive}
+    <FeedHeader loadedCount={items.length} />
+    <UserSidebar bind:username />
 
-  <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
-    {#if !initialLoaded && loading}
-      <div class="flex min-h-96 items-center justify-center">
-        <LoaderCircle class="animate-spin text-primary" size={34} />
-      </div>
-    {/if}
-
-    {#if isEmpty}
-      <EmptyFeedState onRetry={retry} />
-    {/if}
-
-    {#if topSpacer > 0}
-      <div aria-hidden="true" style={`height: ${topSpacer}px`}></div>
-    {/if}
-
-    {#each visibleRows as row (row.item.id)}
-      {@const item = row.item}
-      <article
-        class="glass-card mb-4 overflow-hidden"
-        class:media-card-expanded={expandedItemID === item.id}
-        use:measureCard={item.id}
-        use:prepareAmbient={item.id}
-      >
-        <MediaCard
-          {item}
-          expanded={expandedItemID === item.id}
-          ambientActive={
-            cardBackgroundMode === 'ambient' &&
-            (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
-          }
-          overlayVisible={activeOverlayID === item.id}
-          onReveal={revealCardOverlay}
-          onKeep={keepCardOverlay}
-          onHide={hideCardOverlay}
-          onToggleExpanded={toggleExpandedItem}
-          onOpenComments={openComments}
-        />
-        {#if commentsPanelItemID === item.id}
-          <CommentsPanel
-            {item}
-            username={commentUsername}
-            commentEvent={latestCommentEvent}
-            onClose={closeComments}
-            onCommentsChanged={updateItemComments}
-          />
-        {/if}
-      </article>
-    {/each}
-
-    {#if bottomSpacer > 0}
-      <div aria-hidden="true" style={`height: ${bottomSpacer}px`}></div>
-    {/if}
-
-    {#if error}
-      <FeedError message={error} onRetry={retry} />
-    {/if}
-
-    <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
-      {#if loading && initialLoaded}
-        <LoaderCircle class="animate-spin text-muted" size={26} />
-      {:else if initialLoaded && !hasMore && items.length > 0}
-        <p class="text-sm font-semibold text-muted">End of feed</p>
+    <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
+      {#if !initialLoaded && loading}
+        <div class="flex min-h-96 items-center justify-center">
+          <LoaderCircle class="animate-spin text-primary" size={34} />
+        </div>
       {/if}
-    </div>
-  </section>
+
+      {#if isEmpty}
+        <EmptyFeedState onRetry={retry} />
+      {/if}
+
+      {#if topSpacer > 0}
+        <div aria-hidden="true" style={`height: ${topSpacer}px`}></div>
+      {/if}
+
+      {#each visibleRows as row (row.item.id)}
+        {@const item = row.item}
+        <article
+          class="glass-card mb-4 overflow-hidden"
+          class:media-card-expanded={expandedItemID === item.id}
+          use:measureCard={item.id}
+          use:prepareAmbient={item.id}
+        >
+          <MediaCard
+            {item}
+            expanded={expandedItemID === item.id}
+            ambientActive={
+              cardBackgroundMode === 'ambient' &&
+              (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
+            }
+            overlayVisible={activeOverlayID === item.id}
+            onReveal={revealCardOverlay}
+            onKeep={keepCardOverlay}
+            onHide={hideCardOverlay}
+            onToggleExpanded={toggleExpandedItem}
+            onOpenComments={openComments}
+          />
+          {#if commentsPanelItemID === item.id}
+            <CommentsPanel
+              {item}
+              username={commentUsername}
+              commentEvent={latestCommentEvent}
+              onClose={closeComments}
+              onCommentsChanged={updateItemComments}
+            />
+          {/if}
+        </article>
+      {/each}
+
+      {#if bottomSpacer > 0}
+        <div aria-hidden="true" style={`height: ${bottomSpacer}px`}></div>
+      {/if}
+
+      {#if error}
+        <FeedError message={error} onRetry={retry} />
+      {/if}
+
+      <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
+        {#if loading && initialLoaded}
+          <LoaderCircle class="animate-spin text-muted" size={26} />
+        {:else if initialLoaded && !hasMore && items.length > 0}
+          <p class="text-sm font-semibold text-muted">End of feed</p>
+        {/if}
+      </div>
+    </section>
+  {/if}
 </main>
 
-<FeedDebugOverlay
-  collapsed={debugCollapsed}
-  loadedCount={items.length}
-  mountedCount={visibleRows.length}
-  {unloadedBefore}
-  {unloadedAfter}
-  {visibleStartIndex}
-  {visibleEndIndex}
-  {nextCursor}
-  {loading}
-  {viewportStart}
-  {viewportEnd}
-  {totalHeight}
-  {topSpacer}
-  {bottomSpacer}
-  {measuredCount}
-  {cardBackgroundMode}
-  onToggle={toggleDebugCollapsed}
-  onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
-/>
+{#if !gameActive}
+  <FeedDebugOverlay
+    collapsed={debugCollapsed}
+    loadedCount={items.length}
+    mountedCount={visibleRows.length}
+    {unloadedBefore}
+    {unloadedAfter}
+    {visibleStartIndex}
+    {visibleEndIndex}
+    {nextCursor}
+    {loading}
+    {viewportStart}
+    {viewportEnd}
+    {totalHeight}
+    {topSpacer}
+    {bottomSpacer}
+    {measuredCount}
+    {cardBackgroundMode}
+    onToggle={toggleDebugCollapsed}
+    onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
+  />
+{/if}
