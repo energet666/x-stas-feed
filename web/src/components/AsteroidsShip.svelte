@@ -38,6 +38,17 @@
     y: number;
   };
 
+  type SmokeParticle = {
+    id: number;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    age: number;
+    lifetime: number;
+    size: number;
+  };
+
   const shipWidth = 43.2;
   const shipHeight = 55.2;
   const shipSize = Math.max(shipWidth, shipHeight);
@@ -50,6 +61,8 @@
   const drag = 0.992;
   const bulletSpeed = 11;
   const bulletLifetime = 82;
+  const smokeLifetime = 30;
+  const smokeSpawnInterval = 2.4;
   const asteroidRespawnMs = 650;
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
@@ -72,12 +85,14 @@
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
   let bullets = $state<Bullet[]>([]);
+  let smokeParticles = $state<SmokeParticle[]>([]);
   let asteroid = $state<Asteroid | undefined>(undefined);
   let explosion = $state<Explosion | undefined>(undefined);
   let animationFrameID: number | undefined = undefined;
   let asteroidRespawnTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let lastFrameAt = 0;
   let nextBulletID = 1;
+  let nextSmokeID = 1;
   let nextAsteroidID = 1;
   let nextExplosionID = 1;
   let videoActive = false;
@@ -88,6 +103,7 @@
   let shipSocket: WebSocket | undefined = undefined;
   let audioContext: AudioContext | undefined = undefined;
   let lastThrustSoundAt = 0;
+  let smokeSpawnAccumulator = 0;
   const pendingAsteroidHits = new Set<string>();
 
   const shipTransform = $derived(
@@ -190,6 +206,15 @@
       lastThrustSoundAt = now;
       playThrustSound();
     }
+    if (ship.thrusting) {
+      smokeSpawnAccumulator += delta;
+      while (smokeSpawnAccumulator >= smokeSpawnInterval) {
+        smokeSpawnAccumulator -= smokeSpawnInterval;
+        spawnSmokeParticle();
+      }
+    } else {
+      smokeSpawnAccumulator = 0;
+    }
     if (ship.thrusting || keys.has('ArrowDown')) {
       const force = ship.thrusting ? thrust : -reverseThrust;
       ship.vx += Math.cos(ship.angle) * force * delta;
@@ -215,6 +240,16 @@
         age: bullet.age + delta
       }))
       .filter((bullet) => bullet.age < bulletLifetime);
+    smokeParticles = smokeParticles
+      .map((particle) => ({
+        ...particle,
+        x: particle.x + particle.vx * delta,
+        y: particle.y + particle.vy * delta,
+        vx: particle.vx * Math.pow(0.985, delta),
+        vy: particle.vy * Math.pow(0.985, delta),
+        age: particle.age + delta
+      }))
+      .filter((particle) => particle.age < particle.lifetime);
     if (asteroid) {
       asteroid.x = wrap(asteroid.x + asteroid.vx * delta, -asteroid.radius, viewportWidth + asteroid.radius);
       asteroid.y = wrap(asteroid.y + asteroid.vy * delta, -asteroid.radius, viewportHeight + asteroid.radius);
@@ -290,6 +325,27 @@
   function randomSigned(min: number, max: number) {
     const value = min + Math.random() * (max - min);
     return Math.random() > 0.5 ? value : -value;
+  }
+
+  function spawnSmokeParticle() {
+    const center = shipCenter();
+    const tailX = center.x - Math.cos(ship.angle) * 20;
+    const tailY = center.y - Math.sin(ship.angle) * 20;
+    const spread = (Math.random() - 0.5) * 1.15;
+    const driftAngle = ship.angle + Math.PI + spread;
+    smokeParticles = [
+      ...smokeParticles.slice(-36),
+      {
+        id: nextSmokeID++,
+        x: tailX + (Math.random() - 0.5) * 6,
+        y: tailY + (Math.random() - 0.5) * 6,
+        vx: ship.vx * 0.28 + Math.cos(driftAngle) * (0.65 + Math.random() * 0.75),
+        vy: ship.vy * 0.28 + Math.sin(driftAngle) * (0.65 + Math.random() * 0.75),
+        age: 0,
+        lifetime: smokeLifetime + Math.random() * 12,
+        size: 0.55 + Math.random() * 0.65
+      }
+    ];
   }
 
   function detectAsteroidHit() {
@@ -423,6 +479,8 @@
     ship.angle = 0;
     ship.thrusting = false;
     shipControlled = false;
+    smokeParticles = [];
+    smokeSpawnAccumulator = 0;
   }
 
   function shipCenter() {
@@ -721,6 +779,16 @@
   ></span>
 {/each}
 
+{#each smokeParticles as particle (particle.id)}
+  <span
+    class="asteroids-smoke"
+    aria-hidden="true"
+    style:--smoke-alpha={1 - particle.age / particle.lifetime}
+    style:--smoke-scale={particle.size + (particle.age / particle.lifetime) * 1.4}
+    style:transform={`translate3d(${particle.x}px, ${particle.y}px, 0) translate(-50%, -50%) scale(var(--smoke-scale))`}
+  ></span>
+{/each}
+
 {#if asteroid}
   <svg
     class="asteroids-rock"
@@ -842,6 +910,22 @@
     pointer-events: none;
     transform-origin: 50% 50%;
     will-change: transform;
+  }
+
+  .asteroids-smoke {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    background: rgb(148 163 184 / calc(var(--smoke-alpha) * 0.28));
+    box-shadow: 0 0 8px rgb(226 232 240 / calc(var(--smoke-alpha) * 0.16));
+    filter: blur(1px);
+    opacity: var(--smoke-alpha);
+    pointer-events: none;
+    will-change: transform, opacity;
   }
 
   .asteroids-rock {
