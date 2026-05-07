@@ -38,8 +38,9 @@
     y: number;
   };
 
-  type SmokeParticle = {
+  type Particle = {
     id: number;
+    kind: 'smoke' | 'spark' | 'debris';
     x: number;
     y: number;
     vx: number;
@@ -47,6 +48,8 @@
     age: number;
     lifetime: number;
     size: number;
+    angle?: number;
+    spin?: number;
   };
 
   const shipWidth = 43.2;
@@ -85,7 +88,7 @@
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
   let bullets = $state<Bullet[]>([]);
-  let smokeParticles = $state<SmokeParticle[]>([]);
+  let particles = $state<Particle[]>([]);
   let asteroid = $state<Asteroid | undefined>(undefined);
   let explosion = $state<Explosion | undefined>(undefined);
   let animationFrameID: number | undefined = undefined;
@@ -240,13 +243,14 @@
         age: bullet.age + delta
       }))
       .filter((bullet) => bullet.age < bulletLifetime);
-    smokeParticles = smokeParticles
+    particles = particles
       .map((particle) => ({
         ...particle,
         x: particle.x + particle.vx * delta,
         y: particle.y + particle.vy * delta,
         vx: particle.vx * Math.pow(0.985, delta),
         vy: particle.vy * Math.pow(0.985, delta),
+        angle: (particle.angle ?? 0) + (particle.spin ?? 0) * delta,
         age: particle.age + delta
       }))
       .filter((particle) => particle.age < particle.lifetime);
@@ -333,10 +337,11 @@
     const tailY = center.y - Math.sin(ship.angle) * 20;
     const spread = (Math.random() - 0.5) * 1.15;
     const driftAngle = ship.angle + Math.PI + spread;
-    smokeParticles = [
-      ...smokeParticles.slice(-36),
+    particles = [
+      ...particles.slice(-96),
       {
         id: nextSmokeID++,
+        kind: 'smoke',
         x: tailX + (Math.random() - 0.5) * 6,
         y: tailY + (Math.random() - 0.5) * 6,
         vx: ship.vx * 0.28 + Math.cos(driftAngle) * (0.65 + Math.random() * 0.75),
@@ -346,6 +351,62 @@
         size: 0.55 + Math.random() * 0.65
       }
     ];
+  }
+
+  function spawnExplosionParticles(x: number, y: number) {
+    const burst: Particle[] = [];
+
+    for (let i = 0; i < 18; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.6 + Math.random() * 3.8;
+      burst.push({
+        id: nextSmokeID++,
+        kind: 'spark',
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        age: 0,
+        lifetime: 18 + Math.random() * 14,
+        size: 0.45 + Math.random() * 0.75
+      });
+    }
+
+    for (let i = 0; i < 9; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.7 + Math.random() * 2.1;
+      burst.push({
+        id: nextSmokeID++,
+        kind: 'debris',
+        x: x + (Math.random() - 0.5) * 14,
+        y: y + (Math.random() - 0.5) * 14,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        age: 0,
+        lifetime: 34 + Math.random() * 20,
+        size: 0.7 + Math.random() * 1.1,
+        angle: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.28
+      });
+    }
+
+    for (let i = 0; i < 12; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.35 + Math.random() * 1.35;
+      burst.push({
+        id: nextSmokeID++,
+        kind: 'smoke',
+        x: x + (Math.random() - 0.5) * 18,
+        y: y + (Math.random() - 0.5) * 18,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        age: 0,
+        lifetime: 42 + Math.random() * 26,
+        size: 0.9 + Math.random() * 1.6
+      });
+    }
+
+    particles = [...particles.slice(-72), ...burst];
   }
 
   function detectAsteroidHit() {
@@ -465,6 +526,7 @@
     window.setTimeout(() => {
       explosion = undefined;
     }, 360);
+    spawnExplosionParticles(x, y);
     playExplosionSound();
     clearTimeout(asteroidRespawnTimer);
     asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
@@ -479,7 +541,7 @@
     ship.angle = 0;
     ship.thrusting = false;
     shipControlled = false;
-    smokeParticles = [];
+    particles = [];
     smokeSpawnAccumulator = 0;
   }
 
@@ -589,6 +651,7 @@
         window.setTimeout(() => {
           explosion = undefined;
         }, 360);
+        spawnExplosionParticles(event.x ?? 0, event.y ?? 0);
         playExplosionSound();
       }
     }
@@ -779,13 +842,13 @@
   ></span>
 {/each}
 
-{#each smokeParticles as particle (particle.id)}
+{#each particles as particle (particle.id)}
   <span
-    class="asteroids-smoke"
+    class={`asteroids-particle asteroids-${particle.kind}`}
     aria-hidden="true"
-    style:--smoke-alpha={1 - particle.age / particle.lifetime}
-    style:--smoke-scale={particle.size + (particle.age / particle.lifetime) * 1.4}
-    style:transform={`translate3d(${particle.x}px, ${particle.y}px, 0) translate(-50%, -50%) scale(var(--smoke-scale))`}
+    style:--particle-alpha={1 - particle.age / particle.lifetime}
+    style:--particle-scale={particle.size + (particle.age / particle.lifetime) * (particle.kind === 'spark' ? 0.2 : 1.4)}
+    style:transform={`translate3d(${particle.x}px, ${particle.y}px, 0) translate(-50%, -50%) rotate(${particle.angle ?? 0}rad) scale(var(--particle-scale))`}
   ></span>
 {/each}
 
@@ -912,20 +975,43 @@
     will-change: transform;
   }
 
-  .asteroids-smoke {
+  .asteroids-particle {
     position: fixed;
     top: 0;
     left: 0;
     z-index: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .asteroids-smoke {
     width: 0.8rem;
     height: 0.8rem;
     border-radius: 999px;
-    background: rgb(148 163 184 / calc(var(--smoke-alpha) * 0.28));
-    box-shadow: 0 0 8px rgb(226 232 240 / calc(var(--smoke-alpha) * 0.16));
+    background: rgb(148 163 184 / calc(var(--particle-alpha) * 0.28));
+    box-shadow: 0 0 8px rgb(226 232 240 / calc(var(--particle-alpha) * 0.16));
     filter: blur(1px);
-    opacity: var(--smoke-alpha);
-    pointer-events: none;
-    will-change: transform, opacity;
+    opacity: var(--particle-alpha);
+  }
+
+  .asteroids-spark {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: rgb(253 224 71 / calc(var(--particle-alpha) * 0.96));
+    box-shadow:
+      0 0 8px rgb(253 224 71 / calc(var(--particle-alpha) * 0.84)),
+      0 0 18px rgb(251 146 60 / calc(var(--particle-alpha) * 0.52));
+    opacity: var(--particle-alpha);
+  }
+
+  .asteroids-debris {
+    width: 0.75rem;
+    height: 0.36rem;
+    border-radius: 0.16rem;
+    background: rgb(226 232 240 / calc(var(--particle-alpha) * 0.62));
+    box-shadow: 0 0 8px rgb(251 146 60 / calc(var(--particle-alpha) * 0.26));
+    opacity: var(--particle-alpha);
   }
 
   .asteroids-rock {
