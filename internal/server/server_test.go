@@ -189,6 +189,51 @@ func TestCreateCommentRejectsEmptyText(t *testing.T) {
 	}
 }
 
+func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	for expected := 1; expected <= 2; expected++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/likes", nil)
+		res := httptest.NewRecorder()
+
+		handler.ServeHTTP(res, req)
+
+		if res.Code != http.StatusCreated {
+			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+		}
+
+		var response struct {
+			LikeCount int `json:"likeCount"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+			t.Fatal(err)
+		}
+		if response.LikeCount != expected {
+			t.Fatalf("expected like count %d, got %#v", expected, response)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected feed status 200, got %d", res.Code)
+	}
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].LikeCount != 2 {
+		t.Fatalf("expected feed like count 2, got %#v", page)
+	}
+}
+
 func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
@@ -262,6 +307,85 @@ func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 			return
 		case <-timeout:
 			t.Fatal("timed out waiting for comment event")
+		}
+	}
+}
+
+func TestCommentEventsStreamsCreatedLikes(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler())
+	defer testServer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/comments/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := testServer.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", res.StatusCode)
+	}
+
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(res.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+
+	postRes, err := testServer.Client().Post(
+		testServer.URL+"/api/media/"+id+"/likes",
+		"application/json",
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = postRes.Body.Close()
+	if postRes.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", postRes.StatusCode)
+	}
+
+	timeout := time.After(2 * time.Second)
+	seenLikeEvent := false
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("event stream closed before receiving like data")
+			}
+			if line == "event: like" {
+				seenLikeEvent = true
+				continue
+			}
+			if !seenLikeEvent || !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var event struct {
+				MediaID   string `json:"mediaId"`
+				LikeCount int    `json:"likeCount"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+				t.Fatal(err)
+			}
+			if event.MediaID != id || event.LikeCount != 1 {
+				t.Fatalf("expected streamed like event, got %#v", event)
+			}
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for like event")
 		}
 	}
 }

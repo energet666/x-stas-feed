@@ -54,6 +54,28 @@ func TestScanUsesStoredDisplayName(t *testing.T) {
 	}
 }
 
+func TestScanUsesStoredLikeCount(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	library := NewLibrary(dir)
+	if _, err := library.AddLike(EncodeID("photo.png")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := library.AddLike(EncodeID("photo.png")); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].LikeCount != 2 {
+		t.Fatalf("expected stored like count, got %#v", items)
+	}
+}
+
 func TestScanSortsFilenameTieAscending(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

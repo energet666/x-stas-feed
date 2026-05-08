@@ -38,21 +38,25 @@
     expanded,
     ambientActive,
     overlayVisible,
+    likePending = false,
     onReveal,
     onKeep,
     onHide,
     onToggleExpanded,
-    onOpenComments
+    onOpenComments,
+    onLike
   }: {
     item: MediaItem;
     expanded: boolean;
     ambientActive: boolean;
     overlayVisible: boolean;
+    likePending?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
     onToggleExpanded: () => void;
     onOpenComments: () => void;
+    onLike: () => void;
   } = $props();
 
   let video = $state<HTMLVideoElement | undefined>(undefined);
@@ -739,11 +743,13 @@
   {expanded}
   {ambientActive}
   {overlayVisible}
+  {likePending}
   {onReveal}
   {onKeep}
   {onHide}
   {onToggleExpanded}
   {onOpenComments}
+  {onLike}
 >
   {#snippet ambientBackground()}
     {#if ambientActive}

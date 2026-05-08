@@ -10,6 +10,11 @@ export type CommentEvent = {
   comment: Comment;
 };
 
+export type LikeEvent = {
+  mediaId: string;
+  likeCount: number;
+};
+
 export type ShipState = {
   id: string;
   name: string;
@@ -60,6 +65,7 @@ export type MediaItem = {
   modifiedAt: string;
   comments: Comment[];
   commentCount: number;
+  likeCount: number;
 };
 
 export type FeedPage = {
@@ -114,6 +120,19 @@ export async function createComment(mediaId: string, text: string, author: strin
   }
 
   return (await response.json()) as Comment;
+}
+
+export async function createLike(mediaId: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/likes`, {
+    method: 'POST'
+  });
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Like request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as { likeCount: number };
 }
 
 export function uploadMedia(files: File[], onProgress?: (progress: UploadProgress) => void) {

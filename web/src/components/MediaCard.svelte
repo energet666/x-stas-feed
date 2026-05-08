@@ -8,21 +8,25 @@
     expanded,
     ambientActive,
     overlayVisible,
+    likePending = false,
     onReveal,
     onKeep,
     onHide,
     onToggleExpanded,
-    onOpenComments
+    onOpenComments,
+    onLike
   }: {
     item: MediaItem;
     expanded: boolean;
     ambientActive: boolean;
     overlayVisible: boolean;
+    likePending?: boolean;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
     onHide: (id: string) => void;
     onToggleExpanded: (id: string) => void;
     onOpenComments: (id: string) => void;
+    onLike: (id: string) => void;
   } = $props();
 
   function revealOverlay() {
@@ -44,11 +48,13 @@
     {expanded}
     {ambientActive}
     {overlayVisible}
+    {likePending}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
     onToggleExpanded={() => onToggleExpanded(item.id)}
     onOpenComments={() => onOpenComments(item.id)}
+    onLike={() => onLike(item.id)}
   />
 {:else}
   <FeedCardFrame
@@ -56,11 +62,13 @@
     {expanded}
     {ambientActive}
     {overlayVisible}
+    {likePending}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
     onToggleExpanded={() => onToggleExpanded(item.id)}
     onOpenComments={() => onOpenComments(item.id)}
+    onLike={() => onLike(item.id)}
   >
     {#snippet content()}
       <img

@@ -73,7 +73,7 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 		displayName = item.Filename
 	}
 	item.DisplayName = displayName
-	if err := l.metadata.Set(item.ID, Metadata{DisplayName: displayName}); err != nil {
+	if err := l.metadata.Set(item.ID, Metadata{DisplayName: displayName, LikeCount: item.LikeCount}); err != nil {
 		return Item{}, err
 	}
 	l.Invalidate()

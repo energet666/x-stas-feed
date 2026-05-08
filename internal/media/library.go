@@ -65,6 +65,7 @@ type Item struct {
 	ModifiedAt   time.Time `json:"modifiedAt"`
 	Comments     []Comment `json:"comments"`
 	CommentCount int       `json:"commentCount"`
+	LikeCount    int       `json:"likeCount"`
 }
 
 type Page struct {
@@ -130,6 +131,18 @@ func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	return l.comments.Add(id, text, author)
 }
 
+func (l *Library) AddLike(id string) (int, error) {
+	if _, _, err := l.PathForID(id); err != nil {
+		return 0, err
+	}
+	metadata, err := l.metadata.AddLike(id)
+	if err != nil {
+		return 0, err
+	}
+	l.Invalidate()
+	return metadata.LikeCount, nil
+}
+
 func (l *Library) Scan() ([]Item, error) {
 	root, err := filepath.Abs(l.root)
 	if err != nil {
@@ -165,8 +178,11 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
-		if metadata, err := l.metadata.Get(item.ID); err == nil && metadata.DisplayName != "" {
-			item.DisplayName = metadata.DisplayName
+		if metadata, err := l.metadata.Get(item.ID); err == nil {
+			if metadata.DisplayName != "" {
+				item.DisplayName = metadata.DisplayName
+			}
+			item.LikeCount = metadata.LikeCount
 		}
 		items = append(items, item)
 

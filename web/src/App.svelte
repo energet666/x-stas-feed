@@ -12,10 +12,12 @@
   import UserSidebar from './components/UserSidebar.svelte';
   import {
     commentEventsURL,
+    createLike,
     fetchFeedPage,
     uploadMedia,
     type Comment,
     type CommentEvent,
+    type LikeEvent,
     type MediaItem
   } from './lib/feed';
 
@@ -63,6 +65,7 @@
   let uploadProgress = $state<number | null>(null);
   let pageDragActive = $state(false);
   let ambientReadyIDs = $state<Record<string, boolean>>({});
+  let pendingLikeCounts = $state<Record<string, number>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let uploadStatusTimer: number | undefined = undefined;
   let viewportFrameID: number | undefined = undefined;
@@ -265,6 +268,7 @@
     error = null;
     measuredHeights = {};
     ambientReadyIDs = {};
+    pendingLikeCounts = {};
     commentsPanelItemID = null;
     expandedItemID = null;
     activeOverlayID = null;
@@ -496,6 +500,52 @@
     });
   }
 
+  function updateItemLikeCount(mediaId: string, likeCount: number) {
+    items = items.map((item) =>
+      item.id === mediaId
+        ? {
+            ...item,
+            likeCount: Math.max(item.likeCount, likeCount)
+          }
+        : item
+    );
+  }
+
+  async function likeItem(mediaId: string) {
+    pendingLikeCounts = { ...pendingLikeCounts, [mediaId]: (pendingLikeCounts[mediaId] ?? 0) + 1 };
+    items = items.map((item) =>
+      item.id === mediaId
+        ? {
+            ...item,
+            likeCount: item.likeCount + 1
+          }
+        : item
+    );
+
+    try {
+      const result = await createLike(mediaId);
+      updateItemLikeCount(mediaId, result.likeCount);
+    } catch {
+      items = items.map((item) =>
+        item.id === mediaId
+          ? {
+              ...item,
+              likeCount: Math.max(0, item.likeCount - 1)
+            }
+          : item
+      );
+    } finally {
+      const remaining = (pendingLikeCounts[mediaId] ?? 1) - 1;
+      if (remaining > 0) {
+        pendingLikeCounts = { ...pendingLikeCounts, [mediaId]: remaining };
+      } else {
+        const nextPendingCounts = { ...pendingLikeCounts };
+        delete nextPendingCounts[mediaId];
+        pendingLikeCounts = nextPendingCounts;
+      }
+    }
+  }
+
   function subscribeToCommentEvents() {
     commentEvents?.close();
     commentEvents = new EventSource(commentEventsURL());
@@ -507,6 +557,15 @@
         appendItemComment(nextEvent.mediaId, nextEvent.comment);
       } catch {
         // Ignore malformed stream events; feed pagination/full comment loads can recover state.
+      }
+    });
+
+    commentEvents.addEventListener('like', (event) => {
+      try {
+        const nextEvent = JSON.parse(event.data) as LikeEvent;
+        updateItemLikeCount(nextEvent.mediaId, nextEvent.likeCount);
+      } catch {
+        // Ignore malformed stream events; feed pagination can recover state.
       }
     });
   }
@@ -640,11 +699,13 @@
               (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
             }
             overlayVisible={activeOverlayID === item.id}
+            likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
             onReveal={revealCardOverlay}
             onKeep={keepCardOverlay}
             onHide={hideCardOverlay}
             onToggleExpanded={toggleExpandedItem}
             onOpenComments={openComments}
+            onLike={likeItem}
           />
           {#if commentsPanelItemID === item.id}
             <CommentsPanel

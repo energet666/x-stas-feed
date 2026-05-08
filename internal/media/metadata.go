@@ -21,6 +21,7 @@ type MetadataStore struct {
 
 type Metadata struct {
 	DisplayName string `json:"displayName"`
+	LikeCount   int    `json:"likeCount"`
 }
 
 func NewMetadataStore(mediaRoot string) *MetadataStore {
@@ -44,15 +45,52 @@ func (s *MetadataStore) Get(mediaID string) (Metadata, error) {
 	if err := json.NewDecoder(file).Decode(&metadata); err != nil {
 		return Metadata{}, err
 	}
-	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
-	return metadata, nil
+	return normalizeMetadata(metadata), nil
 }
 
 func (s *MetadataStore) Set(mediaID string, metadata Metadata) error {
-	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
+	metadata = normalizeMetadata(metadata)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	return s.writeLocked(mediaID, metadata)
+}
+
+func (s *MetadataStore) AddLike(mediaID string) (Metadata, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	metadata, err := s.readLocked(mediaID)
+	if err != nil {
+		return Metadata{}, err
+	}
+	metadata.LikeCount++
+	if err := s.writeLocked(mediaID, metadata); err != nil {
+		return Metadata{}, err
+	}
+	return metadata, nil
+}
+
+func (s *MetadataStore) readLocked(mediaID string) (Metadata, error) {
+	file, err := os.Open(s.pathForID(mediaID))
+	if errors.Is(err, os.ErrNotExist) {
+		return Metadata{}, nil
+	}
+	if err != nil {
+		return Metadata{}, err
+	}
+	defer file.Close()
+
+	var metadata Metadata
+	if err := json.NewDecoder(file).Decode(&metadata); err != nil {
+		return Metadata{}, err
+	}
+	return normalizeMetadata(metadata), nil
+}
+
+func (s *MetadataStore) writeLocked(mediaID string, metadata Metadata) error {
+	metadata = normalizeMetadata(metadata)
 
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
 		return err
@@ -77,6 +115,14 @@ func (s *MetadataStore) Set(mediaID string, metadata Metadata) error {
 	}
 
 	return os.Rename(tmpPath, s.pathForID(mediaID))
+}
+
+func normalizeMetadata(metadata Metadata) Metadata {
+	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
+	if metadata.LikeCount < 0 {
+		metadata.LikeCount = 0
+	}
+	return metadata
 }
 
 func normalizeDisplayName(name string) string {

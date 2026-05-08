@@ -55,6 +55,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
+	s.mux.HandleFunc("POST /api/media/{id}/likes", s.handleCreateLike)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
@@ -188,6 +189,21 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, comment)
 }
 
+func (s *Server) handleCreateLike(w http.ResponseWriter, r *http.Request) {
+	likeCount, err := s.library.AddLike(r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.comments.publishLike(r.PathValue("id"), likeCount)
+	writeJSON(w, http.StatusCreated, map[string]int{"likeCount": likeCount})
+}
+
 func (s *Server) handleCommentEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -211,11 +227,11 @@ func (s *Server) handleCommentEvents(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case event := <-events:
-			data, err := json.Marshal(event)
+			data, err := json.Marshal(event.Data)
 			if err != nil {
 				continue
 			}
-			_, _ = fmt.Fprintf(w, "event: comment\ndata: %s\n\n", data)
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Name, data)
 			flusher.Flush()
 		}
 	}

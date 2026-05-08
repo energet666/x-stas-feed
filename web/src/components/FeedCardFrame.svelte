@@ -14,11 +14,13 @@
     contentOverlay,
     topAccessory,
     bottomAccessory,
+    likePending = false,
     onReveal,
     onKeep,
     onHide,
     onToggleExpanded,
-    onOpenComments
+    onOpenComments,
+    onLike
   }: {
     item: MediaItem;
     expanded: boolean;
@@ -29,11 +31,13 @@
     contentOverlay?: Snippet;
     topAccessory?: Snippet;
     bottomAccessory?: Snippet;
+    likePending?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
     onToggleExpanded: () => void;
     onOpenComments: () => void;
+    onLike: () => void;
   } = $props();
 </script>
 
@@ -110,7 +114,7 @@
     {/if}
 
     <section class="feed-card-panel" aria-label="Comment summary">
-      <FeedCardCommentsPreview {item} {onOpenComments} />
+      <FeedCardCommentsPreview {item} {likePending} {onOpenComments} {onLike} />
     </section>
   </div>
 </div>
