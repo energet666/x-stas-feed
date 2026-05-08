@@ -282,6 +282,13 @@ video {
     -webkit-backdrop-filter: blur(34px) saturate(210%);
   }
 
+  .comments-panel-fullscreen {
+    position: fixed;
+    inset: clamp(0.75rem, 3vw, 2rem);
+    z-index: 90;
+    border-radius: var(--radius-card);
+  }
+
   .debug-toggle {
     display: flex;
     min-height: 2.25rem;
@@ -416,6 +423,10 @@ video {
 
     .media-card-expanded {
       min-height: clamp(24rem, 72vh, 40rem);
+    }
+
+    .comments-panel-fullscreen {
+      inset: 0.75rem;
     }
   }
 

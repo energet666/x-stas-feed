@@ -126,6 +126,10 @@
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
   const commentUsername = $derived(username.trim() || 'Guest');
+  const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
+  const commentsPanelFullscreen = $derived(
+    commentsPanelItem !== undefined && commentsPanelItemID === expandedItemID
+  );
 
   onMount(() => {
     document.documentElement.classList.toggle('safari-browser', isSafariBrowser());
@@ -737,7 +741,7 @@
             onOpenComments={openComments}
             onLike={likeItem}
           />
-          {#if commentsPanelItemID === item.id}
+          {#if commentsPanelItemID === item.id && !commentsPanelFullscreen}
             <CommentsPanel
               {item}
               username={commentUsername}
@@ -767,6 +771,20 @@
         {/if}
       </div>
     </section>
+
+    {#if commentsPanelFullscreen && commentsPanelItem}
+      <div class="comments-panel-fullscreen">
+        <CommentsPanel
+          item={commentsPanelItem}
+          username={commentUsername}
+          commentEvent={latestCommentEvent}
+          commentLikeEvent={latestCommentLikeEvent}
+          onClose={closeComments}
+          onCommentsChanged={updateItemComments}
+          onCommentLikeChanged={updateItemCommentLikeCount}
+        />
+      </div>
+    {/if}
   {/if}
 </main>
 
