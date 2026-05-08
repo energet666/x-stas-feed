@@ -66,7 +66,7 @@
       <img
         class="block h-full w-full object-contain media-content-shadow"
         src={item.url}
-        alt={item.filename}
+        alt={item.displayName}
         loading="lazy"
         decoding="async"
       />

@@ -770,7 +770,7 @@
       class="feed-video-player relative z-[1] h-full w-full overflow-hidden"
       class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
       role="presentation"
-      aria-label={`Video player: ${item.filename}`}
+      aria-label={`Video player: ${item.displayName}`}
       onpointermove={revealControls}
       onpointerenter={revealControls}
       onmousemove={revealControls}

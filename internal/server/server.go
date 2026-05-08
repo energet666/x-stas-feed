@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,7 +17,10 @@ import (
 	"feed-ai/internal/media"
 )
 
-const mediaCacheControl = "public, max-age=3600"
+const (
+	mediaCacheControl = "public, max-age=3600"
+	uploadMaxBytes    = 1 << 30
+)
 
 type Server struct {
 	mux       *http.ServeMux
@@ -44,6 +50,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/feed", s.handleFeed)
+	s.mux.HandleFunc("POST /api/uploads", s.handleUploads)
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
@@ -51,6 +58,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
+}
+
+type uploadError struct {
+	Filename string `json:"filename"`
+	Error    string `json:"error"`
+}
+
+type uploadResponse struct {
+	Items  []media.Item  `json:"items"`
+	Errors []uploadError `json:"errors,omitempty"`
 }
 
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +78,80 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, page)
+}
+
+func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		writeError(w, http.StatusBadRequest, "upload request must be multipart/form-data")
+		return
+	}
+	if r.ContentLength > uploadMaxBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, uploadMaxBytes)
+	reader, err := r.MultipartReader()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid upload payload")
+		return
+	}
+
+	var response uploadResponse
+	seenFilePart := false
+
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			if isRequestTooLarge(err) {
+				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+				return
+			}
+			writeError(w, http.StatusBadRequest, "invalid upload payload")
+			return
+		}
+
+		if part.FormName() != "files" {
+			_ = part.Close()
+			continue
+		}
+
+		seenFilePart = true
+		filename := partFilename(part)
+		item, err := s.library.SaveUpload(filename, part)
+		_ = part.Close()
+		if err != nil {
+			if isRequestTooLarge(err) {
+				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+				return
+			}
+			response.Errors = append(response.Errors, uploadError{Filename: filename, Error: err.Error()})
+			continue
+		}
+		response.Items = append(response.Items, item)
+	}
+
+	if len(response.Items) == 0 {
+		if !seenFilePart && len(response.Errors) == 0 {
+			writeError(w, http.StatusBadRequest, "no files were uploaded")
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, response)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, response)
+}
+
+func partFilename(part *multipart.Part) string {
+	_, params, err := mime.ParseMediaType(part.Header.Get("Content-Disposition"))
+	if err != nil {
+		return part.FileName()
+	}
+	return params["filename"]
 }
 
 func (s *Server) handleComments(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +308,11 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func isRequestTooLarge(err error) bool {
+	var maxBytesError *http.MaxBytesError
+	return errors.As(err, &maxBytesError)
 }
 
 func writeDevFallback(w http.ResponseWriter) {

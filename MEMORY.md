@@ -6,7 +6,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 - Build a modern one-column Instagram-like infinite media feed for local photos and videos.
 - `test-content` is the source of test media for v1.
-- v1 intentionally does not include uploads, auth, likes, personalization, or a database.
+- v1 intentionally does not include auth, likes, personalization, or a database.
+- Users can upload photos and videos through the app; uploads are stored as regular filesystem media in the configured content root.
 - Comments are required for v1 and must remain filesystem-backed.
 
 ## Backend Decisions
@@ -23,6 +24,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
 - Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
+- Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, accepts only the same supported photo/video extensions used by scanning, rejects empty/path-like/unsupported filenames, and writes safe unique filenames directly under the content root.
+- Successful uploads invalidate the media scan cache immediately so the next feed request can show newly uploaded files without waiting for the scan TTL.
+- Media metadata is filesystem-backed under `test-content/.metadata/{mediaID}.json`. It currently stores `displayName`, preserving user-facing names with spaces/Cyrillic while physical uploaded filenames remain safe unique server-generated names. Existing files fall back to their real filename when no metadata exists.
 
 ## Comments Decisions
 
@@ -46,6 +50,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Feed pagination uses small pages of 6 items so approaching the end of the loaded set does not append a large batch of new posts at once.
 - Viewport updates for virtualization are scheduled through `requestAnimationFrame` so rapid scroll/resize events coalesce into one Svelte state update per frame.
 - The app must handle an empty `test-content` directory gracefully.
+- Upload UI is a compact header drop-in plus page-level drag-and-drop. After a successful upload, the frontend resets feed pagination and reloads from the first page so newest uploaded media appears at the top.
+- Card titles and media accessibility labels use `displayName`, not the technical storage filename.
 
 ## Feed Card Layout Decisions
 
@@ -129,3 +135,4 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The local Go toolchain previously reported `log/slog` missing from stdlib, so the server used standard `log`.
 - Go commands may need sandbox escalation when the Go build cache is outside the workspace.
 - Dependency installation may need sandbox escalation for registry access.
+- Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.

@@ -1,17 +1,46 @@
 <script lang="ts">
-  import { Image, RefreshCw } from 'lucide-svelte';
+  import { Image, RefreshCw, Upload } from 'lucide-svelte';
 
-  let { onRetry }: { onRetry: () => void } = $props();
+  let {
+    onRetry,
+    onUploadFiles
+  }: {
+    onRetry: () => void;
+    onUploadFiles: (files: File[]) => void;
+  } = $props();
+
+  let inputEl = $state<HTMLInputElement | undefined>(undefined);
+  const accept = '.avif,.gif,.jpeg,.jpg,.png,.webp,.m4v,.mov,.mp4,.ogg,.ogv,.webm,image/*,video/*';
+
+  function openFilePicker() {
+    inputEl?.click();
+  }
+
+  function handleInputChange(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (files.length > 0) {
+      onUploadFiles(files);
+    }
+    input.value = '';
+  }
 </script>
 
 <div class="glass-panel flex min-h-96 flex-col items-center justify-center p-8 text-center">
   <Image class="mb-4 text-muted" size={42} />
   <h2 class="text-lg font-semibold text-primary">No media yet</h2>
   <p class="mt-2 max-w-sm text-sm font-medium text-muted">
-    Add photos or videos to <span class="font-mono">test-content</span> and refresh the feed.
+    Upload photos or videos here, or add them to <span class="font-mono">test-content</span>.
   </p>
-  <button class="glass-button mt-5 gap-2" type="button" onclick={onRetry}>
-    <RefreshCw size={16} />
-    Refresh
-  </button>
+  <div class="mt-5 flex flex-wrap justify-center gap-2">
+    <button class="glass-button gap-2" type="button" onclick={openFilePicker}>
+      <Upload size={16} />
+      Upload
+    </button>
+    <button class="glass-button gap-2" type="button" onclick={onRetry}>
+      <RefreshCw size={16} />
+      Refresh
+    </button>
+  </div>
+  <input bind:this={inputEl} class="sr-only" type="file" multiple {accept} onchange={handleInputChange} />
 </div>

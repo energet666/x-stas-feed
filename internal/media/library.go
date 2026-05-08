@@ -36,9 +36,19 @@ var supportedExtensions = map[string]string{
 	".webm": "video",
 }
 
+func SupportedExtensions() []string {
+	extensions := make([]string, 0, len(supportedExtensions))
+	for extension := range supportedExtensions {
+		extensions = append(extensions, extension)
+	}
+	sort.Strings(extensions)
+	return extensions
+}
+
 type Library struct {
 	root       string
 	comments   *CommentStore
+	metadata   *MetadataStore
 	mu         sync.Mutex
 	cachedAt   time.Time
 	cachedList []Item
@@ -47,6 +57,7 @@ type Library struct {
 type Item struct {
 	ID           string    `json:"id"`
 	Filename     string    `json:"filename"`
+	DisplayName  string    `json:"displayName"`
 	Type         string    `json:"type"`
 	URL          string    `json:"url"`
 	MimeType     string    `json:"mimeType"`
@@ -62,7 +73,7 @@ type Page struct {
 }
 
 func NewLibrary(root string) *Library {
-	return &Library{root: root, comments: NewCommentStore(root)}
+	return &Library{root: root, comments: NewCommentStore(root), metadata: NewMetadataStore(root)}
 }
 
 func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
@@ -131,7 +142,7 @@ func (l *Library) Scan() ([]Item, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != root && (entry.Name() == commentsDirName || entry.Name() == posterDirName) {
+			if path != root && (entry.Name() == commentsDirName || entry.Name() == posterDirName || entry.Name() == metadataDirName) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -153,15 +164,11 @@ func (l *Library) Scan() ([]Item, error) {
 		}
 		rel = filepath.ToSlash(rel)
 
-		items = append(items, Item{
-			ID:         EncodeID(rel),
-			Filename:   filepath.Base(path),
-			Type:       kind,
-			URL:        "/media/" + url.PathEscape(EncodeID(rel)),
-			MimeType:   mimeType(path),
-			Size:       info.Size(),
-			ModifiedAt: info.ModTime().UTC(),
-		})
+		item := itemFromFile(rel, path, kind, info)
+		if metadata, err := l.metadata.Get(item.ID); err == nil && metadata.DisplayName != "" {
+			item.DisplayName = metadata.DisplayName
+		}
+		items = append(items, item)
 
 		return nil
 	})
@@ -180,6 +187,14 @@ func (l *Library) Scan() ([]Item, error) {
 	})
 
 	return items, nil
+}
+
+func (l *Library) Invalidate() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.cachedAt = time.Time{}
+	l.cachedList = nil
 }
 
 func (l *Library) cachedScan() ([]Item, error) {
@@ -268,6 +283,21 @@ func normalizeLimit(limit int) int {
 func kindForPath(path string) (string, bool) {
 	kind, ok := supportedExtensions[strings.ToLower(filepath.Ext(path))]
 	return kind, ok
+}
+
+func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
+	id := EncodeID(rel)
+	return Item{
+		ID:          id,
+		Filename:    filepath.Base(path),
+		DisplayName: filepath.Base(path),
+		Type:        kind,
+		URL:         "/media/" + url.PathEscape(id),
+		MimeType:    mimeType(path),
+		Size:        info.Size(),
+		ModifiedAt:  info.ModTime().UTC(),
+		Comments:    []Comment{},
+	}
 }
 
 func mimeType(path string) string {

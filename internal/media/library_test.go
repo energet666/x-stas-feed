@@ -27,8 +27,30 @@ func TestScanFiltersAndSortsByModifiedTime(t *testing.T) {
 	if items[0].Filename != "new.mp4" || items[0].Type != "video" {
 		t.Fatalf("expected newest video first, got %#v", items[0])
 	}
+	if items[0].DisplayName != "new.mp4" {
+		t.Fatalf("expected fallback display name, got %#v", items[0])
+	}
 	if items[1].Filename != "old.png" || items[1].Type != "image" {
 		t.Fatalf("expected older image second, got %#v", items[1])
+	}
+}
+
+func TestScanUsesStoredDisplayName(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	library := NewLibrary(dir)
+	if err := library.metadata.Set(EncodeID("photo.png"), Metadata{DisplayName: "Летний день 2026.png"}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].DisplayName != "Летний день 2026.png" {
+		t.Fatalf("expected stored display name, got %#v", items)
 	}
 }
 
@@ -123,6 +145,24 @@ func TestScanIgnoresGeneratedPosterDirectory(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Filename != "video.mp4" {
 		t.Fatalf("expected generated posters to be ignored, got %#v", items)
+	}
+}
+
+func TestScanIgnoresMetadataDirectory(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+	if err := os.MkdirAll(filepath.Join(dir, metadataDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, metadataDirName), "metadata.png", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Filename != "photo.png" {
+		t.Fatalf("expected metadata files to be ignored, got %#v", items)
 	}
 }
 

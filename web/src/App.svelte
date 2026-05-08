@@ -10,7 +10,14 @@
   import FeedHeader from './components/FeedHeader.svelte';
   import MediaCard from './components/MediaCard.svelte';
   import UserSidebar from './components/UserSidebar.svelte';
-  import { commentEventsURL, fetchFeedPage, type Comment, type CommentEvent, type MediaItem } from './lib/feed';
+  import {
+    commentEventsURL,
+    fetchFeedPage,
+    uploadMedia,
+    type Comment,
+    type CommentEvent,
+    type MediaItem
+  } from './lib/feed';
 
   const pageSize = 6;
   const estimatedCardHeight = 760;
@@ -22,6 +29,7 @@
   const gameStartedEvent = 'feed-ai:game-started';
 
   type CardBackgroundMode = 'simple' | 'ambient';
+  type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
   type FeedRow = {
     item: MediaItem;
@@ -50,8 +58,13 @@
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
   let gameActive = $state(false);
+  let uploadStatus = $state<UploadStatus>('idle');
+  let uploadMessage = $state('Upload');
+  let uploadProgress = $state<number | null>(null);
+  let pageDragActive = $state(false);
   let ambientReadyIDs = $state<Record<string, boolean>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  let uploadStatusTimer: number | undefined = undefined;
   let viewportFrameID: number | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
 
@@ -126,6 +139,7 @@
     return () => {
       document.documentElement.classList.remove('safari-browser');
       clearTimeout(overlayHideTimer);
+      clearTimeout(uploadStatusTimer);
       if (viewportFrameID !== undefined) {
         cancelAnimationFrame(viewportFrameID);
       }
@@ -194,6 +208,66 @@
 
   function retry() {
     void loadPage();
+  }
+
+  async function handleUploadFiles(files: File[]) {
+    const uploadFiles = files.filter((file) => file.size > 0);
+    if (uploadStatus === 'uploading') return;
+    if (uploadFiles.length === 0) {
+      setUploadStatus('error', 'No files', null);
+      return;
+    }
+
+    setUploadStatus('uploading', uploadFiles.length === 1 ? uploadFiles[0].name : `${uploadFiles.length} files`, 0);
+
+    try {
+      const result = await uploadMedia(uploadFiles, (progress) => {
+        uploadProgress = progress.percent;
+      });
+      const uploadedCount = result.items.length;
+      const errorCount = result.errors?.length ?? 0;
+      if (uploadedCount === 0) {
+        throw new Error(result.errors?.[0]?.error ?? 'No files were uploaded');
+      }
+
+      setUploadStatus(
+        errorCount > 0 ? 'error' : 'success',
+        errorCount > 0 ? `${uploadedCount} uploaded, ${errorCount} failed` : `${uploadedCount} uploaded`,
+        null
+      );
+      resetFeedState();
+      await loadPage();
+      scheduleViewportUpdate();
+    } catch (err) {
+      setUploadStatus('error', err instanceof Error ? err.message : 'Upload failed', null);
+    }
+  }
+
+  function setUploadStatus(status: UploadStatus, message: string, progress: number | null) {
+    clearTimeout(uploadStatusTimer);
+    uploadStatus = status;
+    uploadMessage = message;
+    uploadProgress = progress;
+
+    if (status === 'success' || status === 'error') {
+      uploadStatusTimer = window.setTimeout(() => {
+        uploadStatus = 'idle';
+        uploadMessage = 'Upload';
+        uploadProgress = null;
+      }, 3200);
+    }
+  }
+
+  function resetFeedState() {
+    items = [];
+    nextCursor = undefined;
+    initialLoaded = false;
+    error = null;
+    measuredHeights = {};
+    ambientReadyIDs = {};
+    commentsPanelItemID = null;
+    expandedItemID = null;
+    activeOverlayID = null;
   }
 
   function updateViewport() {
@@ -447,6 +521,37 @@
     }
   }
 
+  function handleWindowDragEnter(event: DragEvent) {
+    if (!hasDraggedFiles(event) || gameActive) return;
+    event.preventDefault();
+    pageDragActive = true;
+  }
+
+  function handleWindowDragOver(event: DragEvent) {
+    if (!hasDraggedFiles(event) || gameActive) return;
+    event.preventDefault();
+    pageDragActive = true;
+  }
+
+  function handleWindowDragLeave(event: DragEvent) {
+    if (event.relatedTarget) return;
+    pageDragActive = false;
+  }
+
+  function handleWindowDrop(event: DragEvent) {
+    if (!hasDraggedFiles(event) || gameActive) return;
+    event.preventDefault();
+    pageDragActive = false;
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length > 0) {
+      void handleUploadFiles(files);
+    }
+  }
+
+  function hasDraggedFiles(event: DragEvent) {
+    return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
   function clearActiveVideoFromPageBackground(event: PointerEvent) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -474,14 +579,35 @@
   />
 </svelte:head>
 
-<svelte:window onkeydown={handleWindowKeydown} />
+<svelte:window
+  onkeydown={handleWindowKeydown}
+  ondragenter={handleWindowDragEnter}
+  ondragover={handleWindowDragOver}
+  ondragleave={handleWindowDragLeave}
+  ondrop={handleWindowDrop}
+/>
 
 <main class="app-shell min-h-screen" onpointerdown={clearActiveVideoFromPageBackground}>
   <BackgroundParticles />
   <AsteroidsShip username={commentUsername} />
   {#if !gameActive}
-    <FeedHeader loadedCount={items.length} />
+    <FeedHeader
+      loadedCount={items.length}
+      {uploadStatus}
+      {uploadMessage}
+      {uploadProgress}
+      onUploadFiles={handleUploadFiles}
+    />
     <UserSidebar bind:username />
+
+    {#if pageDragActive}
+      <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
+        <div class="glass-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
+          <LoaderCircle class="text-primary" size={30} />
+          <p class="text-sm font-bold text-primary">Drop photos or videos to upload</p>
+        </div>
+      </div>
+    {/if}
 
     <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
       {#if !initialLoaded && loading}
@@ -491,7 +617,7 @@
       {/if}
 
       {#if isEmpty}
-        <EmptyFeedState onRetry={retry} />
+        <EmptyFeedState onRetry={retry} onUploadFiles={handleUploadFiles} />
       {/if}
 
       {#if topSpacer > 0}

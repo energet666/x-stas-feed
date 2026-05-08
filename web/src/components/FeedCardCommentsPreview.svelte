@@ -16,7 +16,7 @@
 <button
   class="feed-card-comments-preview"
   type="button"
-  aria-label={`Open comments for ${item.filename}`}
+  aria-label={`Open comments for ${item.displayName}`}
   onclick={(event) => {
     event.stopPropagation();
     onOpenComments();

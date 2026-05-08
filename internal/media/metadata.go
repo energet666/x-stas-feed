@@ -1,0 +1,97 @@
+package media
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+const (
+	metadataDirName     = ".metadata"
+	maxDisplayNameRunes = 160
+)
+
+type MetadataStore struct {
+	root string
+	mu   sync.Mutex
+}
+
+type Metadata struct {
+	DisplayName string `json:"displayName"`
+}
+
+func NewMetadataStore(mediaRoot string) *MetadataStore {
+	return &MetadataStore{root: filepath.Join(mediaRoot, metadataDirName)}
+}
+
+func (s *MetadataStore) Get(mediaID string) (Metadata, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	file, err := os.Open(s.pathForID(mediaID))
+	if errors.Is(err, os.ErrNotExist) {
+		return Metadata{}, nil
+	}
+	if err != nil {
+		return Metadata{}, err
+	}
+	defer file.Close()
+
+	var metadata Metadata
+	if err := json.NewDecoder(file).Decode(&metadata); err != nil {
+		return Metadata{}, err
+	}
+	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
+	return metadata, nil
+}
+
+func (s *MetadataStore) Set(mediaID string, metadata Metadata) error {
+	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := os.MkdirAll(s.root, 0o755); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(s.root, ".metadata-*.json")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	encodeErr := json.NewEncoder(tmpFile).Encode(metadata)
+	closeErr := tmpFile.Close()
+	if encodeErr != nil {
+		return encodeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+
+	return os.Rename(tmpPath, s.pathForID(mediaID))
+}
+
+func normalizeDisplayName(name string) string {
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" {
+		return ""
+	}
+
+	runes := []rune(name)
+	if len(runes) > maxDisplayNameRunes {
+		return string(runes[:maxDisplayNameRunes])
+	}
+	return name
+}
+
+func (s *MetadataStore) pathForID(mediaID string) string {
+	return filepath.Join(s.root, mediaID+".json")
+}

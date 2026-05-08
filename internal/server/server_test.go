@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -265,6 +266,150 @@ func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 	}
 }
 
+func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+
+	req := newUploadRequest(t, "Мой летний день.png", []byte("png-content"))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var upload uploadResponse
+	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Items) != 1 {
+		t.Fatalf("expected one uploaded item, got %#v", upload)
+	}
+	item := upload.Items[0]
+	if item.Type != "image" || item.Size != int64(len("png-content")) {
+		t.Fatalf("unexpected uploaded item: %#v", item)
+	}
+	if item.DisplayName != "Мой летний день.png" {
+		t.Fatalf("expected original display name, got %#v", item)
+	}
+	if strings.Contains(item.Filename, "Мой") || strings.Contains(item.Filename, " ") {
+		t.Fatalf("expected safe technical filename, got %#v", item.Filename)
+	}
+	if _, err := os.Stat(filepath.Join(dir, item.Filename)); err != nil {
+		t.Fatal(err)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected feed status 200, got %d", res.Code)
+	}
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != item.ID {
+		t.Fatalf("expected uploaded item in feed, got %#v", page)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/media/"+item.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK || res.Body.String() != "png-content" {
+		t.Fatalf("expected uploaded media response, got status=%d body=%q", res.Code, res.Body.String())
+	}
+}
+
+func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+
+	req := newUploadRequest(t, "clip.mp4", []byte("video"), "clip.mp4", []byte("video-two"))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var upload uploadResponse
+	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Items) != 2 {
+		t.Fatalf("expected two uploaded items, got %#v", upload)
+	}
+	if upload.Items[0].Filename == upload.Items[1].Filename {
+		t.Fatalf("expected unique generated filenames, got %#v", upload.Items)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=10", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("expected both uploaded files in feed, got %#v", page)
+	}
+}
+
+func TestUploadEndpointRejectsInvalidUploads(t *testing.T) {
+	tests := []struct {
+		name string
+		req  func(t *testing.T) *http.Request
+	}{
+		{
+			name: "unsupported extension",
+			req:  func(t *testing.T) *http.Request { return newUploadRequest(t, "notes.txt", []byte("text")) },
+		},
+		{
+			name: "empty file",
+			req:  func(t *testing.T) *http.Request { return newUploadRequest(t, "empty.png", []byte{}) },
+		},
+		{
+			name: "path filename",
+			req:  func(t *testing.T) *http.Request { return newUploadRequest(t, "../photo.png", []byte("png")) },
+		},
+		{
+			name: "no files",
+			req:  newEmptyUploadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := New(media.NewLibrary(t.TempDir()), "", log.New(io.Discard, "", 0)).Handler()
+			res := httptest.NewRecorder()
+			handler.ServeHTTP(res, tt.req(t))
+
+			if res.Code != http.StatusBadRequest {
+				t.Fatalf("expected status 400, got %d body=%s", res.Code, res.Body.String())
+			}
+		})
+	}
+}
+
+func TestUploadEndpointRejectsKnownOversizedRequest(t *testing.T) {
+	handler := New(media.NewLibrary(t.TempDir()), "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads", strings.NewReader(""))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+	req.ContentLength = uploadMaxBytes + 1
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status 413, got %d body=%s", res.Code, res.Body.String())
+	}
+}
+
 func writeServerTestFile(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -275,4 +420,43 @@ func writeServerTestFile(t *testing.T, dir, name string) {
 	if err := os.Chtimes(path, modTime, modTime); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func newUploadRequest(t *testing.T, files ...any) *http.Request {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for i := 0; i < len(files); i += 2 {
+		filename := files[i].(string)
+		content := files[i+1].([]byte)
+		part, err := writer.CreateFormFile("files", filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
+}
+
+func newEmptyUploadRequest(t *testing.T) *http.Request {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
 }
