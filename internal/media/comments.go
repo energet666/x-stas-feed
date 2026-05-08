@@ -20,6 +20,8 @@ const (
 	defaultAuthor   = "Guest"
 )
 
+var ErrCommentNotFound = errors.New("comment not found")
+
 type CommentStore struct {
 	root string
 	mu   sync.Mutex
@@ -30,6 +32,7 @@ type Comment struct {
 	Author    string    `json:"author"`
 	Text      string    `json:"text"`
 	CreatedAt time.Time `json:"createdAt"`
+	LikeCount int       `json:"likeCount"`
 }
 
 func NewCommentStore(mediaRoot string) *CommentStore {
@@ -79,6 +82,37 @@ func (s *CommentStore) Add(mediaID, text, author string) (Comment, error) {
 	return comment, nil
 }
 
+func (s *CommentStore) AddLike(mediaID, commentID string) (Comment, error) {
+	if strings.TrimSpace(commentID) == "" {
+		return Comment{}, ErrCommentNotFound
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	comments, err := s.readLocked(mediaID)
+	if err != nil {
+		return Comment{}, err
+	}
+
+	updatedIndex := -1
+	for i := range comments {
+		if comments[i].ID == commentID {
+			comments[i].LikeCount++
+			updatedIndex = i
+			break
+		}
+	}
+	if updatedIndex == -1 {
+		return Comment{}, ErrCommentNotFound
+	}
+
+	if err := s.writeAllLocked(mediaID, comments); err != nil {
+		return Comment{}, err
+	}
+	return comments[updatedIndex], nil
+}
+
 func (s *CommentStore) Summary(mediaID string, limit int) ([]Comment, int, error) {
 	comments, err := s.List(mediaID)
 	if err != nil {
@@ -114,6 +148,9 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 			return nil, err
 		}
 		comment.Author = normalizeAuthor(comment.Author)
+		if comment.LikeCount < 0 {
+			comment.LikeCount = 0
+		}
 		comments = append(comments, comment)
 	}
 	if err := scanner.Err(); err != nil {
@@ -121,6 +158,38 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 	}
 
 	return comments, nil
+}
+
+func (s *CommentStore) writeAllLocked(mediaID string, comments []Comment) error {
+	if err := os.MkdirAll(s.root, 0o755); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(s.root, ".comments-*.jsonl")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	encoder := json.NewEncoder(tmpFile)
+	for _, comment := range comments {
+		comment.Author = normalizeAuthor(comment.Author)
+		if comment.LikeCount < 0 {
+			comment.LikeCount = 0
+		}
+		if err := encoder.Encode(comment); err != nil {
+			_ = tmpFile.Close()
+			return err
+		}
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpPath, s.pathForID(mediaID))
 }
 
 func normalizeAuthor(author string) string {

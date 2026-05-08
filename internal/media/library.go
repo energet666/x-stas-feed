@@ -131,6 +131,13 @@ func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	return l.comments.Add(id, text, author)
 }
 
+func (l *Library) AddCommentLike(id, commentID string) (Comment, error) {
+	if _, _, err := l.PathForID(id); err != nil {
+		return Comment{}, err
+	}
+	return l.comments.AddLike(id, commentID)
+}
+
 func (l *Library) AddLike(id string) (int, error) {
 	if _, _, err := l.PathForID(id); err != nil {
 		return 0, err

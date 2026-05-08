@@ -16,6 +16,7 @@
     fetchFeedPage,
     uploadMedia,
     type Comment,
+    type CommentLikeEvent,
     type CommentEvent,
     type LikeEvent,
     type MediaItem
@@ -55,6 +56,7 @@
   let expandedItemID = $state<string | null>(null);
   let commentsPanelItemID = $state<string | null>(null);
   let latestCommentEvent = $state<CommentEvent | null>(null);
+  let latestCommentLikeEvent = $state<CommentLikeEvent | null>(null);
   let username = $state('Guest');
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
@@ -511,6 +513,24 @@
     );
   }
 
+  function updateItemCommentLikeCount(mediaId: string, commentId: string, likeCount: number) {
+    items = items.map((item) =>
+      item.id === mediaId
+        ? {
+            ...item,
+            comments: item.comments.map((comment) =>
+              comment.id === commentId
+                ? {
+                    ...comment,
+                    likeCount: Math.max(comment.likeCount, likeCount)
+                  }
+                : comment
+            )
+          }
+        : item
+    );
+  }
+
   async function likeItem(mediaId: string) {
     pendingLikeCounts = { ...pendingLikeCounts, [mediaId]: (pendingLikeCounts[mediaId] ?? 0) + 1 };
     items = items.map((item) =>
@@ -566,6 +586,16 @@
         updateItemLikeCount(nextEvent.mediaId, nextEvent.likeCount);
       } catch {
         // Ignore malformed stream events; feed pagination can recover state.
+      }
+    });
+
+    commentEvents.addEventListener('comment-like', (event) => {
+      try {
+        const nextEvent = JSON.parse(event.data) as CommentLikeEvent;
+        latestCommentLikeEvent = nextEvent;
+        updateItemCommentLikeCount(nextEvent.mediaId, nextEvent.commentId, nextEvent.likeCount);
+      } catch {
+        // Ignore malformed stream events; feed pagination/full comment loads can recover state.
       }
     });
   }
@@ -712,8 +742,10 @@
               {item}
               username={commentUsername}
               commentEvent={latestCommentEvent}
+              commentLikeEvent={latestCommentLikeEvent}
               onClose={closeComments}
               onCommentsChanged={updateItemComments}
+              onCommentLikeChanged={updateItemCommentLikeCount}
             />
           {/if}
         </article>

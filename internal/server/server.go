@@ -55,6 +55,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
+	s.mux.HandleFunc("POST /api/media/{id}/comments/{commentID}/likes", s.handleCreateCommentLike)
 	s.mux.HandleFunc("POST /api/media/{id}/likes", s.handleCreateLike)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
@@ -202,6 +203,21 @@ func (s *Server) handleCreateLike(w http.ResponseWriter, r *http.Request) {
 
 	s.comments.publishLike(r.PathValue("id"), likeCount)
 	writeJSON(w, http.StatusCreated, map[string]int{"likeCount": likeCount})
+}
+
+func (s *Server) handleCreateCommentLike(w http.ResponseWriter, r *http.Request) {
+	comment, err := s.library.AddCommentLike(r.PathValue("id"), r.PathValue("commentID"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, media.ErrCommentNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.comments.publishCommentLike(r.PathValue("id"), comment.ID, comment.LikeCount)
+	writeJSON(w, http.StatusCreated, map[string]int{"likeCount": comment.LikeCount})
 }
 
 func (s *Server) handleCommentEvents(w http.ResponseWriter, r *http.Request) {

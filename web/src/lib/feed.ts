@@ -3,6 +3,7 @@ export type Comment = {
   author: string;
   text: string;
   createdAt: string;
+  likeCount: number;
 };
 
 export type CommentEvent = {
@@ -12,6 +13,12 @@ export type CommentEvent = {
 
 export type LikeEvent = {
   mediaId: string;
+  likeCount: number;
+};
+
+export type CommentLikeEvent = {
+  mediaId: string;
+  commentId: string;
   likeCount: number;
 };
 
@@ -130,6 +137,22 @@ export async function createLike(mediaId: string) {
   if (!response.ok) {
     const message = await responseErrorMessage(response);
     throw new Error(message ?? `Like request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as { likeCount: number };
+}
+
+export async function createCommentLike(mediaId: string, commentId: string) {
+  const response = await fetch(
+    `/api/media/${encodeURIComponent(mediaId)}/comments/${encodeURIComponent(commentId)}/likes`,
+    {
+      method: 'POST'
+    }
+  );
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Comment like request failed with ${response.status}`);
   }
 
   return (await response.json()) as { likeCount: number };
