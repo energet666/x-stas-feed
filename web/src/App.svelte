@@ -1,6 +1,6 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
-  import { LoaderCircle } from 'lucide-svelte';
+  import { LoaderCircle, Star } from 'lucide-svelte';
   import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
   import CommentsPanel from './components/CommentsPanel.svelte';
@@ -13,6 +13,7 @@
   import {
     commentEventsURL,
     createLike,
+    fetchFavoriteFeedPage,
     fetchFeedPage,
     uploadMedia,
     type Comment,
@@ -28,10 +29,12 @@
   const overscanRows = 2;
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
+  const favoritesStorageKey = 'feed-ai:favorites';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
 
   type CardBackgroundMode = 'simple' | 'ambient';
+  type FeedMode = 'all' | 'favorites';
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
   type FeedRow = {
@@ -61,6 +64,9 @@
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
+  let favoriteIDs = $state<string[]>([]);
+  let favoritesStorageReady = $state(false);
+  let feedMode = $state<FeedMode>('all');
   let gameActive = $state(false);
   let uploadStatus = $state<UploadStatus>('idle');
   let uploadMessage = $state('Upload');
@@ -72,6 +78,7 @@
   let uploadStatusTimer: number | undefined = undefined;
   let viewportFrameID: number | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
+  let feedRequestVersion = 0;
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
@@ -126,6 +133,8 @@
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
   const commentUsername = $derived(username.trim() || 'Guest');
+  const favoriteIDSet = $derived(new Set(favoriteIDs));
+  const isFavoriteMode = $derived(feedMode === 'favorites');
   const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
   const commentsPanelFullscreen = $derived(
     commentsPanelItem !== undefined && commentsPanelItemID === expandedItemID
@@ -138,6 +147,8 @@
     usernameStorageReady = true;
     cardBackgroundMode = readStoredCardBackgroundMode();
     cardBackgroundModeStorageReady = true;
+    favoriteIDs = readStoredFavoriteIDs();
+    favoritesStorageReady = true;
     updateViewport();
     window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
     window.addEventListener('resize', scheduleViewportUpdate);
@@ -196,22 +207,44 @@
     persistCardBackgroundMode(cardBackgroundMode);
   });
 
+  $effect(() => {
+    if (!favoritesStorageReady) return;
+    persistFavoriteIDs(favoriteIDs);
+  });
+
   async function loadPage() {
     if (loading || (initialLoaded && !nextCursor)) return;
 
+    if (isFavoriteMode && favoriteIDs.length === 0) {
+      initialLoaded = true;
+      error = null;
+      return;
+    }
+
+    const requestVersion = feedRequestVersion;
+    const requestMode = feedMode;
+    const requestFavoriteIDs = favoriteIDs;
+    const requestCursor = nextCursor;
     loading = true;
     error = null;
 
     try {
-      const page = await fetchFeedPage({ cursor: nextCursor, limit: pageSize });
+      const page =
+        requestMode === 'favorites'
+          ? await fetchFavoriteFeedPage({ ids: requestFavoriteIDs, cursor: requestCursor, limit: pageSize })
+          : await fetchFeedPage({ cursor: requestCursor, limit: pageSize });
+      if (requestVersion !== feedRequestVersion) return;
       items = [...items, ...page.items];
       nextCursor = page.nextCursor;
       initialLoaded = true;
     } catch (err) {
+      if (requestVersion !== feedRequestVersion) return;
       error = err instanceof Error ? err.message : 'Unable to load feed';
       initialLoaded = true;
     } finally {
-      loading = false;
+      if (requestVersion === feedRequestVersion) {
+        loading = false;
+      }
     }
   }
 
@@ -268,8 +301,10 @@
   }
 
   function resetFeedState() {
+    feedRequestVersion += 1;
     items = [];
     nextCursor = undefined;
+    loading = false;
     initialLoaded = false;
     error = null;
     measuredHeights = {};
@@ -428,6 +463,14 @@
     }
   }
 
+  function persistFavoriteIDs(nextIDs: string[]) {
+    try {
+      window.localStorage.setItem(favoritesStorageKey, JSON.stringify(nextIDs));
+    } catch {
+      // Ignore storage failures; the in-memory favorites list still applies.
+    }
+  }
+
   function readStoredUsername() {
     try {
       const storedUsername = window.localStorage.getItem(usernameStorageKey)?.trim();
@@ -443,6 +486,86 @@
     } catch {
       return 'ambient';
     }
+  }
+
+  function readStoredFavoriteIDs() {
+    try {
+      const rawValue = window.localStorage.getItem(favoritesStorageKey);
+      if (!rawValue) return [];
+      const parsedValue = JSON.parse(rawValue);
+      if (!Array.isArray(parsedValue)) return [];
+      const ids = parsedValue.filter((id): id is string => typeof id === 'string' && id.length > 0);
+      return Array.from(new Set(ids));
+    } catch {
+      return [];
+    }
+  }
+
+  function toggleFavoriteMode() {
+    feedMode = isFavoriteMode ? 'all' : 'favorites';
+    resetFeedState();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    updateViewport();
+    void loadPage();
+  }
+
+  function showAllMedia() {
+    if (!isFavoriteMode) return;
+    feedMode = 'all';
+    resetFeedState();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    updateViewport();
+    void loadPage();
+  }
+
+  function toggleFavorite(id: string) {
+    if (favoriteIDSet.has(id)) {
+      removeFavorite(id);
+      return;
+    }
+
+    favoriteIDs = [id, ...favoriteIDs.filter((favoriteID) => favoriteID !== id)];
+  }
+
+  function removeFavorite(id: string) {
+    const removedIndex = favoriteIDs.indexOf(id);
+    favoriteIDs = favoriteIDs.filter((favoriteID) => favoriteID !== id);
+    if (!isFavoriteMode) return;
+
+    feedRequestVersion += 1;
+    loading = false;
+    items = items.filter((item) => item.id !== id);
+    measuredHeights = omitRecordKey(measuredHeights, id);
+    ambientReadyIDs = omitRecordKey(ambientReadyIDs, id);
+    pendingLikeCounts = omitRecordKey(pendingLikeCounts, id);
+    closeItemState(id);
+    if (nextCursor !== undefined && removedIndex >= 0) {
+      const cursorValue = Number.parseInt(nextCursor, 10);
+      if (Number.isFinite(cursorValue) && removedIndex < cursorValue) {
+        nextCursor = String(Math.max(0, cursorValue - 1));
+      }
+    }
+    if (favoriteIDs.length === 0) {
+      nextCursor = undefined;
+      initialLoaded = true;
+    }
+    scheduleViewportUpdate();
+    if (items.length === 0 && favoriteIDs.length > 0 && nextCursor !== undefined) {
+      void loadPage();
+    }
+  }
+
+  function closeItemState(id: string) {
+    if (commentsPanelItemID === id) commentsPanelItemID = null;
+    if (expandedItemID === id) expandedItemID = null;
+    if (activeOverlayID === id) activeOverlayID = null;
+  }
+
+  function omitRecordKey<T>(record: Record<string, T>, key: string) {
+    if (!(key in record)) return record;
+    const nextRecord = { ...record };
+    delete nextRecord[key];
+    return nextRecord;
   }
 
   function toggleExpandedItem(id: string) {
@@ -688,6 +811,9 @@
       {uploadStatus}
       {uploadMessage}
       {uploadProgress}
+      {feedMode}
+      favoriteCount={favoriteIDs.length}
+      onToggleFavoriteMode={toggleFavoriteMode}
       onUploadFiles={handleUploadFiles}
     />
     <UserSidebar bind:username />
@@ -708,8 +834,21 @@
         </div>
       {/if}
 
-      {#if isEmpty}
+      {#if isEmpty && !isFavoriteMode}
         <EmptyFeedState onRetry={retry} onUploadFiles={handleUploadFiles} />
+      {/if}
+
+      {#if isEmpty && isFavoriteMode}
+        <div class="glass-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
+          <div class="grid size-12 place-items-center rounded-full border border-glass-border-soft bg-button-bg text-primary">
+            <Star size={22} />
+          </div>
+          <div class="space-y-1">
+            <h2 class="text-base font-bold text-primary">No favorites to show</h2>
+            <p class="max-w-xs text-sm font-semibold text-muted">Star media cards to keep them here.</p>
+          </div>
+          <button class="glass-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
+        </div>
       {/if}
 
       {#if topSpacer > 0}
@@ -727,6 +866,7 @@
           <MediaCard
             {item}
             expanded={expandedItemID === item.id}
+            favorite={favoriteIDSet.has(item.id)}
             ambientActive={
               cardBackgroundMode === 'ambient' &&
               (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
@@ -736,6 +876,7 @@
             onReveal={revealCardOverlay}
             onKeep={keepCardOverlay}
             onHide={hideCardOverlay}
+            onToggleFavorite={toggleFavorite}
             onToggleExpanded={toggleExpandedItem}
             onOpenComments={openComments}
             onLike={likeItem}

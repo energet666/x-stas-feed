@@ -97,7 +97,55 @@ func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
 		end = len(items)
 	}
 
-	pageItems := append([]Item(nil), items[start:end]...)
+	pageItems := l.withCommentSummaries(items[start:end])
+
+	page := Page{Items: pageItems}
+	if end < len(items) {
+		page.NextCursor = strconv.Itoa(end)
+	}
+
+	return page, nil
+}
+
+func (l *Library) FavoritePage(ids []string, cursor string, requestedLimit int) (Page, error) {
+	items, err := l.cachedScan()
+	if err != nil {
+		return Page{}, err
+	}
+
+	start, err := parseCursor(cursor)
+	if err != nil {
+		return Page{}, err
+	}
+	if start > len(ids) {
+		start = len(ids)
+	}
+
+	itemsByID := make(map[string]Item, len(items))
+	for _, item := range items {
+		itemsByID[item.ID] = item
+	}
+
+	limit := normalizeLimit(requestedLimit)
+	pageItems := make([]Item, 0, limit)
+	end := start
+	for end < len(ids) && len(pageItems) < limit {
+		if item, ok := itemsByID[ids[end]]; ok {
+			pageItems = append(pageItems, item)
+		}
+		end++
+	}
+
+	page := Page{Items: l.withCommentSummaries(pageItems)}
+	if end < len(ids) {
+		page.NextCursor = strconv.Itoa(end)
+	}
+
+	return page, nil
+}
+
+func (l *Library) withCommentSummaries(items []Item) []Item {
+	pageItems := append([]Item(nil), items...)
 	for i := range pageItems {
 		comments, count, err := l.comments.Summary(pageItems[i].ID, 2)
 		if err != nil {
@@ -108,13 +156,7 @@ func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
 		pageItems[i].Comments = comments
 		pageItems[i].CommentCount = count
 	}
-
-	page := Page{Items: pageItems}
-	if end < len(items) {
-		page.NextCursor = strconv.Itoa(end)
-	}
-
-	return page, nil
+	return pageItems
 }
 
 func (l *Library) CommentsForID(id string) ([]Comment, error) {

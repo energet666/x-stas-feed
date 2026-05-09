@@ -42,6 +42,85 @@ func TestFeedEndpointReturnsPage(t *testing.T) {
 	}
 }
 
+func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "a.png")
+	writeServerTestFile(t, dir, "b.png")
+	writeServerTestFile(t, dir, "c.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	body := bytes.NewBufferString(`{"ids":["` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":10}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 3 {
+		t.Fatalf("expected three favorite items, got %#v", page)
+	}
+	if page.Items[0].Filename != "c.png" || page.Items[1].Filename != "a.png" || page.Items[2].Filename != "b.png" {
+		t.Fatalf("expected requested favorite order, got %#v", page.Items)
+	}
+}
+
+func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "a.png")
+	writeServerTestFile(t, dir, "b.png")
+	writeServerTestFile(t, dir, "c.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	missingID := media.EncodeID("missing.png")
+	body := bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":2}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 || page.Items[0].Filename != "c.png" || page.Items[1].Filename != "a.png" {
+		t.Fatalf("expected first page to skip stale id and preserve order, got %#v", page)
+	}
+	if page.NextCursor != "3" {
+		t.Fatalf("expected next cursor 3, got %q", page.NextCursor)
+	}
+
+	body = bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"cursor":"` + page.NextCursor + `","limit":2}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	page = media.Page{}
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Filename != "b.png" || page.NextCursor != "" {
+		t.Fatalf("expected final favorite page, got %#v", page)
+	}
+}
+
 func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")

@@ -104,6 +104,29 @@ export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit:
   return (await response.json()) as FeedPage;
 }
 
+export async function fetchFavoriteFeedPage({
+  ids,
+  cursor,
+  limit
+}: {
+  ids: string[];
+  cursor?: string;
+  limit: number;
+}) {
+  const response = await fetch('/api/feed/favorites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids, cursor, limit })
+  });
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Favorite feed request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as FeedPage;
+}
+
 export async function fetchComments(mediaId: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`);
   if (!response.ok) {

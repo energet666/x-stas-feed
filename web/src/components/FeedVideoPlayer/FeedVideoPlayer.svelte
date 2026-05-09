@@ -36,24 +36,28 @@
   let {
     item,
     expanded,
+    favorite,
     ambientActive,
     overlayVisible,
     likePending = false,
     onReveal,
     onKeep,
     onHide,
+    onToggleFavorite,
     onToggleExpanded,
     onOpenComments,
     onLike
   }: {
     item: MediaItem;
     expanded: boolean;
+    favorite: boolean;
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
+    onToggleFavorite: () => void;
     onToggleExpanded: () => void;
     onOpenComments: () => void;
     onLike: () => void;
@@ -741,12 +745,14 @@
 <FeedCardFrame
   {item}
   {expanded}
+  {favorite}
   {ambientActive}
   {overlayVisible}
   {likePending}
   {onReveal}
   {onKeep}
   {onHide}
+  {onToggleFavorite}
   {onToggleExpanded}
   {onOpenComments}
   {onLike}

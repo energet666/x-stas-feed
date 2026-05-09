@@ -50,6 +50,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/feed", s.handleFeed)
+	s.mux.HandleFunc("POST /api/feed/favorites", s.handleFavoriteFeed)
 	s.mux.HandleFunc("POST /api/uploads", s.handleUploads)
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
@@ -72,9 +73,30 @@ type uploadResponse struct {
 	Errors []uploadError `json:"errors,omitempty"`
 }
 
+type favoriteFeedRequest struct {
+	IDs    []string `json:"ids"`
+	Cursor string   `json:"cursor"`
+	Limit  int      `json:"limit"`
+}
+
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	page, err := s.library.Page(r.URL.Query().Get("cursor"), limit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
+}
+
+func (s *Server) handleFavoriteFeed(w http.ResponseWriter, r *http.Request) {
+	var request favoriteFeedRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid favorite feed payload")
+		return
+	}
+
+	page, err := s.library.FavoritePage(request.IDs, request.Cursor, request.Limit)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

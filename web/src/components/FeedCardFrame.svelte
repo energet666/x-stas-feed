@@ -7,6 +7,7 @@
   let {
     item,
     expanded,
+    favorite,
     ambientActive = true,
     overlayVisible,
     content,
@@ -18,12 +19,14 @@
     onReveal,
     onKeep,
     onHide,
+    onToggleFavorite,
     onToggleExpanded,
     onOpenComments,
     onLike
   }: {
     item: MediaItem;
     expanded: boolean;
+    favorite: boolean;
     ambientActive?: boolean;
     overlayVisible: boolean;
     content: Snippet;
@@ -35,6 +38,7 @@
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
+    onToggleFavorite: () => void;
     onToggleExpanded: () => void;
     onOpenComments: () => void;
     onLike: () => void;
@@ -92,7 +96,7 @@
 
   <div class="feed-card-top-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
     <section class="feed-card-panel" aria-label="Media information">
-      <FeedCardInfoPanel {item} {expanded} {onToggleExpanded} />
+      <FeedCardInfoPanel {item} {expanded} {favorite} {onToggleFavorite} {onToggleExpanded} />
     </section>
 
     {#if topAccessory}

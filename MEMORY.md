@@ -23,6 +23,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Media serving and comment APIs must validate IDs through the same safe lookup model.
 - Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
 - Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
+- Favorites feed pagination uses `POST /api/feed/favorites` with browser-owned ordered media IDs. The server does safe ID lookup against scanned media, ignores stale/missing IDs, preserves the request order, and applies cursor/limit over that ordered ID list.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
 - Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, accepts only the same supported photo/video extensions used by scanning, rejects empty/path-like/unsupported filenames, and writes safe unique filenames directly under the content root.
 - Successful uploads invalidate the media scan cache immediately so the next feed request can show newly uploaded files without waiting for the scan TTL.
@@ -53,6 +54,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The app must handle an empty `test-content` directory gracefully.
 - Upload UI is a compact header drop-in plus page-level drag-and-drop. After a successful upload, the frontend resets feed pagination and reloads from the first page so newest uploaded media appears at the top.
 - Card titles and media accessibility labels use `displayName`, not the technical storage filename.
+- Favorites are stored only in browser `localStorage` under `feed-ai:favorites`. New favorites are inserted at the front of the ID array, so the favorites view shows most recently saved media first without server-side sorting.
+- The page header owns the all/favorites mode switch. In favorites mode, `App.svelte` requests only the saved favorite IDs through the favorites endpoint and removes an unfavorited visible card immediately while keeping the favorites cursor aligned after ID removal.
 
 ## Feed Card Layout Decisions
 
@@ -118,6 +121,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Once the local user first controls the ship, `AsteroidsShip` dispatches `feed-ai:game-started`; `App.svelte` hides the feed, header, sidebar, comments overlays, expanded media, and debug overlay so the background becomes the game surface.
 - Comments and other main site async updates stay on SSE. Multiplayer ships use WebSocket at `GET /api/ships/socket`; clients send local ship, active bullet, and active asteroid/comet state every 16ms after first ship control, and the server keeps recent ship state in memory with an 8-second TTL and broadcasts snapshots on the same socket. Remote ships render with the comment nickname, and remote bullets/comets render in the same background layer. Local clients handle ship-ship, remote bullet, and remote comet collisions by clearing bullets, showing an explosion, publishing the reset state, and parking the local ship until the next movement. Shooting a remote comet sends an `asteroid-hit` message; the server validates the reported bullet point against the authoritative latest comet snapshot, removes that comet from broadcasts, suppresses stale owner updates for the destroyed comet id, and broadcasts an `asteroid-destroyed` event so all clients show the explosion and the owner schedules respawn.
 - Expanded media locks background scroll and closes with Escape or the close button.
+- Each media card top info panel includes a star action to add/remove that media item from browser favorites; the star appears to the left of the fullscreen action.
 - Comments open as an in-card overlay over the selected feed card, not as a global fixed side/bottom panel.
 - Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.
 - When a card is expanded, the media frame is fixed above the page at `z-index: 79`; the comments panel must be rendered through the top-level `.comments-panel-fullscreen` viewport overlay above it, not inside the virtualized card.
@@ -142,3 +146,4 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Go commands may need sandbox escalation when the Go build cache is outside the workspace.
 - Dependency installation may need sandbox escalation for registry access.
 - Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.
+- Favorites implementation verified on 2026-05-09 with `go test ./...`, `npm run check` in `web`, and `npm run build` in `web`.

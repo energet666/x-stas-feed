@@ -6,24 +6,28 @@
   let {
     item,
     expanded,
+    favorite,
     ambientActive,
     overlayVisible,
     likePending = false,
     onReveal,
     onKeep,
     onHide,
+    onToggleFavorite,
     onToggleExpanded,
     onOpenComments,
     onLike
   }: {
     item: MediaItem;
     expanded: boolean;
+    favorite: boolean;
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
     onHide: (id: string) => void;
+    onToggleFavorite: (id: string) => void;
     onToggleExpanded: (id: string) => void;
     onOpenComments: (id: string) => void;
     onLike: (id: string) => void;
@@ -46,12 +50,14 @@
   <FeedVideoPlayer
     {item}
     {expanded}
+    {favorite}
     {ambientActive}
     {overlayVisible}
     {likePending}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
+    onToggleFavorite={() => onToggleFavorite(item.id)}
     onToggleExpanded={() => onToggleExpanded(item.id)}
     onOpenComments={() => onOpenComments(item.id)}
     onLike={() => onLike(item.id)}
@@ -60,12 +66,14 @@
   <FeedCardFrame
     {item}
     {expanded}
+    {favorite}
     {ambientActive}
     {overlayVisible}
     {likePending}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
+    onToggleFavorite={() => onToggleFavorite(item.id)}
     onToggleExpanded={() => onToggleExpanded(item.id)}
     onOpenComments={() => onOpenComments(item.id)}
     onLike={() => onLike(item.id)}

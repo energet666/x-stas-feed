@@ -1,17 +1,24 @@
 <script lang="ts">
-  import { AlertCircle, CheckCircle2, LoaderCircle, Upload } from 'lucide-svelte';
+  import { AlertCircle, CheckCircle2, LoaderCircle, Star, Upload } from 'lucide-svelte';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
+  type FeedMode = 'all' | 'favorites';
 
   let {
     uploadStatus,
     uploadMessage,
     uploadProgress,
+    feedMode,
+    favoriteCount,
+    onToggleFavoriteMode,
     onUploadFiles
   }: {
     uploadStatus: UploadStatus;
     uploadMessage: string;
     uploadProgress: number | null;
+    feedMode: FeedMode;
+    favoriteCount: number;
+    onToggleFavoriteMode: () => void;
     onUploadFiles: (files: File[]) => void;
   } = $props();
 
@@ -74,6 +81,20 @@
     </div>
     <div class="flex min-w-0 items-center gap-2">
       <button
+        class="glass-button favorites-mode-button gap-2"
+        class:favorites-mode-button-active={feedMode === 'favorites'}
+        type="button"
+        aria-label={feedMode === 'favorites' ? 'Show all media' : 'Show favorites'}
+        title={feedMode === 'favorites' ? 'Show all media' : 'Show favorites'}
+        onclick={onToggleFavoriteMode}
+      >
+        <Star size={15} fill={feedMode === 'favorites' ? 'currentColor' : 'none'} />
+        <span class="hidden sm:inline">{feedMode === 'favorites' ? 'All' : 'Favorites'}</span>
+        {#if favoriteCount > 0}
+          <span class="favorites-count">{favoriteCount}</span>
+        {/if}
+      </button>
+      <button
         class="glass-button upload-drop-in gap-2"
         class:upload-drop-in-active={dragActive}
         class:upload-drop-in-error={uploadStatus === 'error'}
@@ -129,5 +150,24 @@
 
   .upload-drop-in-error {
     color: var(--color-danger);
+  }
+
+  .favorites-mode-button {
+    max-width: min(10rem, 42vw);
+  }
+
+  .favorites-mode-button-active {
+    border-color: rgb(250 204 21 / 0.45);
+    color: rgb(253 224 71);
+  }
+
+  .favorites-count {
+    min-width: 1.15rem;
+    padding: 0.15rem 0.35rem;
+    border-radius: var(--radius-control);
+    background: rgb(255 255 255 / 0.12);
+    color: currentColor;
+    font-size: 0.68rem;
+    line-height: 1;
   }
 </style>
