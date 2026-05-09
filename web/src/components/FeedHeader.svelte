@@ -1,16 +1,14 @@
 <script lang="ts">
-  import { AlertCircle, CheckCircle2, Image, LoaderCircle, Upload } from 'lucide-svelte';
+  import { AlertCircle, CheckCircle2, LoaderCircle, Upload } from 'lucide-svelte';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
   let {
-    loadedCount,
     uploadStatus,
     uploadMessage,
     uploadProgress,
     onUploadFiles
   }: {
-    loadedCount: number;
     uploadStatus: UploadStatus;
     uploadMessage: string;
     uploadProgress: number | null;
@@ -114,10 +112,6 @@
         {accept}
         onchange={handleInputChange}
       />
-      <div class="glass-pill gap-2">
-        <Image size={14} />
-        {loadedCount} loaded
-      </div>
     </div>
   </div>
 </header>

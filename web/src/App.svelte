@@ -685,7 +685,6 @@
   <AsteroidsShip username={commentUsername} />
   {#if !gameActive}
     <FeedHeader
-      loadedCount={items.length}
       {uploadStatus}
       {uploadMessage}
       {uploadProgress}
