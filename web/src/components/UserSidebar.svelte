@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import { Dice5, UserRound } from 'lucide-svelte';
 
   const storageFallbackName = 'Guest';
@@ -26,8 +27,62 @@
   ];
 
   let { username = $bindable(storageFallbackName) }: { username: string } = $props();
+  let usernameInput = $state<HTMLInputElement | undefined>(undefined);
 
   const displayUsername = $derived(username.trim() || storageFallbackName);
+
+  onMount(() => {
+    let userInitiatedFocus = false;
+    let startupTimer: number | undefined = undefined;
+    const focusCheckTimers: number[] = [];
+
+    const markUserInitiatedFocus = () => {
+      userInitiatedFocus = true;
+    };
+    const blurRestoredFocus = () => {
+      if (!userInitiatedFocus && document.activeElement === usernameInput) {
+        usernameInput.blur();
+      }
+    };
+    const scheduleFocusCheck = (delay: number) => {
+      focusCheckTimers.push(window.setTimeout(blurRestoredFocus, delay));
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      if (event.target === usernameInput) {
+        scheduleFocusCheck(0);
+      }
+    };
+
+    window.addEventListener('pointerdown', markUserInitiatedFocus, { capture: true });
+    window.addEventListener('keydown', markUserInitiatedFocus, { capture: true });
+    document.addEventListener('focusin', handleFocusIn, { capture: true });
+
+    void tick().then(() => {
+      if (document.activeElement === usernameInput) {
+        usernameInput.blur();
+      }
+      scheduleFocusCheck(0);
+      scheduleFocusCheck(50);
+      scheduleFocusCheck(250);
+      scheduleFocusCheck(750);
+    });
+
+    startupTimer = window.setTimeout(() => {
+      document.removeEventListener('focusin', handleFocusIn, { capture: true });
+    }, 1500);
+
+    return () => {
+      window.removeEventListener('pointerdown', markUserInitiatedFocus, { capture: true });
+      window.removeEventListener('keydown', markUserInitiatedFocus, { capture: true });
+      document.removeEventListener('focusin', handleFocusIn, { capture: true });
+      if (startupTimer !== undefined) {
+        window.clearTimeout(startupTimer);
+      }
+      for (const timer of focusCheckTimers) {
+        window.clearTimeout(timer);
+      }
+    };
+  });
 
   function randomizeUsername() {
     const word = funnyWords[Math.floor(Math.random() * funnyWords.length)] ?? storageFallbackName;
@@ -51,6 +106,7 @@
     <label class="mb-2 block text-xs font-semibold uppercase text-subtle" for="username-input">Nickname</label>
     <div class="flex gap-2">
       <input
+        bind:this={usernameInput}
         id="username-input"
         class="username-input"
         type="text"
