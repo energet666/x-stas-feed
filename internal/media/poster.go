@@ -26,7 +26,8 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 	if !strings.HasPrefix(mimeType, "video/") {
 		return "", errors.New("posters are only available for videos")
 	}
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
+	ffmpeg, err := ffmpegPath()
+	if err != nil {
 		return "", errors.New("ffmpeg is required to generate video posters")
 	}
 
@@ -68,7 +69,7 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 		"-q:v", "3",
 		"-y", tmpPath,
 	}
-	if output, err := exec.Command("ffmpeg", args...).CombinedOutput(); err != nil {
+	if output, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("generate poster: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	if err := os.Rename(tmpPath, cachePath); err != nil {

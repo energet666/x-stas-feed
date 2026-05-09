@@ -4,12 +4,17 @@ TODO.txt
 # Go
 /bin/
 /tmp/
+/.gocache/
 *.test
 
 # Frontend
 /web/node_modules/
 /web/dist/
 /build/
+
+# Local bundled tool binaries
+/tools/ffmpeg/*/ffmpeg
+/tools/ffmpeg/*/ffmpeg.exe
 
 # Local media fixtures
 /test-content/
