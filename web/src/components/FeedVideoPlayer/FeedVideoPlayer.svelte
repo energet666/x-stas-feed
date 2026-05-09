@@ -773,7 +773,7 @@
   {#snippet content()}
     <div
       bind:this={container}
-      class="feed-video-player relative z-[1] h-full w-full overflow-hidden"
+      class="feed-video-player relative z-1 h-full w-full overflow-hidden"
       class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
       role="presentation"
       aria-label={`Video player: ${item.displayName}`}
@@ -831,7 +831,7 @@
         <img
           src={posterURL}
           alt=""
-          class="pointer-events-none absolute inset-0 z-[2] block h-full w-full object-contain media-content-shadow"
+          class="pointer-events-none absolute inset-0 z-2 block h-full w-full object-contain media-content-shadow"
           decoding="async"
         />
       {/if}
