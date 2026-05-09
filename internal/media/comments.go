@@ -3,6 +3,7 @@ package media
 import (
 	"bufio"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -125,10 +126,31 @@ func (s *CommentStore) Summary(mediaID string, limit int) ([]Comment, int, error
 }
 
 func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
-	file, err := os.Open(s.pathForID(mediaID))
+	var comments []Comment
+	seen := make(map[string]int)
+	fileComments, err := readCommentFile(s.pathForID(mediaID))
 	if errors.Is(err, os.ErrNotExist) {
 		return []Comment{}, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	for _, comment := range fileComments {
+		if index, ok := seen[comment.ID]; ok && comment.ID != "" {
+			comments[index] = comment
+			continue
+		}
+		if comment.ID != "" {
+			seen[comment.ID] = len(comments)
+		}
+		comments = append(comments, comment)
+	}
+
+	return comments, nil
+}
+
+func readCommentFile(path string) ([]Comment, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +228,18 @@ func normalizeAuthor(author string) string {
 }
 
 func (s *CommentStore) pathForID(mediaID string) string {
-	return filepath.Join(s.root, mediaID+".jsonl")
+	sum := sha256.Sum256([]byte(mediaID))
+	return filepath.Join(s.root, hex.EncodeToString(sum[:])+".jsonl")
+}
+
+func (s *CommentStore) hasFile(mediaID string) (bool, error) {
+	if _, err := os.Stat(s.pathForID(mediaID)); err == nil {
+		return true, nil
+	} else if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else {
+		return false, err
+	}
 }
 
 func newCommentID() string {

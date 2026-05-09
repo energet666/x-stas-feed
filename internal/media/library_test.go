@@ -3,6 +3,7 @@ package media
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -124,6 +125,173 @@ func TestPageHandlesEmptyAndMissingDirectories(t *testing.T) {
 	}
 	if len(page.Items) != 0 || page.NextCursor != "" {
 		t.Fatalf("expected empty page, got %#v", page)
+	}
+}
+
+func TestPageDoesNotRescanOutOfBandFilesAfterInitialization(t *testing.T) {
+	dir := t.TempDir()
+	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	newTime := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "initial.png", oldTime)
+
+	library := NewLibrary(dir)
+	page, err := library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Filename != "initial.png" {
+		t.Fatalf("expected initial indexed file, got %#v", page)
+	}
+
+	writeTestFile(t, dir, "external.png", newTime)
+
+	page, err = library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Filename != "initial.png" {
+		t.Fatalf("expected out-of-band file to stay invisible until restart, got %#v", page)
+	}
+}
+
+func TestSaveUploadUpdatesRuntimeIndexWithoutRescan(t *testing.T) {
+	dir := t.TempDir()
+	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "initial.png", oldTime)
+
+	library := NewLibrary(dir)
+	if _, err := library.Page("", 10); err != nil {
+		t.Fatal(err)
+	}
+
+	uploaded, err := library.SaveUpload("New Photo.png", strings.NewReader("uploaded image bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("expected uploaded item plus initial item, got %#v", page)
+	}
+	if page.Items[0].ID != uploaded.ID || page.Items[0].DisplayName != "New Photo.png" {
+		t.Fatalf("expected uploaded media first with display name, got %#v", page.Items[0])
+	}
+	if _, _, err := library.PathForID(uploaded.ID); err != nil {
+		t.Fatalf("expected uploaded item path lookup to use runtime index: %v", err)
+	}
+}
+
+func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+	id := EncodeID("photo.png")
+
+	library := NewLibrary(dir)
+	if _, err := library.Page("", 10); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := library.AddComment(id, "first", "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	second, err := library.AddComment(id, "second", "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item, err := library.ItemForID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.CommentCount != 2 || len(item.Comments) != 2 || item.Comments[0].ID != first.ID || item.Comments[1].ID != second.ID {
+		t.Fatalf("expected cached comment summary to update, got %#v", item)
+	}
+
+	comments, err := library.CommentsForID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(comments) != 2 || comments[1].Text != "second" {
+		t.Fatalf("expected cached full comments to update, got %#v", comments)
+	}
+
+	activity, err := library.Activity(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 2 || activity[0].Comment.ID != second.ID || activity[1].Comment.ID != first.ID {
+		t.Fatalf("expected cached activity newest first, got %#v", activity)
+	}
+
+	likedComment, err := library.AddCommentLike(id, first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if likedComment.LikeCount != 1 {
+		t.Fatalf("expected liked comment count 1, got %#v", likedComment)
+	}
+
+	item, err = library.ItemForID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Comments[0].ID != first.ID || item.Comments[0].LikeCount != 1 {
+		t.Fatalf("expected comment like in cached summary, got %#v", item.Comments)
+	}
+
+	likeCount, err := library.AddLike(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if likeCount != 1 {
+		t.Fatalf("expected media like count 1, got %d", likeCount)
+	}
+	item, err = library.ItemForID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.LikeCount != 1 {
+		t.Fatalf("expected cached item like count 1, got %#v", item)
+	}
+}
+
+func TestRuntimeIndexTreatsMissingLongCommentPathAsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	nestedDir := filepath.Join(dir, strings.Repeat("deep-", 30), strings.Repeat("nested-", 25))
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, nestedDir, strings.Repeat("media-", 20)+".png", modTime)
+
+	library := NewLibrary(dir)
+	page, err := library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].CommentCount != 0 {
+		t.Fatalf("expected long media id to load with empty comments, got %#v", page)
+	}
+	if page.Items[0].Comments == nil {
+		t.Fatal("expected empty comments to be encoded as an empty slice")
+	}
+
+	comment, err := library.AddComment(page.Items[0].ID, "works", "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	comments, err := library.CommentsForID(page.Items[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(comments) != 1 || comments[0].ID != comment.ID {
+		t.Fatalf("expected comments for long media id to use short storage path, got %#v", comments)
 	}
 }
 

@@ -25,14 +25,16 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
 - Favorites feed pagination uses `POST /api/feed/favorites` with browser-owned ordered media IDs. The server does safe ID lookup against scanned media, ignores stale/missing IDs, preserves the request order, and applies cursor/limit over that ordered ID list.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
+- Media and comment serving uses a long-lived in-memory runtime index initialized once from disk. After startup, out-of-band filesystem media additions/removals are intentionally unsupported until restart; server-managed uploads, comments, comment likes, and media likes update the runtime index directly while preserving filesystem-backed durability.
+- Production server logs media scan and runtime index initialization counts/durations, plus server-managed upload/comment/like persistence events, so heavy filesystem operations are visible in stdout.
 - Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, accepts only the same supported photo/video extensions used by scanning, rejects empty/path-like/unsupported filenames, and writes safe unique filenames directly under the content root.
-- Successful uploads invalidate the media scan cache immediately so the next feed request can show newly uploaded files without waiting for the scan TTL.
+- Successful uploads are inserted into the runtime media index immediately so the next feed request can show newly uploaded files without a directory rescan.
 - Media metadata is filesystem-backed under `test-content/.metadata/{mediaID}.json`. It currently stores `displayName`, preserving user-facing names with spaces/Cyrillic while physical uploaded filenames remain safe unique server-generated names. Existing files fall back to their real filename when no metadata exists.
 
 ## Comments Decisions
 
 - Comments are stored in server-managed append-friendly text files deterministically associated with media IDs.
-- Current storage format is JSON Lines under `test-content/.comments/{mediaID}.jsonl`.
+- Current storage format is JSON Lines under `test-content/.comments/{sha256(mediaID)}.jsonl`; legacy `{mediaID}.jsonl` files are intentionally unsupported and can be deleted during development.
 - Creating a comment creates the comment file if needed and appends the new comment.
 - Comment text is trimmed and validated; empty comments are rejected.
 - Comments now include an `author` field. The browser stores the user's chosen nickname in `localStorage`, sends it when creating comments, and the server normalizes untrusted/missing author input to `Guest`.

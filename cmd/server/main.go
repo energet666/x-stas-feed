@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)
-	library := media.NewLibrary(*contentDir)
+	library := media.NewLibraryWithLogger(*contentDir, logger)
 	app := server.New(library, *staticDir, logger)
 
 	httpServer := &http.Server{

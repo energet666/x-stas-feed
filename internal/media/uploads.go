@@ -16,6 +16,7 @@ import (
 var safeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error) {
+	started := time.Now()
 	if originalName == "" {
 		return Item{}, errors.New("filename is required")
 	}
@@ -27,6 +28,9 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 	kind, ok := supportedExtensions[extension]
 	if !ok {
 		return Item{}, fmt.Errorf("unsupported media type %q", extension)
+	}
+	if err := l.ensureIndex(); err != nil {
+		return Item{}, err
 	}
 
 	root, err := filepath.Abs(l.root)
@@ -76,7 +80,10 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 	if err := l.metadata.Set(item.ID, Metadata{DisplayName: displayName, LikeCount: item.LikeCount}); err != nil {
 		return Item{}, err
 	}
-	l.Invalidate()
+	if err := l.insertItem(item, path); err != nil {
+		return Item{}, err
+	}
+	l.logf("upload saved originalName=%q mediaID=%s filename=%s type=%s size=%d duration=%s", originalName, item.ID, item.Filename, item.Type, item.Size, time.Since(started).Round(time.Millisecond))
 	return item, nil
 }
 
