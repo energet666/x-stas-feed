@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Feed AI">
+  <rect width="16" height="16" fill="#000"/>
+  <path fill="#37d8ff" d="
+    M1 0h1v1H1z M5 0h1v1H5z M10 0h1v1h-1z M14 0h1v1h-1z
+    M3 1h1v1H3z M7 1h2v1H7z M12 1h1v1h-1z M15 1h1v1h-1z
+    M0 2h1v1H0z M4 2h1v1H4z M9 2h1v1H9z M13 2h1v1h-1z
+    M2 3h1v1H2z M6 3h1v1H6z M11 3h1v1h-1z M15 3h1v1h-1z
+    M1 4h1v1H1z M5 4h2v1H5z M10 4h1v1h-1z M14 4h1v1h-1z
+    M3 5h1v1H3z M8 5h1v1H8z M12 5h2v1h-2z
+    M0 6h1v1H0z M4 6h1v1H4z M7 6h1v1H7z M11 6h1v1h-1z M15 6h1v1h-1z
+    M2 7h1v1H2z M6 7h1v1H6z M9 7h1v1H9z M13 7h1v1h-1z
+    M1 8h1v1H1z M5 8h1v1H5z M10 8h2v1h-2z M14 8h1v1h-1z
+    M3 9h1v1H3z M7 9h1v1H7z M12 9h1v1h-1z M15 9h1v1h-1z
+    M0 10h1v1H0z M4 10h2v1H4z M9 10h1v1H9z M13 10h1v1h-1z
+    M2 11h1v1H2z M6 11h1v1H6z M11 11h1v1h-1z M14 11h1v1h-1z
+    M1 12h1v1H1z M5 12h1v1H5z M8 12h1v1H8z M12 12h2v1h-2z
+    M3 13h1v1H3z M7 13h1v1H7z M10 13h1v1h-1z M15 13h1v1h-1z
+    M0 14h1v1H0z M4 14h1v1H4z M9 14h2v1H9z M13 14h1v1h-1z
+    M2 15h1v1H2z M6 15h1v1H6z M11 15h1v1h-1z M15 15h1v1h-1z"/>
+</svg>

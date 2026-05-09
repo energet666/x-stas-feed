@@ -43,6 +43,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 ## Frontend Decisions
 
 - Use Svelte 5 with runes, Vite, Tailwind CSS 4.x, and lucide-svelte icons.
+- The site favicon is a hand-authored SVG served from `web/public/favicon.svg`; it uses a crisp black/cyan pixel-noise pattern.
 - daisyUI was removed; keep styling in Tailwind classes, scoped component CSS, and the small global theme/component primitives in `web/src/app.css`.
 - `App.svelte` is the feed coordinator: pagination, virtualization, measurement, scroll anchoring, overlay state, expanded media state, comments panel state, and SSE subscription.
 - Keep presentational pieces split into focused components instead of growing `App.svelte`.
