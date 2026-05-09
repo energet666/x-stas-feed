@@ -92,17 +92,17 @@
 </script>
 
 <aside class="user-sidebar glass-panel" aria-label="Profile settings">
-  <div class="flex items-center gap-3">
+  <header class="user-sidebar-header">
     <div class="user-sidebar-avatar" aria-hidden="true">
       <UserRound size={20} />
     </div>
     <div class="min-w-0">
       <p class="text-xs font-semibold uppercase text-subtle">Profile</p>
-      <p class="truncate text-sm font-semibold text-primary">{displayUsername}</p>
+      <h2 class="truncate text-base font-bold text-primary">{displayUsername}</h2>
     </div>
-  </div>
+  </header>
 
-  <div class="mt-4">
+  <div class="user-sidebar-body">
     <label class="mb-2 block text-xs font-semibold uppercase text-subtle" for="username-input">Nickname</label>
     <div class="flex gap-2">
       <input
@@ -125,10 +125,22 @@
 <style>
   .user-sidebar {
     position: fixed;
-    top: 6.25rem;
+    top: 5.25rem;
     left: max(1rem, calc((100vw - 78rem) / 2));
     z-index: 12;
-    width: 17rem;
+    width: 18rem;
+    overflow: hidden;
+  }
+
+  .user-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--color-glass-border-soft);
+    padding: 1rem;
+  }
+
+  .user-sidebar-body {
     padding: 1rem;
   }
 

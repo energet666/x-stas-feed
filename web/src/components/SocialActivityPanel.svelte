@@ -110,12 +110,12 @@
 
   .activity-panel {
     position: fixed;
-    top: 6.25rem;
+    top: 5.25rem;
     right: max(1rem, calc((100vw - 78rem) / 2));
     z-index: 13;
     display: flex;
     width: 18rem;
-    max-height: calc(100vh - 7.25rem);
+    max-height: calc(100vh - 6.25rem);
     flex-direction: column;
     overflow: hidden;
   }
