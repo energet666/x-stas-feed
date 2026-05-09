@@ -22,6 +22,13 @@ export type CommentLikeEvent = {
   likeCount: number;
 };
 
+export type ActivityItem = {
+  mediaId: string;
+  mediaDisplayName: string;
+  mediaType: 'image' | 'video';
+  comment: Comment;
+};
+
 export type ShipState = {
   id: string;
   name: string;
@@ -125,6 +132,27 @@ export async function fetchFavoriteFeedPage({
   }
 
   return (await response.json()) as FeedPage;
+}
+
+export async function fetchActivity({ limit }: { limit: number }) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  const response = await fetch(`/api/activity?${params.toString()}`);
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Activity request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as { items: ActivityItem[] };
+}
+
+export async function fetchMediaItem(mediaId: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}`);
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Media item request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as MediaItem;
 }
 
 export async function fetchComments(mediaId: string) {

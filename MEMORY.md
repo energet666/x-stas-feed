@@ -40,6 +40,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Feed responses include comment summary data so cards can render the latest 1-2 comments without fetching every full thread.
 - Full comment threads are loaded through media-specific comment endpoints.
 - Live comment updates use one global SSE stream, not WebSocket.
+- Social activity is comment-only for v1. `GET /api/activity?limit=` returns the latest comments across valid scanned media, newest first, and ignores stale comment files for missing media.
 
 ## Frontend Decisions
 
@@ -133,6 +134,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The comment composer textarea intentionally has no placeholder, avoiding visible placeholder flicker during Safari autofocus.
 - A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 - The nickname input must not stay focused on initial page open. `UserSidebar` watches the first 1.5 seconds after mount and blurs only non-user-initiated restored focus on that input, while preserving normal click and keyboard focus afterward.
+- A right social activity overlay shows latest comments across all media. On smaller screens it becomes a right drawer opened by a floating activity button. Clicking an activity comment fetches the corresponding safe media item through `GET /api/media/{id}` and opens a modal media card with the full comment thread and composer.
 
 ## Agent Workflow Constraints
 

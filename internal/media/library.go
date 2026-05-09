@@ -16,9 +16,11 @@ import (
 )
 
 const (
-	defaultLimit = 8
-	maxLimit     = 50
-	cacheTTL     = 2 * time.Second
+	defaultLimit         = 8
+	maxLimit             = 50
+	defaultActivityLimit = 30
+	maxActivityLimit     = 100
+	cacheTTL             = 2 * time.Second
 )
 
 var supportedExtensions = map[string]string{
@@ -71,6 +73,13 @@ type Item struct {
 type Page struct {
 	Items      []Item `json:"items"`
 	NextCursor string `json:"nextCursor,omitempty"`
+}
+
+type ActivityItem struct {
+	MediaID          string  `json:"mediaId"`
+	MediaDisplayName string  `json:"mediaDisplayName"`
+	MediaType        string  `json:"mediaType"`
+	Comment          Comment `json:"comment"`
 }
 
 func NewLibrary(root string) *Library {
@@ -142,6 +151,64 @@ func (l *Library) FavoritePage(ids []string, cursor string, requestedLimit int) 
 	}
 
 	return page, nil
+}
+
+func (l *Library) ItemForID(id string) (Item, error) {
+	if _, _, err := l.PathForID(id); err != nil {
+		return Item{}, err
+	}
+
+	items, err := l.cachedScan()
+	if err != nil {
+		return Item{}, err
+	}
+
+	for _, item := range items {
+		if item.ID == id {
+			return l.withCommentSummaries([]Item{item})[0], nil
+		}
+	}
+
+	return Item{}, os.ErrNotExist
+}
+
+func (l *Library) Activity(requestedLimit int) ([]ActivityItem, error) {
+	items, err := l.cachedScan()
+	if err != nil {
+		return nil, err
+	}
+
+	activity := make([]ActivityItem, 0)
+	for _, item := range items {
+		comments, err := l.comments.List(item.ID)
+		if err != nil {
+			continue
+		}
+		for _, comment := range comments {
+			activity = append(activity, ActivityItem{
+				MediaID:          item.ID,
+				MediaDisplayName: item.DisplayName,
+				MediaType:        item.Type,
+				Comment:          comment,
+			})
+		}
+	}
+
+	sort.Slice(activity, func(i, j int) bool {
+		if !activity[i].Comment.CreatedAt.Equal(activity[j].Comment.CreatedAt) {
+			return activity[i].Comment.CreatedAt.After(activity[j].Comment.CreatedAt)
+		}
+		if activity[i].MediaDisplayName != activity[j].MediaDisplayName {
+			return activity[i].MediaDisplayName < activity[j].MediaDisplayName
+		}
+		return activity[i].Comment.ID > activity[j].Comment.ID
+	})
+
+	limit := normalizeActivityLimit(requestedLimit)
+	if len(activity) > limit {
+		activity = activity[:limit]
+	}
+	return activity, nil
 }
 
 func (l *Library) withCommentSummaries(items []Item) []Item {
@@ -341,6 +408,16 @@ func normalizeLimit(limit int) int {
 	}
 	if limit > maxLimit {
 		return maxLimit
+	}
+	return limit
+}
+
+func normalizeActivityLimit(limit int) int {
+	if limit <= 0 {
+		return defaultActivityLimit
+	}
+	if limit > maxActivityLimit {
+		return maxActivityLimit
 	}
 	return limit
 }

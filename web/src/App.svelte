@@ -1,6 +1,7 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
   import { LoaderCircle, Star } from 'lucide-svelte';
+  import ActivityMediaModal from './components/ActivityMediaModal.svelte';
   import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
   import CommentsPanel from './components/CommentsPanel.svelte';
@@ -9,13 +10,17 @@
   import FeedError from './components/FeedError.svelte';
   import FeedHeader from './components/FeedHeader.svelte';
   import MediaCard from './components/MediaCard.svelte';
+  import SocialActivityPanel from './components/SocialActivityPanel.svelte';
   import UserSidebar from './components/UserSidebar.svelte';
   import {
     commentEventsURL,
     createLike,
+    fetchActivity,
     fetchFavoriteFeedPage,
     fetchFeedPage,
+    fetchMediaItem,
     uploadMedia,
+    type ActivityItem,
     type Comment,
     type CommentLikeEvent,
     type CommentEvent,
@@ -24,6 +29,7 @@
   } from './lib/feed';
 
   const pageSize = 6;
+  const activityLimit = 30;
   const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscanRows = 2;
@@ -58,6 +64,13 @@
   let activeOverlayID = $state<string | null>(null);
   let expandedItemID = $state<string | null>(null);
   let commentsPanelItemID = $state<string | null>(null);
+  let activityItems = $state<ActivityItem[]>([]);
+  let activityLoading = $state(false);
+  let activityError = $state<string | null>(null);
+  let selectedActivityMedia = $state<MediaItem | null>(null);
+  let activityMediaLoading = $state(false);
+  let activityMediaError = $state<string | null>(null);
+  let activityModalOpen = $state(false);
   let latestCommentEvent = $state<CommentEvent | null>(null);
   let latestCommentLikeEvent = $state<CommentLikeEvent | null>(null);
   let username = $state('Guest');
@@ -155,6 +168,7 @@
     window.addEventListener(gameStartedEvent, activateGameMode);
     subscribeToCommentEvents();
     void loadPage();
+    void loadActivity();
 
     return () => {
       document.documentElement.classList.remove('safari-browser');
@@ -188,7 +202,7 @@
 
   $effect(() => {
     const previousOverflow = document.body.style.overflow;
-    if (expandedItemID) {
+    if (expandedItemID || activityModalOpen) {
       document.body.style.overflow = 'hidden';
     }
 
@@ -245,6 +259,20 @@
       if (requestVersion === feedRequestVersion) {
         loading = false;
       }
+    }
+  }
+
+  async function loadActivity() {
+    activityLoading = true;
+    activityError = null;
+
+    try {
+      const response = await fetchActivity({ limit: activityLimit });
+      activityItems = response.items;
+    } catch (err) {
+      activityError = err instanceof Error ? err.message : 'Unable to load activity';
+    } finally {
+      activityLoading = false;
     }
   }
 
@@ -312,6 +340,10 @@
     pendingLikeCounts = {};
     commentsPanelItemID = null;
     expandedItemID = null;
+    activityModalOpen = false;
+    selectedActivityMedia = null;
+    activityMediaLoading = false;
+    activityMediaError = null;
     activeOverlayID = null;
   }
 
@@ -590,6 +622,28 @@
     commentsPanelItemID = null;
   }
 
+  async function openActivityMedia(activityItem: ActivityItem) {
+    activityModalOpen = true;
+    selectedActivityMedia = null;
+    activityMediaLoading = true;
+    activityMediaError = null;
+
+    try {
+      selectedActivityMedia = await fetchMediaItem(activityItem.mediaId);
+    } catch (err) {
+      activityMediaError = err instanceof Error ? err.message : 'Unable to load media';
+    } finally {
+      activityMediaLoading = false;
+    }
+  }
+
+  function closeActivityModal() {
+    activityModalOpen = false;
+    selectedActivityMedia = null;
+    activityMediaLoading = false;
+    activityMediaError = null;
+  }
+
   function focusCommentsComposer(id: string, attempt: number) {
     const textarea = document.getElementById(`comment-composer-${id}`) as HTMLTextAreaElement | null;
     if (document.activeElement instanceof HTMLElement && document.activeElement !== textarea) {
@@ -613,6 +667,13 @@
           }
         : item
     );
+    if (selectedActivityMedia?.id === mediaId) {
+      selectedActivityMedia = {
+        ...selectedActivityMedia,
+        comments: comments.slice(-2),
+        commentCount: comments.length
+      };
+    }
   }
 
   function appendItemComment(mediaId: string, comment: Comment) {
@@ -627,6 +688,13 @@
         commentCount: item.commentCount + 1
       };
     });
+    if (selectedActivityMedia?.id === mediaId && !selectedActivityMedia.comments.some((existing) => existing.id === comment.id)) {
+      selectedActivityMedia = {
+        ...selectedActivityMedia,
+        comments: [...selectedActivityMedia.comments, comment].slice(-2),
+        commentCount: selectedActivityMedia.commentCount + 1
+      };
+    }
   }
 
   function updateItemLikeCount(mediaId: string, likeCount: number) {
@@ -638,6 +706,12 @@
           }
         : item
     );
+    if (selectedActivityMedia?.id === mediaId) {
+      selectedActivityMedia = {
+        ...selectedActivityMedia,
+        likeCount: Math.max(selectedActivityMedia.likeCount, likeCount)
+      };
+    }
   }
 
   function updateItemCommentLikeCount(mediaId: string, commentId: string, likeCount: number) {
@@ -656,6 +730,30 @@
           }
         : item
     );
+    activityItems = activityItems.map((item) =>
+      item.mediaId === mediaId && item.comment.id === commentId
+        ? {
+            ...item,
+            comment: {
+              ...item.comment,
+              likeCount: Math.max(item.comment.likeCount, likeCount)
+            }
+          }
+        : item
+    );
+    if (selectedActivityMedia?.id === mediaId) {
+      selectedActivityMedia = {
+        ...selectedActivityMedia,
+        comments: selectedActivityMedia.comments.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likeCount: Math.max(comment.likeCount, likeCount)
+              }
+            : comment
+        )
+      };
+    }
   }
 
   async function likeItem(mediaId: string) {
@@ -693,6 +791,41 @@
     }
   }
 
+  function prependActivityItem(activityItem: ActivityItem) {
+    activityItems = [
+      activityItem,
+      ...activityItems.filter((item) => item.comment.id !== activityItem.comment.id)
+    ].slice(0, activityLimit);
+  }
+
+  async function prependActivityFromComment(event: CommentEvent) {
+    const item =
+      items.find((candidate) => candidate.id === event.mediaId) ??
+      (selectedActivityMedia?.id === event.mediaId ? selectedActivityMedia : undefined);
+
+    if (item) {
+      prependActivityItem({
+        mediaId: item.id,
+        mediaDisplayName: item.displayName,
+        mediaType: item.type,
+        comment: event.comment
+      });
+      return;
+    }
+
+    try {
+      const mediaItem = await fetchMediaItem(event.mediaId);
+      prependActivityItem({
+        mediaId: mediaItem.id,
+        mediaDisplayName: mediaItem.displayName,
+        mediaType: mediaItem.type,
+        comment: event.comment
+      });
+    } catch {
+      // Stale media can disappear between the SSE event and metadata fetch.
+    }
+  }
+
   function subscribeToCommentEvents() {
     commentEvents?.close();
     commentEvents = new EventSource(commentEventsURL());
@@ -702,6 +835,7 @@
         const nextEvent = JSON.parse(event.data) as CommentEvent;
         latestCommentEvent = nextEvent;
         appendItemComment(nextEvent.mediaId, nextEvent.comment);
+        void prependActivityFromComment(nextEvent);
       } catch {
         // Ignore malformed stream events; feed pagination/full comment loads can recover state.
       }
@@ -728,6 +862,10 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && activityModalOpen) {
+      closeActivityModal();
+      return;
+    }
     if (event.key === 'Escape' && commentsPanelItemID) {
       closeComments();
       return;
@@ -782,6 +920,8 @@
     gameActive = true;
     commentsPanelItemID = null;
     expandedItemID = null;
+    activityModalOpen = false;
+    selectedActivityMedia = null;
     activeOverlayID = null;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }
@@ -817,6 +957,13 @@
       onUploadFiles={handleUploadFiles}
     />
     <UserSidebar bind:username />
+    <SocialActivityPanel
+      items={activityItems}
+      loading={activityLoading}
+      error={activityError}
+      onReload={loadActivity}
+      onSelect={openActivityMedia}
+    />
 
     {#if pageDragActive}
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
@@ -924,6 +1071,22 @@
           onCommentLikeChanged={updateItemCommentLikeCount}
         />
       </div>
+    {/if}
+
+    {#if activityModalOpen}
+      <ActivityMediaModal
+        item={selectedActivityMedia}
+        loading={activityMediaLoading}
+        error={activityMediaError}
+        username={commentUsername}
+        commentEvent={latestCommentEvent}
+        commentLikeEvent={latestCommentLikeEvent}
+        likePending={selectedActivityMedia ? (pendingLikeCounts[selectedActivityMedia.id] ?? 0) > 0 : false}
+        onClose={closeActivityModal}
+        onCommentsChanged={updateItemComments}
+        onCommentLikeChanged={updateItemCommentLikeCount}
+        onLike={likeItem}
+      />
     {/if}
   {/if}
 </main>

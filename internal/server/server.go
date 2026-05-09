@@ -51,9 +51,11 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/feed", s.handleFeed)
 	s.mux.HandleFunc("POST /api/feed/favorites", s.handleFavoriteFeed)
+	s.mux.HandleFunc("GET /api/activity", s.handleActivity)
 	s.mux.HandleFunc("POST /api/uploads", s.handleUploads)
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
+	s.mux.HandleFunc("GET /api/media/{id}", s.handleMediaItem)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
 	s.mux.HandleFunc("POST /api/media/{id}/comments/{commentID}/likes", s.handleCreateCommentLike)
@@ -102,6 +104,25 @@ func (s *Server) handleFavoriteFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, page)
+}
+
+func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := s.library.Activity(limit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]media.ActivityItem{"items": items})
+}
+
+func (s *Server) handleMediaItem(w http.ResponseWriter, r *http.Request) {
+	item, err := s.library.ItemForID(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {

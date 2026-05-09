@@ -121,6 +121,149 @@ func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	}
 }
 
+func TestActivityEndpointReturnsLatestCommentsAcrossMedia(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "a.png")
+	writeServerTestFile(t, dir, "b.png")
+	aID := media.EncodeID("a.png")
+	bID := media.EncodeID("b.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	for _, request := range []struct {
+		id   string
+		text string
+	}{
+		{id: aID, text: "first"},
+		{id: bID, text: "second"},
+		{id: aID, text: "third"},
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+request.id+"/comments", bytes.NewBufferString(`{"text":"`+request.text+`","author":"Tester"}`))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusCreated {
+			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/activity?limit=2", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var response struct {
+		Items []media.ActivityItem `json:"items"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 2 {
+		t.Fatalf("expected two activity items, got %#v", response)
+	}
+	if response.Items[0].Comment.Text != "third" || response.Items[1].Comment.Text != "second" {
+		t.Fatalf("expected newest comments first, got %#v", response.Items)
+	}
+	if response.Items[0].MediaID != aID || response.Items[0].MediaDisplayName != "a.png" || response.Items[0].MediaType != "image" {
+		t.Fatalf("expected media metadata on activity item, got %#v", response.Items[0])
+	}
+}
+
+func TestActivityEndpointIgnoresStaleCommentFilesAndCapsLimit(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+
+	for i := 0; i < 105; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"comment"}`))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusCreated {
+			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+		}
+	}
+
+	staleID := media.EncodeID("missing.png")
+	commentsDir := filepath.Join(dir, ".comments")
+	if err := os.MkdirAll(commentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(commentsDir, staleID+".jsonl"), []byte(`{"id":"stale","author":"Ghost","text":"stale","createdAt":"2099-01-01T00:00:00Z"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/activity?limit=1000", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var response struct {
+		Items []media.ActivityItem `json:"items"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 100 {
+		t.Fatalf("expected activity limit cap at 100, got %d", len(response.Items))
+	}
+	for _, item := range response.Items {
+		if item.MediaID == staleID || item.Comment.ID == "stale" {
+			t.Fatalf("expected stale comment file to be ignored, got %#v", item)
+		}
+	}
+}
+
+func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	for _, text := range []string{"first", "second", "third"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"`+text+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusCreated {
+			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/media/"+id, nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var item media.Item
+	if err := json.NewDecoder(res.Body).Decode(&item); err != nil {
+		t.Fatal(err)
+	}
+	if item.ID != id || item.Filename != "photo.png" || item.CommentCount != 3 {
+		t.Fatalf("unexpected media item response: %#v", item)
+	}
+	if len(item.Comments) != 2 || item.Comments[0].Text != "second" || item.Comments[1].Text != "third" {
+		t.Fatalf("expected latest two comment summary, got %#v", item.Comments)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/media/"+media.EncodeID("../secret.png"), nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404 for invalid id, got %d", res.Code)
+	}
+}
+
 func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
