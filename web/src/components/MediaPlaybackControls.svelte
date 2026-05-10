@@ -60,6 +60,32 @@
     onEnterControls();
   }
 
+  function applySeekPointerValue(event: PointerEvent) {
+    const input = event.currentTarget;
+    if (!(input instanceof HTMLInputElement) || duration <= 0) return;
+    const progressEl = input.closest('.media-playback-progress');
+    if (!(progressEl instanceof HTMLElement)) return;
+    const bounds = progressEl.getBoundingClientRect();
+    const ratio = bounds.width > 0 ? Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width)) : 0;
+    input.value = String(ratio * duration);
+    onSeek(event);
+  }
+
+  function startSeekInteraction(event: PointerEvent) {
+    const input = event.currentTarget;
+    if (!(input instanceof HTMLInputElement)) return;
+    startRangeInteraction();
+    event.preventDefault();
+    input.setPointerCapture(event.pointerId);
+    applySeekPointerValue(event);
+  }
+
+  function updateSeekInteraction(event: PointerEvent) {
+    if (!isDragging) return;
+    event.preventDefault();
+    applySeekPointerValue(event);
+  }
+
   function finishRangeInteraction() {
     onFinishDragging();
     onEnterControls();
@@ -105,7 +131,8 @@
       max={duration || 0}
       step="0.1"
       value={currentTime}
-      onpointerdown={startRangeInteraction}
+      onpointerdown={startSeekInteraction}
+      onpointermove={updateSeekInteraction}
       onpointerup={finishRangeInteraction}
       onmousedown={startRangeInteraction}
       onmouseup={finishRangeInteraction}
