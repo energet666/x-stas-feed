@@ -380,7 +380,7 @@
 
   .audio-card-surface::before {
     position: absolute;
-    inset: -26%;
+    inset: -75%;
     z-index: 0;
     content: "";
     background:
@@ -404,11 +404,11 @@
 
   @keyframes audio-background-spin {
     from {
-      transform: rotate(0deg);
+      transform: rotate(0deg) scale(1.1);
     }
 
     to {
-      transform: rotate(360deg);
+      transform: rotate(360deg) scale(1.1);
     }
   }
 
