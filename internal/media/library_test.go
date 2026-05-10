@@ -63,6 +63,57 @@ func TestScanUsesStoredDisplayName(t *testing.T) {
 	}
 }
 
+func TestScanCreatesMissingMetadataForFiles(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	library := NewLibrary(dir)
+	if exists, err := library.metadata.Exists(EncodeID("photo.png")); err != nil || exists {
+		t.Fatalf("expected metadata to be missing before scan, exists=%t err=%v", exists, err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].DisplayName != "photo.png" {
+		t.Fatalf("expected scanned photo with fallback display name, got %#v", items)
+	}
+
+	metadata, err := library.metadata.Get(EncodeID("photo.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.DisplayName != "photo.png" || metadata.LikeCount != 0 || metadata.Audio != nil {
+		t.Fatalf("expected basic metadata to be created, got %#v", metadata)
+	}
+}
+
+func TestScanDoesNotOverwriteExistingMetadata(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	library := NewLibrary(dir)
+	id := EncodeID("photo.png")
+	if err := library.metadata.Set(id, Metadata{DisplayName: "Stored Name.png", LikeCount: 7}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := library.Scan(); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err := library.metadata.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.DisplayName != "Stored Name.png" || metadata.LikeCount != 7 {
+		t.Fatalf("expected existing metadata to be preserved, got %#v", metadata)
+	}
+}
+
 func TestScanUsesStoredLikeCount(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

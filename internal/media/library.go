@@ -391,6 +391,10 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
+		metadataExists, metadataExistsErr := l.metadata.Exists(item.ID)
+		if metadataExistsErr != nil {
+			l.logf("metadata stat failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, metadataExistsErr)
+		}
 		metadata, metadataErr := l.metadata.Get(item.ID)
 		if metadataErr == nil {
 			if metadata.DisplayName != "" {
@@ -403,10 +407,19 @@ func (l *Library) Scan() ([]Item, error) {
 		} else {
 			l.logf("metadata load failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, metadataErr)
 		}
+		metadataChanged := false
+		if !metadataExists && metadataExistsErr == nil {
+			metadata.DisplayName = item.DisplayName
+			metadata.LikeCount = item.LikeCount
+			metadataChanged = true
+		}
 		if updatedMetadata, ok := l.applyAudioMetadata(&item, path, info, metadata); ok {
 			metadata.Audio = updatedMetadata.Audio
+			metadataChanged = true
+		}
+		if metadataChanged {
 			if err := l.metadata.Set(item.ID, metadata); err != nil {
-				l.logf("audio metadata cache write failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+				l.logf("metadata cache write failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
 			}
 		}
 		items = append(items, item)

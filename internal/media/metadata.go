@@ -37,6 +37,20 @@ func NewMetadataStore(mediaRoot string) *MetadataStore {
 	return &MetadataStore{root: filepath.Join(mediaRoot, metadataDirName)}
 }
 
+func (s *MetadataStore) Exists(mediaID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	info, err := os.Stat(s.pathForID(mediaID))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !info.IsDir(), nil
+}
+
 func (s *MetadataStore) Get(mediaID string) (Metadata, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
