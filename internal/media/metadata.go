@@ -5,14 +5,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 )
 
-const (
-	metadataDirName     = ".metadata"
-	maxDisplayNameRunes = 160
-)
+const metadataDirName = ".metadata"
 
 type MetadataStore struct {
 	root string
@@ -118,24 +114,10 @@ func (s *MetadataStore) writeLocked(mediaID string, metadata Metadata) error {
 }
 
 func normalizeMetadata(metadata Metadata) Metadata {
-	metadata.DisplayName = normalizeDisplayName(metadata.DisplayName)
 	if metadata.LikeCount < 0 {
 		metadata.LikeCount = 0
 	}
 	return metadata
-}
-
-func normalizeDisplayName(name string) string {
-	name = strings.Join(strings.Fields(name), " ")
-	if name == "" {
-		return ""
-	}
-
-	runes := []rune(name)
-	if len(runes) > maxDisplayNameRunes {
-		return string(runes[:maxDisplayNameRunes])
-	}
-	return name
 }
 
 func (s *MetadataStore) pathForID(mediaID string) string {

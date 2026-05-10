@@ -139,6 +139,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 - The nickname input must not stay focused on initial page open. `UserSidebar` watches the first 1.5 seconds after mount and blurs only non-user-initiated restored focus on that input, while preserving normal click and keyboard focus afterward.
 - A right social activity overlay shows latest comments across all media. On smaller screens it becomes a right drawer opened by a floating activity button. Clicking an activity comment fetches the corresponding safe media item through `GET /api/media/{id}` and opens a modal media card with the full comment thread and composer.
+- The feed supports generic non-hidden files in addition to images and videos. Unknown extensions are indexed as `type: "file"` using the same safe media ID, comments, likes, and `/media/{id}` serving path; dotfiles and hidden/internal dot-directories remain excluded from scanning and ID validation.
+- Generic files use a dedicated card surface with file metadata and a download link rather than trying to render the file as visual media. File upload inputs intentionally do not set an `accept` filter.
 
 ## Agent Workflow Constraints
 

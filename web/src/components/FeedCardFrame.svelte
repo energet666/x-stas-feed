@@ -72,7 +72,7 @@
           autoplay
           class="ambient-media"
         ></video>
-      {:else}
+      {:else if item.type === 'image'}
         <img
           src={item.url}
           alt=""

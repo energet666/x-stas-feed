@@ -23,8 +23,6 @@
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
   let dragActive = $state(false);
 
-  const accept = '.avif,.gif,.jpeg,.jpg,.png,.webp,.m4v,.mov,.mp4,.ogg,.ogv,.webm,image/*,video/*';
-
   function openFilePicker() {
     inputEl?.click();
   }
@@ -95,8 +93,8 @@
         class:upload-drop-in-active={dragActive}
         class:upload-drop-in-error={uploadStatus === 'error'}
         type="button"
-        aria-label="Upload photos or videos"
-        title="Upload photos or videos"
+        aria-label="Upload files"
+        title="Upload files"
         disabled={uploadStatus === 'uploading'}
         onclick={openFilePicker}
         ondragenter={handleDragEnter}
@@ -126,7 +124,6 @@
         class="sr-only"
         type="file"
         multiple
-        {accept}
         onchange={handleInputChange}
       />
   </div>

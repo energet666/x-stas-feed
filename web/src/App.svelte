@@ -931,7 +931,7 @@
   <title>Feed AI</title>
   <meta
     name="description"
-    content="An infinite local media feed for photos and videos."
+    content="An infinite local feed for photos, videos, and files."
   />
 </svelte:head>
 
@@ -970,7 +970,7 @@
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="glass-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
           <LoaderCircle class="text-primary" size={30} />
-          <p class="text-sm font-bold text-primary">Drop photos or videos to upload</p>
+          <p class="text-sm font-bold text-primary">Drop files to upload</p>
         </div>
       </div>
     {/if}

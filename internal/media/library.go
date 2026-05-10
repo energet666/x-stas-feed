@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ const (
 	maxActivityLimit     = 100
 )
 
-var supportedExtensions = map[string]string{
+var mediaExtensions = map[string]string{
 	".avif": "image",
 	".gif":  "image",
 	".jpeg": "image",
@@ -39,8 +40,8 @@ var supportedExtensions = map[string]string{
 }
 
 func SupportedExtensions() []string {
-	extensions := make([]string, 0, len(supportedExtensions))
-	for extension := range supportedExtensions {
+	extensions := make([]string, 0, len(mediaExtensions))
+	for extension := range mediaExtensions {
 		extensions = append(extensions, extension)
 	}
 	sort.Strings(extensions)
@@ -349,7 +350,7 @@ func (l *Library) Scan() ([]Item, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != root && (entry.Name() == commentsDirName || entry.Name() == posterDirName || entry.Name() == metadataDirName) {
+			if path != root && strings.HasPrefix(entry.Name(), ".") {
 				skippedDirs++
 				return filepath.SkipDir
 			}
@@ -630,7 +631,8 @@ func validateMediaID(id string) error {
 	if err != nil {
 		return err
 	}
-	if rel == "" || filepath.IsAbs(rel) || strings.Contains(filepath.ToSlash(rel), "../") || strings.HasPrefix(filepath.ToSlash(rel), "..") {
+	rel = filepath.ToSlash(rel)
+	if rel == "" || filepath.IsAbs(rel) || strings.Contains(rel, "../") || strings.HasPrefix(rel, "..") || hasHiddenPathSegment(rel) {
 		return errors.New("invalid media id")
 	}
 	if _, ok := kindForPath(rel); !ok {
@@ -690,8 +692,13 @@ func normalizeActivityLimit(limit int) int {
 }
 
 func kindForPath(path string) (string, bool) {
-	kind, ok := supportedExtensions[strings.ToLower(filepath.Ext(path))]
-	return kind, ok
+	if strings.HasPrefix(filepath.Base(path), ".") {
+		return "", false
+	}
+	if kind, ok := mediaExtensions[strings.ToLower(filepath.Ext(path))]; ok {
+		return kind, true
+	}
+	return "file", true
 }
 
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
@@ -716,5 +723,36 @@ func mimeType(path string) string {
 	if kind, ok := kindForPath(path); ok && kind == "video" {
 		return "video/mp4"
 	}
+	if typ := sniffMimeType(path); typ != "" {
+		return typ
+	}
 	return "application/octet-stream"
+}
+
+func sniffMimeType(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	var sample [512]byte
+	n, err := file.Read(sample[:])
+	if err != nil && n == 0 {
+		return ""
+	}
+	typ := http.DetectContentType(sample[:n])
+	if typ == "application/octet-stream" {
+		return ""
+	}
+	return typ
+}
+
+func hasHiddenPathSegment(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		if strings.HasPrefix(segment, ".") {
+			return true
+		}
+	}
+	return false
 }

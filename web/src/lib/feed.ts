@@ -25,7 +25,7 @@ export type CommentLikeEvent = {
 export type ActivityItem = {
   mediaId: string;
   mediaDisplayName: string;
-  mediaType: 'image' | 'video';
+  mediaType: MediaKind;
   comment: Comment;
 };
 
@@ -68,11 +68,13 @@ export type ShipSnapshot = {
   events?: ShipEvent[];
 };
 
+export type MediaKind = 'image' | 'video' | 'file';
+
 export type MediaItem = {
   id: string;
   filename: string;
   displayName: string;
-  type: 'image' | 'video';
+  type: MediaKind;
   url: string;
   mimeType: string;
   size: number;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import FeedCardFrame from './FeedCardFrame.svelte';
   import FeedVideoPlayer from './FeedVideoPlayer/FeedVideoPlayer.svelte';
+  import FileCardContent from './FileCardContent.svelte';
   import type { MediaItem } from '../lib/feed';
 
   let {
@@ -62,7 +63,7 @@
     onOpenComments={() => onOpenComments(item.id)}
     onLike={() => onLike(item.id)}
   />
-{:else}
+{:else if item.type === 'image'}
   <FeedCardFrame
     {item}
     {expanded}
@@ -86,6 +87,26 @@
         loading="lazy"
         decoding="async"
       />
+    {/snippet}
+  </FeedCardFrame>
+{:else}
+  <FeedCardFrame
+    {item}
+    {expanded}
+    {favorite}
+    ambientActive={false}
+    {overlayVisible}
+    {likePending}
+    onReveal={revealOverlay}
+    onKeep={keepOverlay}
+    onHide={hideOverlay}
+    onToggleFavorite={() => onToggleFavorite(item.id)}
+    onToggleExpanded={() => onToggleExpanded(item.id)}
+    onOpenComments={() => onOpenComments(item.id)}
+    onLike={() => onLike(item.id)}
+  >
+    {#snippet content()}
+      <FileCardContent {item} />
     {/snippet}
   </FeedCardFrame>
 {/if}

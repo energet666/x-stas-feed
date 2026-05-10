@@ -10,8 +10,6 @@
   } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
-  const accept = '.avif,.gif,.jpeg,.jpg,.png,.webp,.m4v,.mov,.mp4,.ogg,.ogv,.webm,image/*,video/*';
-
   function openFilePicker() {
     inputEl?.click();
   }
@@ -30,7 +28,7 @@
   <Image class="mb-4 text-muted" size={42} />
   <h2 class="text-lg font-semibold text-primary">No media yet</h2>
   <p class="mt-2 max-w-sm text-sm font-medium text-muted">
-    Upload photos or videos here, or add them to <span class="font-mono">test-content</span>.
+    Upload files here, or add them to <span class="font-mono">test-content</span>.
   </p>
   <div class="mt-5 flex flex-wrap justify-center gap-2">
     <button class="glass-button gap-2" type="button" onclick={openFilePicker}>
@@ -42,5 +40,5 @@
       Refresh
     </button>
   </div>
-  <input bind:this={inputEl} class="sr-only" type="file" multiple {accept} onchange={handleInputChange} />
+  <input bind:this={inputEl} class="sr-only" type="file" multiple onchange={handleInputChange} />
 </div>

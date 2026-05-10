@@ -859,15 +859,32 @@ func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 	}
 }
 
+func TestUploadEndpointSavesGenericFile(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+
+	req := newUploadRequest(t, "notes.txt", []byte("text"))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var upload uploadResponse
+	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Items) != 1 || upload.Items[0].Type != "file" {
+		t.Fatalf("expected uploaded generic file item, got %#v", upload)
+	}
+}
+
 func TestUploadEndpointRejectsInvalidUploads(t *testing.T) {
 	tests := []struct {
 		name string
 		req  func(t *testing.T) *http.Request
 	}{
-		{
-			name: "unsupported extension",
-			req:  func(t *testing.T) *http.Request { return newUploadRequest(t, "notes.txt", []byte("text")) },
-		},
 		{
 			name: "empty file",
 			req:  func(t *testing.T) *http.Request { return newUploadRequest(t, "empty.png", []byte{}) },

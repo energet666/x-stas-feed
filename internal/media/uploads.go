@@ -25,9 +25,9 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 	}
 
 	extension := strings.ToLower(filepath.Ext(originalName))
-	kind, ok := supportedExtensions[extension]
+	kind, ok := kindForPath(originalName)
 	if !ok {
-		return Item{}, fmt.Errorf("unsupported media type %q", extension)
+		return Item{}, fmt.Errorf("unsupported file type %q", extension)
 	}
 	if err := l.ensureIndex(); err != nil {
 		return Item{}, err
@@ -72,12 +72,8 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 		return Item{}, err
 	}
 	item := itemFromFile(filename, path, kind, info)
-	displayName := normalizeDisplayName(originalName)
-	if displayName == "" {
-		displayName = item.Filename
-	}
-	item.DisplayName = displayName
-	if err := l.metadata.Set(item.ID, Metadata{DisplayName: displayName, LikeCount: item.LikeCount}); err != nil {
+	item.DisplayName = originalName
+	if err := l.metadata.Set(item.ID, Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}); err != nil {
 		return Item{}, err
 	}
 	if err := l.insertItem(item, path); err != nil {

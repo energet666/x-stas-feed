@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestScanFiltersAndSortsByModifiedTime(t *testing.T) {
+func TestScanClassifiesFilesAndSortsByModifiedTime(t *testing.T) {
 	dir := t.TempDir()
 	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
@@ -16,14 +16,15 @@ func TestScanFiltersAndSortsByModifiedTime(t *testing.T) {
 	writeTestFile(t, dir, "old.png", oldTime)
 	writeTestFile(t, dir, "new.mp4", newTime)
 	writeTestFile(t, dir, "notes.txt", newTime)
+	writeTestFile(t, dir, ".DS_Store", newTime)
 
 	items, err := NewLibrary(dir).Scan()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("expected 2 supported items, got %d", len(items))
+	if len(items) != 3 {
+		t.Fatalf("expected 3 feed items, got %d", len(items))
 	}
 	if items[0].Filename != "new.mp4" || items[0].Type != "video" {
 		t.Fatalf("expected newest video first, got %#v", items[0])
@@ -31,7 +32,10 @@ func TestScanFiltersAndSortsByModifiedTime(t *testing.T) {
 	if items[0].DisplayName != "new.mp4" {
 		t.Fatalf("expected fallback display name, got %#v", items[0])
 	}
-	if items[1].Filename != "old.png" || items[1].Type != "image" {
+	if items[1].Filename != "notes.txt" || items[1].Type != "file" {
+		t.Fatalf("expected generic file second, got %#v", items[1])
+	}
+	if items[2].Filename != "old.png" || items[2].Type != "image" {
 		t.Fatalf("expected older image second, got %#v", items[1])
 	}
 }
@@ -181,6 +185,86 @@ func TestSaveUploadUpdatesRuntimeIndexWithoutRescan(t *testing.T) {
 	}
 	if _, _, err := library.PathForID(uploaded.ID); err != nil {
 		t.Fatalf("expected uploaded item path lookup to use runtime index: %v", err)
+	}
+}
+
+func TestSaveUploadAcceptsGenericFiles(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	uploaded, err := library.SaveUpload("Notes 2026.txt", strings.NewReader("plain text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Type != "file" || uploaded.MimeType != "text/plain; charset=utf-8" {
+		t.Fatalf("expected generic text file upload, got %#v", uploaded)
+	}
+
+	page, err := library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != uploaded.ID {
+		t.Fatalf("expected uploaded file in feed, got %#v", page)
+	}
+}
+
+func TestSaveUploadSniffsGenericFileMimeType(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	uploaded, err := library.SaveUpload("README", strings.NewReader("plain text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Type != "file" || uploaded.MimeType != "text/plain; charset=utf-8" {
+		t.Fatalf("expected sniffed text file upload, got %#v", uploaded)
+	}
+}
+
+func TestSaveUploadPreservesLongDisplayName(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+	longName := strings.Repeat("4d5cda", 35) + ".txt"
+
+	uploaded, err := library.SaveUpload(longName, strings.NewReader("plain text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.DisplayName != longName {
+		t.Fatalf("expected full display name to be preserved, got length=%d want length=%d", len([]rune(uploaded.DisplayName)), len([]rune(longName)))
+	}
+
+	reloaded := NewLibrary(dir)
+	item, err := reloaded.ItemForID(uploaded.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.DisplayName != longName {
+		t.Fatalf("expected full stored display name after reload, got length=%d want length=%d", len([]rune(item.DisplayName)), len([]rune(longName)))
+	}
+}
+
+func TestSaveUploadPreservesDisplayNameWhitespace(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+	originalName := "my   file\tname.txt"
+
+	uploaded, err := library.SaveUpload(originalName, strings.NewReader("plain text"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.DisplayName != originalName {
+		t.Fatalf("expected exact display name %q, got %q", originalName, uploaded.DisplayName)
+	}
+
+	reloaded := NewLibrary(dir)
+	item, err := reloaded.ItemForID(uploaded.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.DisplayName != originalName {
+		t.Fatalf("expected exact stored display name %q, got %q", originalName, item.DisplayName)
 	}
 }
 
@@ -378,7 +462,7 @@ func TestScanIgnoresMetadataDirectory(t *testing.T) {
 	}
 }
 
-func TestPathForIDRejectsEscapesAndUnsupportedFiles(t *testing.T) {
+func TestPathForIDRejectsEscapesAndHiddenFiles(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	writeTestFile(t, dir, "ok.png", modTime)
@@ -395,8 +479,16 @@ func TestPathForIDRejectsEscapesAndUnsupportedFiles(t *testing.T) {
 	if _, _, err := NewLibrary(dir).PathForID(EncodeID("../secret.png")); err == nil {
 		t.Fatal("expected escape id to be rejected")
 	}
-	if _, _, err := NewLibrary(dir).PathForID(EncodeID("notes.txt")); err == nil {
-		t.Fatal("expected unsupported file to be rejected")
+	path, mimeType, err = NewLibrary(dir).PathForID(EncodeID("notes.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(path) != "notes.txt" || mimeType == "" {
+		t.Fatalf("expected generic file path and mime type, got %q %q", path, mimeType)
+	}
+
+	if _, _, err := NewLibrary(dir).PathForID(EncodeID(".comments/notes.txt")); err == nil {
+		t.Fatal("expected hidden internal path to be rejected")
 	}
 }
 
