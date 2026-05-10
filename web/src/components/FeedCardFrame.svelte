@@ -44,6 +44,18 @@
     onLike: () => void;
   } = $props();
 
+  function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return false;
+    const bounds = target.getBoundingClientRect();
+    return (
+      event.clientX >= bounds.left &&
+      event.clientX <= bounds.right &&
+      event.clientY >= bounds.top &&
+      event.clientY <= bounds.bottom
+    );
+  }
+
   function keepOverlayFromPanel(event: PointerEvent | MouseEvent | TouchEvent | FocusEvent) {
     event.stopPropagation();
     onKeep();
@@ -51,6 +63,19 @@
 
   function releaseOverlayFromPanel(event: PointerEvent | MouseEvent) {
     event.stopPropagation();
+    if (eventIsInsideCurrentTarget(event)) {
+      onKeep();
+      return;
+    }
+    onReveal();
+  }
+
+  function handleFrameClick(event: MouseEvent) {
+    const target = event.target;
+    if (target instanceof Element && target.closest('.feed-card-panel')) {
+      onKeep();
+      return;
+    }
     onReveal();
   }
 </script>
@@ -64,7 +89,7 @@
   onmouseenter={onReveal}
   ontouchstart={onReveal}
   onpointerdown={onReveal}
-  onclick={onReveal}
+  onclick={handleFrameClick}
   onfocusin={onKeep}
   onmouseleave={onHide}
 >

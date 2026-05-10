@@ -42,14 +42,44 @@
     onLeaveControls: () => void;
     onFinishDragging: () => void;
   } = $props();
+
+  function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return false;
+    const bounds = target.getBoundingClientRect();
+    return (
+      event.clientX >= bounds.left &&
+      event.clientX <= bounds.right &&
+      event.clientY >= bounds.top &&
+      event.clientY <= bounds.bottom
+    );
+  }
+
+  function startRangeInteraction() {
+    isDragging = true;
+    onEnterControls();
+  }
+
+  function finishRangeInteraction() {
+    onFinishDragging();
+    onEnterControls();
+  }
+
+  function leaveControls(event: PointerEvent | MouseEvent) {
+    if (eventIsInsideCurrentTarget(event)) {
+      onEnterControls();
+      return;
+    }
+    onLeaveControls();
+  }
 </script>
 
 <div
   class="media-playback-controls flex items-center text-primary"
   onpointerenter={onEnterControls}
-  onpointerleave={onLeaveControls}
+  onpointerleave={leaveControls}
   onmouseenter={onEnterControls}
-  onmouseleave={onLeaveControls}
+  onmouseleave={leaveControls}
   role="toolbar"
   aria-label={ariaLabel}
   tabindex="-1"
@@ -75,11 +105,11 @@
       max={duration || 0}
       step="0.1"
       value={currentTime}
-      onpointerdown={() => (isDragging = true)}
-      onpointerup={onFinishDragging}
-      onmousedown={() => (isDragging = true)}
-      onmouseup={onFinishDragging}
-      onchange={onFinishDragging}
+      onpointerdown={startRangeInteraction}
+      onpointerup={finishRangeInteraction}
+      onmousedown={startRangeInteraction}
+      onmouseup={finishRangeInteraction}
+      onchange={finishRangeInteraction}
       oninput={onSeek}
     />
   </div>
@@ -103,6 +133,10 @@
       max="1"
       step="0.05"
       value={muted ? 0 : volume}
+      onpointerdown={onEnterControls}
+      onpointerup={onEnterControls}
+      onmousedown={onEnterControls}
+      onmouseup={onEnterControls}
       oninput={onVolumeChange}
     />
   {/if}
