@@ -80,6 +80,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The bottom overlay stack contains an optional bottom accessory snippet and the compact comments preview.
 - Compact comments preview is persistent and remains visible at the bottom of each card. Bottom accessory content such as video controls expands above it and does not control comment preview visibility.
 - Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`. External shadows were removed from all UI components for a cleaner look in the dark theme, and a safe offset of 1.5rem is used when hidden to ensure no subpixel artifacts remain visible at the card edges.
+- Card overlay `onKeep` must clear the autohide timer instead of rescheduling it. Cursor/focus inside any `.feed-card-panel` stops event propagation and blocks autohide until the cursor leaves that panel, then normal delayed hiding resumes.
 - Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
 - Audio controls are also bottom accessory content and should match the video controls panel style and overlay motion.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.

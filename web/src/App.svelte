@@ -439,7 +439,7 @@
 
   function keepCardOverlay(id: string) {
     activeOverlayID = id;
-    scheduleCardOverlayHide(id);
+    clearTimeout(overlayHideTimer);
   }
 
   function hideCardOverlay(id: string) {
