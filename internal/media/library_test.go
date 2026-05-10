@@ -63,6 +63,32 @@ func TestScanUsesStoredDisplayName(t *testing.T) {
 	}
 }
 
+func TestScanUsesFixedLengthOpaqueMediaIDs(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	filename := "🧸 СДЕЛАЙ ЛЮБУЮ ПОВЕРХНОСТЬ БАРХАТНОЙ — ФЛОКИРОВАНИЕ, ПЕРВЫЙ ОПЫТ, РЕЗУЛЬТАТ ПОЧТИ БЕЗ ТРАТ И НАВЫКОВ [jtRodaEO5C0].mp4"
+	writeTestFile(t, dir, filename, modTime)
+
+	library := NewLibrary(dir)
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one item, got %#v", items)
+	}
+	if len(items[0].ID) != 64 {
+		t.Fatalf("expected fixed 64-character media id, got %q length=%d", items[0].ID, len(items[0].ID))
+	}
+	if strings.Contains(items[0].ID, filename) {
+		t.Fatalf("expected opaque media id not to contain filename, got %q", items[0].ID)
+	}
+
+	if _, err := os.Stat(library.metadata.pathForID(items[0].ID)); err != nil {
+		t.Fatalf("expected metadata file to be created for long unicode filename: %v", err)
+	}
+}
+
 func TestScanCreatesMissingMetadataForFiles(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -566,11 +592,12 @@ func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
 	if err := os.MkdirAll(commentsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(commentsDir, EncodeID("photo.png")+".jsonl"), []byte("{broken json\n"), 0o644); err != nil {
+	library := NewLibrary(dir)
+	if err := os.WriteFile(library.comments.pathForID(EncodeID("photo.png")), []byte("{broken json\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	page, err := NewLibrary(dir).Page("", 10)
+	page, err := library.Page("", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,11 +618,12 @@ func TestEmptyCommentFileReturnsEmptyCommentList(t *testing.T) {
 	if err := os.MkdirAll(commentsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(commentsDir, EncodeID("photo.png")+".jsonl"), []byte("\n\n"), 0o644); err != nil {
+	library := NewLibrary(dir)
+	if err := os.WriteFile(library.comments.pathForID(EncodeID("photo.png")), []byte("\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	comments, err := NewLibrary(dir).CommentsForID(EncodeID("photo.png"))
+	comments, err := library.CommentsForID(EncodeID("photo.png"))
 	if err != nil {
 		t.Fatal(err)
 	}

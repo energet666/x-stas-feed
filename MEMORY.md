@@ -19,7 +19,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
   - `internal/media` for scanning, sorting, pagination, lookup, and comments storage.
   - `internal/server` for routing, handlers, middleware, SSE, and static serving.
 - Media files are scanned from `test-content`, sorted by modification time descending, with filename as the stable tie-breaker.
-- Media IDs are server-controlled safe identities. Clients must not provide filesystem paths for media or comments.
+- Media IDs are server-controlled opaque SHA-256 hex identities derived from the normalized relative media path. They are fixed-length and not decodable by clients. Clients must not provide filesystem paths for media or comments.
 - Media serving and comment APIs must validate IDs through the same safe lookup model.
 - Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
 - Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
@@ -29,7 +29,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Production server logs media scan and runtime index initialization counts/durations, plus server-managed upload/comment/like persistence events, so heavy filesystem operations are visible in stdout.
 - Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, rejects empty/path-like filenames, and writes safe unique filenames directly under the content root.
 - Successful uploads are inserted into the runtime media index immediately so the next feed request can show newly uploaded files without a directory rescan.
-- Media metadata is filesystem-backed under `test-content/.metadata/{mediaID}.json`. It stores `displayName`, `modifiedAt`, `likeCount`, and cached audio extraction data when available. Existing files fall back to their real filename when no metadata exists.
+- Media metadata is filesystem-backed under `test-content/.metadata/{mediaID}.json`, where `mediaID` is the fixed 64-character SHA-256 hex ID. It stores `displayName`, `modifiedAt`, `likeCount`, and cached audio extraction data when available. Existing files fall back to their real filename when no metadata exists.
 - Scanning creates a missing metadata JSON for every indexed media/file item using the same baseline fields as upload (`displayName` and `likeCount`), then adds audio extraction fields for audio files when probing succeeds. Existing metadata files are preserved.
 - Audio files are first-class feed media with `type: "audio"` for common extensions such as MP3, M4A, AAC, FLAC, WAV, OGA, and Opus. `.ogg` keeps the historical video fallback when probing is unavailable, but `ffprobe` can classify it as audio or video when available.
 - Audio tag and duration extraction is best-effort via `ffprobe`; failures must not fail scanning or upload. Extracted audio metadata is cached in the media metadata JSON with a source file signature (`sourceSize` plus `sourceModTimeUnixNano`) and is reused only while that signature matches the current media file.

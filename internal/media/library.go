@@ -1,7 +1,8 @@
 package media
 
 import (
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io/fs"
 	"log"
@@ -90,6 +91,7 @@ type Item struct {
 	CoverFile       string     `json:"-"`
 
 	sortModifiedAt time.Time
+	sourcePath     string
 }
 
 type Page struct {
@@ -483,12 +485,11 @@ func (l *Library) ensureIndex() error {
 	var mediaWithoutCommentFile int
 	var commentCount int
 	for i, item := range items {
-		rel, err := DecodeID(item.ID)
-		if err != nil {
-			l.logf("runtime index initialization failed root=%s duration=%s error=%v", l.root, time.Since(started).Round(time.Millisecond), err)
-			return err
+		path := item.sourcePath
+		if path == "" {
+			l.logf("runtime index initialization failed root=%s duration=%s mediaID=%s filename=%s error=missing source path", l.root, time.Since(started).Round(time.Millisecond), item.ID, item.Filename)
+			return errors.New("missing source path for media item")
 		}
-		path := filepath.Join(root, filepath.FromSlash(rel))
 		commentFileExists, commentFileStatErr := l.comments.hasFile(item.ID)
 		if commentFileStatErr == nil && commentFileExists {
 			commentFilesFound++
@@ -679,16 +680,13 @@ func sortActivity(activity []ActivityItem) {
 }
 
 func validateMediaID(id string) error {
-	rel, err := DecodeID(id)
-	if err != nil {
-		return err
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == "" || filepath.IsAbs(rel) || strings.Contains(rel, "../") || strings.HasPrefix(rel, "..") || hasHiddenPathSegment(rel) {
+	if len(id) != sha256.Size*2 {
 		return errors.New("invalid media id")
 	}
-	if _, ok := kindForPath(rel); !ok {
-		return errors.New("unsupported media type")
+	for _, char := range id {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return errors.New("invalid media id")
+		}
 	}
 	return nil
 }
@@ -701,15 +699,9 @@ func (l *Library) logf(format string, args ...any) {
 }
 
 func EncodeID(rel string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(filepath.ToSlash(rel)))
-}
-
-func DecodeID(id string) (string, error) {
-	bytes, err := base64.RawURLEncoding.DecodeString(id)
-	if err != nil {
-		return "", err
-	}
-	return filepath.ToSlash(string(bytes)), nil
+	normalized := filepath.ToSlash(rel)
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:])
 }
 
 func parseCursor(cursor string) (int, error) {
@@ -843,6 +835,7 @@ func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
 		ModifiedAt:     info.ModTime().UTC(),
 		Comments:       []Comment{},
 		sortModifiedAt: info.ModTime().UTC(),
+		sourcePath:     path,
 	}
 }
 
@@ -876,13 +869,4 @@ func sniffMimeType(path string) string {
 		return ""
 	}
 	return typ
-}
-
-func hasHiddenPathSegment(path string) bool {
-	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
-		if strings.HasPrefix(segment, ".") {
-			return true
-		}
-	}
-	return false
 }
