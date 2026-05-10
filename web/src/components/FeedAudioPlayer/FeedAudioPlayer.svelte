@@ -12,7 +12,9 @@
   import {
     FEED_VIDEO_PLAY_EVENT,
     FEED_VIDEO_VOLUME_EVENT,
+    attachHorizontalSeekWheel,
     canSetVolume,
+    clampTime,
     clearStoredProgress,
     clampVolume,
     readStoredProgress,
@@ -62,6 +64,7 @@
   let isOverControls = $state(false);
   let playBlocked = $state(false);
   let coverFailed = $state(false);
+  let container = $state<HTMLDivElement | undefined>(undefined);
   let lastProgressSaveAt = 0;
   const playerId = `${FEED_AUDIO_PLAYER_PREFIX}${nextPlayerId++}`;
 
@@ -166,6 +169,16 @@
     saveProgress();
   }
 
+  function seekBy(seconds: number) {
+    if (!audio) return;
+    const maxTime = duration || audio.duration || 0;
+    if (maxTime <= 0) return;
+    audio.currentTime = clampTime(audio.currentTime + seconds, maxTime);
+    currentTime = audio.currentTime;
+    saveProgress();
+    onReveal();
+  }
+
   function handleVolume(event: Event) {
     if (!audio || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
@@ -218,6 +231,11 @@
     };
   });
 
+  $effect(() => {
+    if (!container) return;
+    return attachHorizontalSeekWheel(container, seekBy);
+  });
+
   onDestroy(() => {
     saveProgress();
   });
@@ -250,6 +268,7 @@
 
   {#snippet content()}
     <div
+      bind:this={container}
       class="audio-card-surface"
       role="presentation"
       aria-label={`Audio player: ${item.displayName}`}

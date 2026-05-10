@@ -103,6 +103,20 @@ export function clearStoredProgress(mediaId: string) {
   storageRemove(legacyVideoProgressStorageKey(mediaId));
 }
 
+export function attachHorizontalSeekWheel(
+  element: HTMLElement,
+  onSeek: (seconds: number) => void
+) {
+  const handler = (event: WheelEvent) => {
+    if (Math.abs(event.deltaX) < Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    onSeek(-event.deltaX * TOUCHPAD_SEEK_SENSITIVITY);
+  };
+
+  element.addEventListener('wheel', handler, { passive: false });
+  return () => element.removeEventListener('wheel', handler);
+}
+
 function storageGet(key: string) {
   try {
     return window.localStorage.getItem(key);

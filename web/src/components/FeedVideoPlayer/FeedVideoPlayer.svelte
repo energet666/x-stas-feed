@@ -19,7 +19,7 @@
     LONG_PRESS_DELAY_MS,
     MIN_PROGRESS_SAVE_DURATION_SECONDS,
     SEEK_FEEDBACK_ACCUMULATION_MS,
-    TOUCHPAD_SEEK_SENSITIVITY,
+    attachHorizontalSeekWheel,
     canSetVolume,
     clampTime,
     clampVolume,
@@ -567,12 +567,6 @@
     }
   }
 
-  function handleWheel(event: WheelEvent) {
-    if (Math.abs(event.deltaX) < Math.abs(event.deltaY)) return;
-    event.preventDefault();
-    seekBy(-event.deltaX * TOUCHPAD_SEEK_SENSITIVITY);
-  }
-
   function restoreProgress() {
     if (!video || progressRestored || duration <= 0) return;
     progressRestored = true;
@@ -621,13 +615,7 @@
 
   $effect(() => {
     if (!container) return;
-
-    const handler = (event: WheelEvent) => handleWheel(event);
-    container.addEventListener('wheel', handler, { passive: false });
-
-    return () => {
-      container?.removeEventListener('wheel', handler);
-    };
+    return attachHorizontalSeekWheel(container, seekBy);
   });
 
   $effect(() => {
