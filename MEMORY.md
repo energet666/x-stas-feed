@@ -86,6 +86,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Shared audio/video seek clicks and pointer drags compute time from pointer coordinates across the visible `.media-playback-progress` bounds instead of trusting the native range value. Native range geometry can offset clicks by thumb width, especially in Safari.
 - Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
 - Audio controls are also bottom accessory content and should match the video controls panel style and overlay motion.
+- Horizontal wheel/trackpad seeking must reveal the parent feed card overlay for both audio and video so the seek progress bar is visible during scrubbing. Video's local controls visibility alone is insufficient because `FeedCardFrame` owns bottom accessory visibility.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
 
 ## Audio Player Decisions

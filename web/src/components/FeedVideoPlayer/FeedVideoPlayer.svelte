@@ -424,6 +424,7 @@
     video.currentTime = clampPlaybackTime(baseTime + seconds);
     currentTime = video.currentTime;
     saveProgress();
+    onReveal();
     revealControls();
   }
 
