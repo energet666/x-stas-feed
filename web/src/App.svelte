@@ -1132,7 +1132,7 @@
       position: relative;
       top: auto;
       left: auto;
-      width: min(100% - 1.5rem, 42rem);
+      width: min(100% - 1.5rem, 40rem);
       margin: 1rem auto 0;
     }
   }
