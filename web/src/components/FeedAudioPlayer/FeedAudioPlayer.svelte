@@ -17,6 +17,7 @@
     clampTime,
     clearStoredProgress,
     clampVolume,
+    isEditableTarget,
     readStoredProgress,
     readStoredVolume,
     saveStoredProgress,
@@ -157,7 +158,30 @@
   function handleCardClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (target.closest('.audio-controls, .feed-card-panel, button, a, input, textarea, select')) return;
+    container?.focus();
     void togglePlay();
+  }
+
+  function isAudioKeyboardTarget(target: EventTarget | null) {
+    if (isEditableTarget(target)) return false;
+    return target instanceof HTMLElement && !target.closest('.audio-controls, button, a');
+  }
+
+  function handleKeyboard(event: KeyboardEvent) {
+    if (!isAudioKeyboardTarget(event.target)) return;
+
+    if (event.code === 'Space') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) void togglePlay();
+      return;
+    }
+
+    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+      event.preventDefault();
+      event.stopPropagation();
+      seekBy(event.code === 'ArrowRight' ? 1 : -1);
+    }
   }
 
   function handleSeek(event: Event) {
@@ -271,13 +295,16 @@
       bind:this={container}
       class="audio-card-surface"
       class:audio-card-surface-playing={!paused}
-      role="presentation"
+      role="button"
       aria-label={`Audio player: ${item.displayName}`}
+      aria-pressed={!paused}
+      tabindex="0"
       onpointermove={onReveal}
       onpointerenter={onReveal}
       onmousemove={onReveal}
       onmouseenter={onReveal}
       onclick={handleCardClick}
+      onkeydown={handleKeyboard}
       ontouchstart={onReveal}
       onfocusin={onKeep}
       onmouseleave={() => {

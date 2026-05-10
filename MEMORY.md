@@ -95,6 +95,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Audio playback uses a hidden native `<audio>` element with custom play/pause, seek, time, mute, and volume controls.
 - Audio shares the same persisted volume/mute storage and media progress key pattern as video. Only media at least 120 seconds long persists progress.
 - Audio and video players coordinate through the shared playback event so starting one mounted player pauses the others.
+- Audio cards are focusable keyboard targets: Space toggles playback, and ArrowLeft/ArrowRight seek while preventing page/game shortcut handling from also consuming those keys.
 
 ## Video Player Decisions
 
