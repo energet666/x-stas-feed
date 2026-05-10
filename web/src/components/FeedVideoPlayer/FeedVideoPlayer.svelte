@@ -86,13 +86,8 @@
   let clickTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let seekFeedbackTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let spaceTimer: ReturnType<typeof setTimeout> | undefined = undefined;
-  let arrowTimer: ReturnType<typeof setTimeout> | undefined = undefined;
-  let rewindTimer: ReturnType<typeof setInterval> | undefined = undefined;
   let isSpaceDown = false;
   let isSpaceLongPress = false;
-  let isArrowDown = false;
-  let isArrowLongPress = false;
-  let arrowRightTemporarilyPlayed = false;
   let lastSeekFeedbackAt = 0;
   let previewFrameRequested = false;
   let progressRestored = false;
@@ -507,30 +502,7 @@
 
     if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
       event.preventDefault();
-      if (isArrowDown) return;
-      markVideoInteraction();
-      isArrowDown = true;
-      isArrowLongPress = false;
-      arrowRightTemporarilyPlayed = false;
-      const isRight = event.code === 'ArrowRight';
-
-      arrowTimer = setTimeout(() => {
-        if (!video) return;
-        isArrowLongPress = true;
-        revealControls();
-
-        if (isRight) {
-          video.playbackRate = 16;
-          if (video.paused) {
-            arrowRightTemporarilyPlayed = true;
-            safePlay();
-          }
-        } else {
-          const rewind = () => seekBy(-3);
-          rewind();
-          rewindTimer = setInterval(rewind, 300);
-        }
-      }, LONG_PRESS_DELAY_MS);
+      seekBy(event.code === 'ArrowRight' ? 1 : -1);
     }
   }
 
@@ -546,25 +518,6 @@
         void togglePlay();
       }
       return;
-    }
-
-    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
-      event.preventDefault();
-      if (!isArrowDown) return;
-
-      isArrowDown = false;
-      clearTimeout(arrowTimer);
-      clearInterval(rewindTimer);
-
-      if (!isArrowLongPress) {
-        seekBy(event.code === 'ArrowRight' ? 1 : -1);
-      } else if (video) {
-        video.playbackRate = userPlaybackRate;
-        if (arrowRightTemporarilyPlayed) video.pause();
-      }
-
-      arrowRightTemporarilyPlayed = false;
-      revealControls();
     }
   }
 
@@ -719,8 +672,6 @@
     clearTimeout(clickTimer);
     clearTimeout(seekFeedbackTimer);
     clearTimeout(spaceTimer);
-    clearTimeout(arrowTimer);
-    clearInterval(rewindTimer);
     if (activePlayerId === playerId) activePlayerId = undefined;
     stopAmbientSync();
   });

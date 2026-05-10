@@ -104,7 +104,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The active video player owns keyboard shortcuts; shortcuts should not affect every mounted video.
 - Keyboard behavior:
   - Space toggles play/pause; holding Space temporarily plays at 2x.
-  - ArrowLeft/ArrowRight seek; holding ArrowRight fast-forwards, holding ArrowLeft rewinds repeatedly.
+  - ArrowLeft/ArrowRight seek by 1 second on keydown, matching audio cards; holding the key repeats through normal keyboard repeat.
   - ArrowUp/ArrowDown change playback speed.
 - Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
 - Only one mounted video should play at a time; players coordinate through a shared browser event.
