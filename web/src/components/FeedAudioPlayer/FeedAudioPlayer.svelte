@@ -270,6 +270,7 @@
     <div
       bind:this={container}
       class="audio-card-surface"
+      class:audio-card-surface-playing={!paused}
       role="presentation"
       aria-label={`Audio player: ${item.displayName}`}
       onpointermove={onReveal}
@@ -363,19 +364,52 @@
 
 <style>
   .audio-card-surface {
+    position: relative;
     display: grid;
     height: 100%;
     min-height: 34rem;
+    overflow: hidden;
     grid-template-rows: auto auto;
     align-content: center;
     place-items: center;
     gap: clamp(1.4rem, 3.5vw, 2.2rem);
     padding: clamp(4.4rem, 12vw, 6rem) clamp(1.25rem, 5vw, 3rem) clamp(7.5rem, 14vw, 8.5rem);
+    background: rgb(12 16 22);
+    color: var(--color-primary);
+  }
+
+  .audio-card-surface::before {
+    position: absolute;
+    inset: -26%;
+    z-index: 0;
+    content: "";
     background:
       radial-gradient(circle at 28% 20%, rgb(134 239 172 / 0.28), transparent 28%),
       radial-gradient(circle at 78% 72%, rgb(56 189 248 / 0.18), transparent 32%),
       linear-gradient(140deg, rgb(12 16 22), rgb(28 34 42) 48%, rgb(8 12 18));
-    color: var(--color-primary);
+    transform-origin: center;
+    will-change: transform;
+    animation: audio-background-spin 48s linear infinite;
+    animation-play-state: paused;
+  }
+
+  .audio-card-surface > :global(*) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .audio-card-surface-playing::before {
+    animation-play-state: running;
+  }
+
+  @keyframes audio-background-spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .audio-ambient {
@@ -496,6 +530,12 @@
     .audio-art-wrap {
       width: min(72%, 18rem);
       max-width: min(100%, 38vh);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .audio-card-surface-playing::before {
+      animation-play-state: paused;
     }
   }
 </style>
