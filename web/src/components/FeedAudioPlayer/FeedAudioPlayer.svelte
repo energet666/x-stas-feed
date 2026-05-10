@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-  import { Disc3, Music2 } from 'lucide-svelte';
+  import { Disc3 } from 'lucide-svelte';
   import { onDestroy, onMount } from 'svelte';
   import FeedCardFrame from '../FeedCardFrame.svelte';
   import AudioControls from './FeedAudioControls.svelte';
@@ -319,7 +319,6 @@
           {:else}
             <div class="audio-art-fallback" aria-hidden="true">
               <Disc3 class="audio-disc" size={150} strokeWidth={1.2} />
-              <Music2 class="audio-note" size={38} strokeWidth={1.8} />
             </div>
           {/if}
         </div>
@@ -462,12 +461,6 @@
 
   :global(.audio-disc) {
     opacity: 0.72;
-  }
-
-  :global(.audio-note) {
-    position: absolute;
-    color: rgb(224 242 254);
-    filter: drop-shadow(0 0 1.2rem rgb(56 189 248 / 0.28));
   }
 
   .audio-copy {
