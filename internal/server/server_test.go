@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -880,6 +881,31 @@ func TestUploadEndpointSavesGenericFile(t *testing.T) {
 	}
 }
 
+func TestUploadEndpointStoresClientModifiedAt(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	sourceModifiedAt := time.Date(2022, 3, 4, 5, 6, 7, 0, time.UTC)
+
+	req := newUploadRequestWithModifiedAt(t, "notes.txt", []byte("text"), sourceModifiedAt)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var upload uploadResponse
+	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Items) != 1 {
+		t.Fatalf("expected uploaded item, got %#v", upload)
+	}
+	if !upload.Items[0].ModifiedAt.Equal(sourceModifiedAt) {
+		t.Fatalf("expected client modified time %s, got %s", sourceModifiedAt, upload.Items[0].ModifiedAt)
+	}
+}
+
 func TestUploadEndpointRejectsInvalidUploads(t *testing.T) {
 	tests := []struct {
 		name string
@@ -953,6 +979,30 @@ func newUploadRequest(t *testing.T, files ...any) *http.Request {
 		if _, err := part.Write(content); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
+}
+
+func newUploadRequestWithModifiedAt(t *testing.T, filename string, content []byte, modifiedAt time.Time) *http.Request {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("modifiedAt", strconv.FormatInt(modifiedAt.UnixMilli(), 10)); err != nil {
+		t.Fatal(err)
+	}
+	part, err := writer.CreateFormFile("files", filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

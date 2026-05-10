@@ -16,6 +16,10 @@ import (
 var safeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error) {
+	return l.SaveUploadWithModifiedAt(originalName, reader, time.Time{})
+}
+
+func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader, sourceModifiedAt time.Time) (Item, error) {
 	started := time.Now()
 	if originalName == "" {
 		return Item{}, errors.New("filename is required")
@@ -73,7 +77,12 @@ func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error
 	}
 	item := itemFromFile(filename, path, kind, info)
 	item.DisplayName = originalName
-	if err := l.metadata.Set(item.ID, Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}); err != nil {
+	metadata := Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}
+	if !sourceModifiedAt.IsZero() {
+		metadata.ModifiedAt = sourceModifiedAt.UTC()
+		item.ModifiedAt = metadata.ModifiedAt
+	}
+	if err := l.metadata.Set(item.ID, metadata); err != nil {
 		return Item{}, err
 	}
 	if err := l.insertItem(item, path); err != nil {

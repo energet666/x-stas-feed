@@ -76,6 +76,8 @@ type Item struct {
 	Comments     []Comment `json:"comments"`
 	CommentCount int       `json:"commentCount"`
 	LikeCount    int       `json:"likeCount"`
+
+	sortModifiedAt time.Time
 }
 
 type Page struct {
@@ -381,6 +383,9 @@ func (l *Library) Scan() ([]Item, error) {
 			if metadata.DisplayName != "" {
 				item.DisplayName = metadata.DisplayName
 			}
+			if !metadata.ModifiedAt.IsZero() {
+				item.ModifiedAt = metadata.ModifiedAt
+			}
 			item.LikeCount = metadata.LikeCount
 		}
 		items = append(items, item)
@@ -607,11 +612,20 @@ func activityItem(item Item, comment Comment) ActivityItem {
 
 func sortItems(items []Item) {
 	sort.Slice(items, func(i, j int) bool {
-		if !items[i].ModifiedAt.Equal(items[j].ModifiedAt) {
-			return items[i].ModifiedAt.After(items[j].ModifiedAt)
+		iTime := sortTime(items[i])
+		jTime := sortTime(items[j])
+		if !iTime.Equal(jTime) {
+			return iTime.After(jTime)
 		}
 		return items[i].Filename < items[j].Filename
 	})
+}
+
+func sortTime(item Item) time.Time {
+	if !item.sortModifiedAt.IsZero() {
+		return item.sortModifiedAt
+	}
+	return item.ModifiedAt
 }
 
 func sortActivity(activity []ActivityItem) {
@@ -704,15 +718,16 @@ func kindForPath(path string) (string, bool) {
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
 	id := EncodeID(rel)
 	return Item{
-		ID:          id,
-		Filename:    filepath.Base(path),
-		DisplayName: filepath.Base(path),
-		Type:        kind,
-		URL:         "/media/" + url.PathEscape(id),
-		MimeType:    mimeType(path),
-		Size:        info.Size(),
-		ModifiedAt:  info.ModTime().UTC(),
-		Comments:    []Comment{},
+		ID:             id,
+		Filename:       filepath.Base(path),
+		DisplayName:    filepath.Base(path),
+		Type:           kind,
+		URL:            "/media/" + url.PathEscape(id),
+		MimeType:       mimeType(path),
+		Size:           info.Size(),
+		ModifiedAt:     info.ModTime().UTC(),
+		Comments:       []Comment{},
+		sortModifiedAt: info.ModTime().UTC(),
 	}
 }
 

@@ -216,6 +216,7 @@ export function uploadMedia(files: File[], onProgress?: (progress: UploadProgres
   return new Promise<UploadResult>((resolve, reject) => {
     const form = new FormData();
     for (const file of files) {
+      form.append('modifiedAt', String(file.lastModified));
       form.append('files', file);
     }
 

@@ -268,6 +268,38 @@ func TestSaveUploadPreservesDisplayNameWhitespace(t *testing.T) {
 	}
 }
 
+func TestSaveUploadWithModifiedAtDisplaysSourceTimeButSortsByServerTime(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+	oldSourceTime := time.Date(2020, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	uploaded, err := library.SaveUploadWithModifiedAt("old-source.txt", strings.NewReader("plain text"), oldSourceTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !uploaded.ModifiedAt.Equal(oldSourceTime) {
+		t.Fatalf("expected source modified time in uploaded item, got %s", uploaded.ModifiedAt)
+	}
+
+	time.Sleep(2 * time.Millisecond)
+	writeTestFile(t, dir, "external.png", time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	reloaded := NewLibrary(dir)
+	page, err := reloaded.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("expected two items, got %#v", page)
+	}
+	if page.Items[0].ID != uploaded.ID {
+		t.Fatalf("expected uploaded item to sort by server file mtime, got %#v", page.Items)
+	}
+	if !page.Items[0].ModifiedAt.Equal(oldSourceTime) {
+		t.Fatalf("expected source modified time to remain visible after reload, got %s", page.Items[0].ModifiedAt)
+	}
+}
+
 func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

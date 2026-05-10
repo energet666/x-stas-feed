@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 const metadataDirName = ".metadata"
@@ -16,8 +17,9 @@ type MetadataStore struct {
 }
 
 type Metadata struct {
-	DisplayName string `json:"displayName"`
-	LikeCount   int    `json:"likeCount"`
+	DisplayName string    `json:"displayName"`
+	ModifiedAt  time.Time `json:"modifiedAt,omitempty"`
+	LikeCount   int       `json:"likeCount"`
 }
 
 func NewMetadataStore(mediaRoot string) *MetadataStore {

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"feed-ai/internal/media"
 )
@@ -144,6 +145,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 
 	var response uploadResponse
 	seenFilePart := false
+	var pendingModifiedAt []time.Time
 
 	for {
 		part, err := reader.NextPart()
@@ -159,6 +161,15 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if part.FormName() == "modifiedAt" {
+			modifiedAt, ok := readUploadModifiedAt(part)
+			_ = part.Close()
+			if ok {
+				pendingModifiedAt = append(pendingModifiedAt, modifiedAt)
+			}
+			continue
+		}
+
 		if part.FormName() != "files" {
 			_ = part.Close()
 			continue
@@ -166,7 +177,12 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 
 		seenFilePart = true
 		filename := partFilename(part)
-		item, err := s.library.SaveUpload(filename, part)
+		var sourceModifiedAt time.Time
+		if len(pendingModifiedAt) > 0 {
+			sourceModifiedAt = pendingModifiedAt[0]
+			pendingModifiedAt = pendingModifiedAt[1:]
+		}
+		item, err := s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
 		_ = part.Close()
 		if err != nil {
 			if isRequestTooLarge(err) {
@@ -197,6 +213,18 @@ func partFilename(part *multipart.Part) string {
 		return part.FileName()
 	}
 	return params["filename"]
+}
+
+func readUploadModifiedAt(part *multipart.Part) (time.Time, bool) {
+	bytes, err := io.ReadAll(io.LimitReader(part, 64))
+	if err != nil {
+		return time.Time{}, false
+	}
+	millis, err := strconv.ParseInt(strings.TrimSpace(string(bytes)), 10, 64)
+	if err != nil || millis <= 0 {
+		return time.Time{}, false
+	}
+	return time.UnixMilli(millis).UTC(), true
 }
 
 func (s *Server) handleComments(w http.ResponseWriter, r *http.Request) {
