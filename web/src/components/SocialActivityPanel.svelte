@@ -196,6 +196,12 @@
     line-height: 1.2;
   }
 
+  .activity-row-media :global(svg) {
+    flex: 0 0 0.8125rem;
+    height: 0.8125rem;
+    width: 0.8125rem;
+  }
+
   .activity-row-text {
     display: -webkit-box;
     overflow: hidden;
