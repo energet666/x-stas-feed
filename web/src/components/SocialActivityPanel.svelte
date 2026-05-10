@@ -1,18 +1,16 @@
 <script lang="ts">
-  import { LoaderCircle, MessageCircle, PanelRightOpen, RefreshCw, X } from 'lucide-svelte';
+  import { LoaderCircle, MessageCircle, PanelRightOpen, X } from 'lucide-svelte';
   import type { ActivityItem } from '../lib/feed';
 
   let {
     items,
     loading,
     error,
-    onReload,
     onSelect
   }: {
     items: ActivityItem[];
     loading: boolean;
     error: string | null;
-    onReload: () => void;
     onSelect: (item: ActivityItem) => void;
   } = $props();
 
@@ -44,13 +42,6 @@
       <h2 class="truncate text-base font-bold text-primary">Latest comments</h2>
     </div>
     <div class="flex items-center gap-2">
-      <button class="glass-icon-button" type="button" aria-label="Reload activity" disabled={loading} onclick={onReload}>
-        {#if loading}
-          <LoaderCircle class="animate-spin" size={17} />
-        {:else}
-          <RefreshCw size={17} />
-        {/if}
-      </button>
       <button class="activity-close glass-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
         <X size={17} />
       </button>

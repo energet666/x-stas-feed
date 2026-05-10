@@ -962,7 +962,6 @@
       items={activityItems}
       loading={activityLoading}
       error={activityError}
-      onReload={loadActivity}
       onSelect={openActivityMedia}
     />
 
