@@ -17,9 +17,20 @@ type MetadataStore struct {
 }
 
 type Metadata struct {
-	DisplayName string    `json:"displayName"`
-	ModifiedAt  time.Time `json:"modifiedAt,omitempty"`
-	LikeCount   int       `json:"likeCount"`
+	DisplayName string         `json:"displayName"`
+	ModifiedAt  time.Time      `json:"modifiedAt,omitempty"`
+	LikeCount   int            `json:"likeCount"`
+	Audio       *AudioMetadata `json:"audio,omitempty"`
+}
+
+type AudioMetadata struct {
+	DurationSeconds       float64   `json:"durationSeconds,omitempty"`
+	Tags                  AudioTags `json:"tags,omitempty"`
+	HasCover              bool      `json:"hasCover,omitempty"`
+	CoverFile             string    `json:"coverFile,omitempty"`
+	SourceSize            int64     `json:"sourceSize"`
+	SourceModTimeUnixNano int64     `json:"sourceModTimeUnixNano"`
+	ProbedAt              time.Time `json:"probedAt,omitempty"`
 }
 
 func NewMetadataStore(mediaRoot string) *MetadataStore {

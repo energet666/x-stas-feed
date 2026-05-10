@@ -28,10 +28,11 @@ func (l *Library) CoverForID(id string) (string, error) {
 	if item.Type != "audio" || !item.HasCover {
 		return "", os.ErrNotExist
 	}
-
-	ffmpeg, err := ffmpegPath()
-	if err != nil {
-		return "", errors.New("ffmpeg is required to extract audio covers")
+	if item.CoverFile != "" && filepath.Base(item.CoverFile) == item.CoverFile {
+		coverPath := filepath.Join(l.root, coverDirName, item.CoverFile)
+		if info, err := os.Stat(coverPath); err == nil && !info.IsDir() {
+			return coverPath, nil
+		}
 	}
 
 	info, err := os.Stat(path)
@@ -39,14 +40,28 @@ func (l *Library) CoverForID(id string) (string, error) {
 		return "", err
 	}
 
+	coverFile, err := l.extractAudioCover(id, path, info.Size(), info.ModTime().UnixNano())
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(l.root, coverDirName, coverFile), nil
+}
+
+func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) (string, error) {
+	ffmpeg, err := ffmpegPath()
+	if err != nil {
+		return "", errors.New("ffmpeg is required to extract audio covers")
+	}
+
 	cacheDir := filepath.Join(l.root, coverDirName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}
 
-	cachePath := filepath.Join(cacheDir, coverCacheName(id, info.Size(), info.ModTime().UnixNano()))
+	cacheFile := coverCacheName(id, size, modTime)
+	cachePath := filepath.Join(cacheDir, cacheFile)
 	if _, err := os.Stat(cachePath); err == nil {
-		return cachePath, nil
+		return cacheFile, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
@@ -83,7 +98,7 @@ func (l *Library) CoverForID(id string) (string, error) {
 		return "", err
 	}
 
-	return cachePath, nil
+	return cacheFile, nil
 }
 
 func coverCacheName(id string, size int64, modTime int64) string {

@@ -85,6 +85,76 @@ func TestScanUsesStoredLikeCount(t *testing.T) {
 	}
 }
 
+func TestScanUsesValidStoredAudioMetadata(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "song.mp3", modTime)
+	info, err := os.Stat(filepath.Join(dir, "song.mp3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	library := NewLibrary(dir)
+	if err := library.metadata.Set(EncodeID("song.mp3"), Metadata{
+		Audio: &AudioMetadata{
+			DurationSeconds:       123.456,
+			Tags:                  AudioTags{Title: "Cached Title", Artist: "Cached Artist"},
+			HasCover:              true,
+			CoverFile:             "cached-cover.jpg",
+			SourceSize:            info.Size(),
+			SourceModTimeUnixNano: info.ModTime().UnixNano(),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one item, got %#v", items)
+	}
+	if items[0].DurationSeconds != 123.456 {
+		t.Fatalf("expected cached duration, got %#v", items[0])
+	}
+	if items[0].AudioTags == nil || items[0].AudioTags.Title != "Cached Title" || items[0].AudioTags.Artist != "Cached Artist" {
+		t.Fatalf("expected cached audio tags, got %#v", items[0].AudioTags)
+	}
+	if items[0].CoverURL == "" || !items[0].HasCover {
+		t.Fatalf("expected cached cover state, got %#v", items[0])
+	}
+}
+
+func TestScanIgnoresStaleStoredAudioMetadata(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "song.mp3", modTime)
+
+	library := NewLibrary(dir)
+	if err := library.metadata.Set(EncodeID("song.mp3"), Metadata{
+		Audio: &AudioMetadata{
+			DurationSeconds:       123.456,
+			Tags:                  AudioTags{Title: "Stale Title"},
+			SourceSize:            1,
+			SourceModTimeUnixNano: 1,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one item, got %#v", items)
+	}
+	if items[0].DurationSeconds != 0 || items[0].AudioTags != nil {
+		t.Fatalf("expected stale cached audio metadata to be ignored when reprobe fails, got %#v", items[0])
+	}
+}
+
 func TestScanSortsFilenameTieAscending(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

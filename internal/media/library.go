@@ -87,6 +87,7 @@ type Item struct {
 	AudioTags       *AudioTags `json:"audioTags,omitempty"`
 	CoverURL        string     `json:"coverUrl,omitempty"`
 	HasCover        bool       `json:"-"`
+	CoverFile       string     `json:"-"`
 
 	sortModifiedAt time.Time
 }
@@ -390,8 +391,8 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
-		l.applyMediaProbe(&item, path)
-		if metadata, err := l.metadata.Get(item.ID); err == nil {
+		metadata, metadataErr := l.metadata.Get(item.ID)
+		if metadataErr == nil {
 			if metadata.DisplayName != "" {
 				item.DisplayName = metadata.DisplayName
 			}
@@ -399,6 +400,14 @@ func (l *Library) Scan() ([]Item, error) {
 				item.ModifiedAt = metadata.ModifiedAt
 			}
 			item.LikeCount = metadata.LikeCount
+		} else {
+			l.logf("metadata load failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, metadataErr)
+		}
+		if updatedMetadata, ok := l.applyAudioMetadata(&item, path, info, metadata); ok {
+			metadata.Audio = updatedMetadata.Audio
+			if err := l.metadata.Set(item.ID, metadata); err != nil {
+				l.logf("audio metadata cache write failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+			}
 		}
 		items = append(items, item)
 
@@ -744,35 +753,68 @@ func kindForFile(path string) (string, bool) {
 	return kind, true
 }
 
-func (l *Library) applyMediaProbe(item *Item, path string) {
+func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, metadata Metadata) (Metadata, bool) {
 	if item.Type != "audio" && !strings.EqualFold(filepath.Ext(path), ".ogg") {
-		return
+		return metadata, false
+	}
+	if metadata.Audio != nil && audioMetadataMatches(*metadata.Audio, info) {
+		l.applyCachedAudioMetadata(item, *metadata.Audio)
+		return metadata, false
 	}
 	probed, err := probeMedia(path)
 	if err != nil {
 		l.logf("audio metadata probe failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
-		return
+		return metadata, false
 	}
 	if probed.Kind == "video" {
 		item.Type = "video"
-		return
+		return metadata, false
 	}
 	if probed.Kind == "audio" {
 		item.Type = "audio"
 	}
 	if item.Type != "audio" {
-		return
+		return metadata, false
 	}
-	if probed.DurationSeconds > 0 {
-		item.DurationSeconds = probed.DurationSeconds
+
+	audio := AudioMetadata{
+		DurationSeconds:       probed.DurationSeconds,
+		Tags:                  probed.Tags,
+		SourceSize:            info.Size(),
+		SourceModTimeUnixNano: info.ModTime().UnixNano(),
+		ProbedAt:              time.Now().UTC(),
 	}
-	if !probed.Tags.empty() {
-		item.AudioTags = &probed.Tags
+	if probed.HasCover {
+		if coverFile, err := l.extractAudioCover(item.ID, path, info.Size(), info.ModTime().UnixNano()); err == nil {
+			audio.HasCover = true
+			audio.CoverFile = coverFile
+		} else {
+			l.logf("audio cover extraction failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+		}
 	}
-	item.HasCover = probed.HasCover
+	metadata.Audio = &audio
+	l.applyCachedAudioMetadata(item, audio)
+	return metadata, true
+}
+
+func (l *Library) applyCachedAudioMetadata(item *Item, audio AudioMetadata) {
+	item.Type = "audio"
+	if audio.DurationSeconds > 0 {
+		item.DurationSeconds = audio.DurationSeconds
+	}
+	if !audio.Tags.empty() {
+		tags := audio.Tags
+		item.AudioTags = &tags
+	}
+	item.HasCover = audio.HasCover && audio.CoverFile != ""
+	item.CoverFile = audio.CoverFile
 	if item.HasCover {
 		item.CoverURL = "/api/media/" + url.PathEscape(item.ID) + "/cover"
 	}
+}
+
+func audioMetadataMatches(audio AudioMetadata, info os.FileInfo) bool {
+	return audio.SourceSize == info.Size() && audio.SourceModTimeUnixNano == info.ModTime().UnixNano()
 }
 
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
