@@ -124,11 +124,7 @@
 
 <style>
   .user-sidebar {
-    position: fixed;
-    top: 5.25rem;
-    left: max(1rem, calc((100vw - 78rem) / 2));
-    z-index: 12;
-    width: 18rem;
+    width: 100%;
     overflow: hidden;
   }
 
@@ -178,13 +174,4 @@
     border-color: var(--color-glass-border-hover);
   }
 
-  @media (width < 1280px) {
-    .user-sidebar {
-      position: relative;
-      top: auto;
-      left: auto;
-      width: min(100% - 1.5rem, 42rem);
-      margin: 1rem auto 0;
-    }
-  }
 </style>

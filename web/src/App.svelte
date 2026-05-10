@@ -947,16 +947,17 @@
   <BackgroundParticles />
   <AsteroidsShip username={commentUsername} />
   {#if !gameActive}
-    <FeedHeader
-      {uploadStatus}
-      {uploadMessage}
-      {uploadProgress}
-      {feedMode}
-      favoriteCount={favoriteIDs.length}
-      onToggleFavoriteMode={toggleFavoriteMode}
-      onUploadFiles={handleUploadFiles}
-    />
-    <UserSidebar bind:username />
+    <div class="left-rail">
+      <FeedHeader
+        {uploadStatus}
+        {uploadMessage}
+        {uploadProgress}
+        {feedMode}
+        onToggleFavoriteMode={toggleFavoriteMode}
+        onUploadFiles={handleUploadFiles}
+      />
+      <UserSidebar bind:username />
+    </div>
     <SocialActivityPanel
       items={activityItems}
       loading={activityLoading}
@@ -974,7 +975,7 @@
       </div>
     {/if}
 
-    <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 py-5 sm:px-4">
+    <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 pb-5 pt-4 sm:px-4">
       {#if !initialLoaded && loading}
         <div class="flex min-h-96 items-center justify-center">
           <LoaderCircle class="animate-spin text-primary" size={34} />
@@ -1113,3 +1114,26 @@
     onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
   />
 {/if}
+
+<style>
+  .left-rail {
+    position: fixed;
+    top: 1rem;
+    left: max(1rem, calc((100vw - 78rem) / 2));
+    z-index: 13;
+    display: flex;
+    width: 18rem;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  @media (width < 1280px) {
+    .left-rail {
+      position: relative;
+      top: auto;
+      left: auto;
+      width: min(100% - 1.5rem, 42rem);
+      margin: 1rem auto 0;
+    }
+  }
+</style>
