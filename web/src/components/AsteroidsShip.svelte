@@ -99,7 +99,7 @@
   let nextAsteroidID = 1;
   let nextExplosionID = 1;
   let videoActive = false;
-  let shipControlled = false;
+  let shipControlled = $state(false);
   let sessionID = '';
   let lastShipPostAt = 0;
   let remoteShips = $state<NetworkShipState[]>([]);
@@ -916,19 +916,21 @@
   </span>
 {/each}
 
-<div
-  class="asteroids-ship"
-  class:asteroids-ship-thrusting={ship.thrusting}
-  aria-hidden="true"
-  style:transform={shipTransform}
->
-  <svg viewBox="0 0 42 54" role="img">
-    <path class="ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
-    <path class="ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
-    <path class="ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
-    <path class="ship-flame" d="M21 42 27 55 21 50 15 55 21 42Z" />
-  </svg>
-</div>
+{#if shipControlled}
+  <div
+    class="asteroids-ship"
+    class:asteroids-ship-thrusting={ship.thrusting}
+    aria-hidden="true"
+    style:transform={shipTransform}
+  >
+    <svg viewBox="0 0 42 54" role="img">
+      <path class="ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
+      <path class="ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
+      <path class="ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
+      <path class="ship-flame" d="M21 42 27 55 21 50 15 55 21 42Z" />
+    </svg>
+  </div>
+{/if}
 
 <style>
   .asteroids-ship {
