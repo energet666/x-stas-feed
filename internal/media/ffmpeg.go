@@ -8,19 +8,27 @@ import (
 )
 
 func ffmpegPath() (string, error) {
-	name := "ffmpeg"
+	return ffmpegToolPath("ffmpeg")
+}
+
+func ffprobePath() (string, error) {
+	return ffmpegToolPath("ffprobe")
+}
+
+func ffmpegToolPath(name string) (string, error) {
+	executableName := name
 	if runtime.GOOS == "windows" {
-		name += ".exe"
+		executableName += ".exe"
 	}
 
 	for _, base := range ffmpegSearchRoots() {
-		path := filepath.Join(base, "tools", "ffmpeg", runtime.GOOS+"-"+runtime.GOARCH, name)
+		path := filepath.Join(base, "tools", "ffmpeg", runtime.GOOS+"-"+runtime.GOARCH, executableName)
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			return path, nil
 		}
 	}
 
-	return exec.LookPath(name)
+	return exec.LookPath(executableName)
 }
 
 func ffmpegSearchRoots() []string {

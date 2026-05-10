@@ -265,6 +265,27 @@ func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 	}
 }
 
+func TestMediaCoverEndpointRejectsInvalidAndNonAudioIDs(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "song.mp3")
+
+	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+
+	for _, path := range []string{
+		"/api/media/" + media.EncodeID("../secret.mp3") + "/cover",
+		"/api/media/" + media.EncodeID("photo.png") + "/cover",
+		"/api/media/" + media.EncodeID("song.mp3") + "/cover",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusNotFound {
+			t.Fatalf("expected cover request %s to return 404, got %d body=%s", path, res.Code, res.Body.String())
+		}
+	}
+}
+
 func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")

@@ -31,6 +31,13 @@ var mediaExtensions = map[string]string{
 	".jpg":  "image",
 	".png":  "image",
 	".webp": "image",
+	".aac":  "audio",
+	".flac": "audio",
+	".m4a":  "audio",
+	".mp3":  "audio",
+	".oga":  "audio",
+	".opus": "audio",
+	".wav":  "audio",
 	".m4v":  "video",
 	".mov":  "video",
 	".mp4":  "video",
@@ -65,17 +72,21 @@ type Library struct {
 }
 
 type Item struct {
-	ID           string    `json:"id"`
-	Filename     string    `json:"filename"`
-	DisplayName  string    `json:"displayName"`
-	Type         string    `json:"type"`
-	URL          string    `json:"url"`
-	MimeType     string    `json:"mimeType"`
-	Size         int64     `json:"size"`
-	ModifiedAt   time.Time `json:"modifiedAt"`
-	Comments     []Comment `json:"comments"`
-	CommentCount int       `json:"commentCount"`
-	LikeCount    int       `json:"likeCount"`
+	ID              string     `json:"id"`
+	Filename        string     `json:"filename"`
+	DisplayName     string     `json:"displayName"`
+	Type            string     `json:"type"`
+	URL             string     `json:"url"`
+	MimeType        string     `json:"mimeType"`
+	Size            int64      `json:"size"`
+	ModifiedAt      time.Time  `json:"modifiedAt"`
+	Comments        []Comment  `json:"comments"`
+	CommentCount    int        `json:"commentCount"`
+	LikeCount       int        `json:"likeCount"`
+	DurationSeconds float64    `json:"durationSeconds,omitempty"`
+	AudioTags       *AudioTags `json:"audioTags,omitempty"`
+	CoverURL        string     `json:"coverUrl,omitempty"`
+	HasCover        bool       `json:"-"`
 
 	sortModifiedAt time.Time
 }
@@ -360,7 +371,7 @@ func (l *Library) Scan() ([]Item, error) {
 		}
 
 		scannedFiles++
-		kind, ok := kindForPath(path)
+		kind, ok := kindForFile(path)
 		if !ok {
 			unsupportedFiles++
 			return nil
@@ -379,6 +390,7 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
+		l.applyMediaProbe(&item, path)
 		if metadata, err := l.metadata.Get(item.ID); err == nil {
 			if metadata.DisplayName != "" {
 				item.DisplayName = metadata.DisplayName
@@ -591,6 +603,10 @@ func cloneItems(items []Item) []Item {
 
 func cloneItem(item Item) Item {
 	item.Comments = cloneComments(item.Comments)
+	if item.AudioTags != nil {
+		tags := *item.AudioTags
+		item.AudioTags = &tags
+	}
 	return item
 }
 
@@ -713,6 +729,50 @@ func kindForPath(path string) (string, bool) {
 		return kind, true
 	}
 	return "file", true
+}
+
+func kindForFile(path string) (string, bool) {
+	kind, ok := kindForPath(path)
+	if !ok {
+		return "", false
+	}
+	if strings.EqualFold(filepath.Ext(path), ".ogg") {
+		if probed, err := probeMedia(path); err == nil && (probed.Kind == "audio" || probed.Kind == "video") {
+			return probed.Kind, true
+		}
+	}
+	return kind, true
+}
+
+func (l *Library) applyMediaProbe(item *Item, path string) {
+	if item.Type != "audio" && !strings.EqualFold(filepath.Ext(path), ".ogg") {
+		return
+	}
+	probed, err := probeMedia(path)
+	if err != nil {
+		l.logf("audio metadata probe failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+		return
+	}
+	if probed.Kind == "video" {
+		item.Type = "video"
+		return
+	}
+	if probed.Kind == "audio" {
+		item.Type = "audio"
+	}
+	if item.Type != "audio" {
+		return
+	}
+	if probed.DurationSeconds > 0 {
+		item.DurationSeconds = probed.DurationSeconds
+	}
+	if !probed.Tags.empty() {
+		item.AudioTags = &probed.Tags
+	}
+	item.HasCover = probed.HasCover
+	if item.HasCover {
+		item.CoverURL = "/api/media/" + url.PathEscape(item.ID) + "/cover"
+	}
 }
 
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {

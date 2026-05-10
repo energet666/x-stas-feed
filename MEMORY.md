@@ -4,10 +4,10 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 ## Product Direction
 
-- Build a modern one-column Instagram-like infinite media feed for local photos and videos.
+- Build a modern one-column Instagram-like infinite media feed for local photos, videos, audio, and generic files.
 - `test-content` is the source of test media for v1.
 - v1 intentionally does not include auth, likes, personalization, or a database.
-- Users can upload photos and videos through the app; uploads are stored as regular filesystem media in the configured content root.
+- Users can upload media through the app; uploads are stored as regular filesystem media in the configured content root.
 - Comments are required for v1 and must remain filesystem-backed.
 
 ## Backend Decisions
@@ -27,9 +27,13 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
 - Media and comment serving uses a long-lived in-memory runtime index initialized once from disk. After startup, out-of-band filesystem media additions/removals are intentionally unsupported until restart; server-managed uploads, comments, comment likes, and media likes update the runtime index directly while preserving filesystem-backed durability.
 - Production server logs media scan and runtime index initialization counts/durations, plus server-managed upload/comment/like persistence events, so heavy filesystem operations are visible in stdout.
-- Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, accepts only the same supported photo/video extensions used by scanning, rejects empty/path-like/unsupported filenames, and writes safe unique filenames directly under the content root.
+- Media upload uses `POST /api/uploads` with multipart `files` parts. The server enforces a 1GB request cap, rejects empty/path-like filenames, and writes safe unique filenames directly under the content root.
 - Successful uploads are inserted into the runtime media index immediately so the next feed request can show newly uploaded files without a directory rescan.
 - Media metadata is filesystem-backed under `test-content/.metadata/{mediaID}.json`. It currently stores `displayName`, preserving user-facing names with spaces/Cyrillic while physical uploaded filenames remain safe unique server-generated names. Existing files fall back to their real filename when no metadata exists.
+- Audio files are first-class feed media with `type: "audio"` for common extensions such as MP3, M4A, AAC, FLAC, WAV, OGA, and Opus. `.ogg` keeps the historical video fallback when probing is unavailable, but `ffprobe` can classify it as audio or video when available.
+- Audio tag and duration extraction is best-effort via `ffprobe`; failures must not fail scanning or upload. Feed items may expose `durationSeconds`, sanitized `audioTags`, and `coverUrl` when those values are known.
+- Embedded audio cover art is served only through `GET /api/media/{id}/cover`, extracted lazily with FFmpeg into `test-content/.covers`, keyed by safe media ID plus file size/mtime. Missing FFmpeg, missing covers, non-audio IDs, and invalid IDs return 404 for the cover endpoint.
+- The scanner ignores server-managed internal directories including `.comments`, `.metadata`, `.posters`, and `.covers`.
 
 ## Comments Decisions
 
@@ -77,7 +81,16 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Compact comments preview is persistent and remains visible at the bottom of each card. Bottom accessory content such as video controls expands above it and does not control comment preview visibility.
 - Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`. External shadows were removed from all UI components for a cleaner look in the dark theme, and a safe offset of 1.5rem is used when hidden to ensure no subpixel artifacts remain visible at the card edges.
 - Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
+- Audio controls are also bottom accessory content and should match the video controls panel style and overlay motion.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
+
+## Audio Player Decisions
+
+- Use a custom feed audio card rather than native browser controls.
+- Audio cards render embedded cover art when `coverUrl` is available; otherwise they show a styled fallback album surface using extracted title/artist/album metadata or the display name.
+- Audio playback uses a hidden native `<audio>` element with custom play/pause, seek, time, mute, and volume controls.
+- Audio shares the same persisted volume/mute storage and media progress key pattern as video. Only media at least 120 seconds long persists progress.
+- Audio and video players coordinate through the shared playback event so starting one mounted player pauses the others.
 
 ## Video Player Decisions
 

@@ -68,7 +68,17 @@ export type ShipSnapshot = {
   events?: ShipEvent[];
 };
 
-export type MediaKind = 'image' | 'video' | 'file';
+export type MediaKind = 'image' | 'video' | 'audio' | 'file';
+
+export type AudioTags = {
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArtist?: string;
+  date?: string;
+  genre?: string;
+  track?: string;
+};
 
 export type MediaItem = {
   id: string;
@@ -82,6 +92,9 @@ export type MediaItem = {
   comments: Comment[];
   commentCount: number;
   likeCount: number;
+  durationSeconds?: number;
+  audioTags?: AudioTags;
+  coverUrl?: string;
 };
 
 export type FeedPage = {

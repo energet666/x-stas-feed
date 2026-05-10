@@ -16,6 +16,7 @@ func TestScanClassifiesFilesAndSortsByModifiedTime(t *testing.T) {
 	writeTestFile(t, dir, "old.png", oldTime)
 	writeTestFile(t, dir, "new.mp4", newTime)
 	writeTestFile(t, dir, "notes.txt", newTime)
+	writeTestFile(t, dir, "song.mp3", oldTime)
 	writeTestFile(t, dir, ".DS_Store", newTime)
 
 	items, err := NewLibrary(dir).Scan()
@@ -23,8 +24,8 @@ func TestScanClassifiesFilesAndSortsByModifiedTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(items) != 3 {
-		t.Fatalf("expected 3 feed items, got %d", len(items))
+	if len(items) != 4 {
+		t.Fatalf("expected 4 feed items, got %d", len(items))
 	}
 	if items[0].Filename != "new.mp4" || items[0].Type != "video" {
 		t.Fatalf("expected newest video first, got %#v", items[0])
@@ -37,6 +38,9 @@ func TestScanClassifiesFilesAndSortsByModifiedTime(t *testing.T) {
 	}
 	if items[2].Filename != "old.png" || items[2].Type != "image" {
 		t.Fatalf("expected older image second, got %#v", items[1])
+	}
+	if items[3].Filename != "song.mp3" || items[3].Type != "audio" {
+		t.Fatalf("expected mp3 to be classified as audio, got %#v", items[3])
 	}
 }
 
@@ -206,6 +210,27 @@ func TestSaveUploadAcceptsGenericFiles(t *testing.T) {
 	}
 	if len(page.Items) != 1 || page.Items[0].ID != uploaded.ID {
 		t.Fatalf("expected uploaded file in feed, got %#v", page)
+	}
+}
+
+func TestSaveUploadAcceptsAudioFiles(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	uploaded, err := library.SaveUpload("Song.mp3", strings.NewReader("not a real mp3 but still an audio feed item"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Type != "audio" {
+		t.Fatalf("expected audio upload, got %#v", uploaded)
+	}
+
+	page, err := library.Page("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != uploaded.ID || page.Items[0].Type != "audio" {
+		t.Fatalf("expected uploaded audio in feed, got %#v", page)
 	}
 }
 
@@ -491,6 +516,24 @@ func TestScanIgnoresMetadataDirectory(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Filename != "photo.png" {
 		t.Fatalf("expected metadata files to be ignored, got %#v", items)
+	}
+}
+
+func TestScanIgnoresGeneratedCoverDirectory(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "song.mp3", modTime)
+	if err := os.MkdirAll(filepath.Join(dir, coverDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, coverDirName), "cover.jpg", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Filename != "song.mp3" {
+		t.Fatalf("expected generated covers to be ignored, got %#v", items)
 	}
 }
 

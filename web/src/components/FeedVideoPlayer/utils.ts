@@ -23,7 +23,7 @@ export function supportsPictureInPicture(video?: HTMLVideoElement) {
   );
 }
 
-export function canSetVolume(element: HTMLVideoElement) {
+export function canSetVolume(element: HTMLMediaElement) {
   const currentVolume = element.volume;
   const testVolume = currentVolume === 1 ? 0.95 : 1;
 
@@ -76,11 +76,16 @@ export function saveStoredVolume(volume: number, muted: boolean) {
 }
 
 export function progressStorageKey(mediaId: string) {
+  return `feed-ai:media-progress:${mediaId}`;
+}
+
+function legacyVideoProgressStorageKey(mediaId: string) {
   return `feed-ai:video-progress:${mediaId}`;
 }
 
 export function readStoredProgress(mediaId: string) {
-  const value = Number(storageGet(progressStorageKey(mediaId)));
+  const storedValue = storageGet(progressStorageKey(mediaId)) ?? storageGet(legacyVideoProgressStorageKey(mediaId));
+  const value = Number(storedValue);
   return Number.isFinite(value) ? value : 0;
 }
 
@@ -95,6 +100,7 @@ export function saveStoredProgress(mediaId: string, time: number, duration: numb
 
 export function clearStoredProgress(mediaId: string) {
   storageRemove(progressStorageKey(mediaId));
+  storageRemove(legacyVideoProgressStorageKey(mediaId));
 }
 
 function storageGet(key: string) {

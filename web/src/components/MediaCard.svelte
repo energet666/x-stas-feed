@@ -1,5 +1,6 @@
 <script lang="ts">
   import FeedCardFrame from './FeedCardFrame.svelte';
+  import FeedAudioPlayer from './FeedAudioPlayer/FeedAudioPlayer.svelte';
   import FeedVideoPlayer from './FeedVideoPlayer/FeedVideoPlayer.svelte';
   import FileCardContent from './FileCardContent.svelte';
   import type { MediaItem } from '../lib/feed';
@@ -49,6 +50,22 @@
 
 {#if item.type === 'video'}
   <FeedVideoPlayer
+    {item}
+    {expanded}
+    {favorite}
+    {ambientActive}
+    {overlayVisible}
+    {likePending}
+    onReveal={revealOverlay}
+    onKeep={keepOverlay}
+    onHide={hideOverlay}
+    onToggleFavorite={() => onToggleFavorite(item.id)}
+    onToggleExpanded={() => onToggleExpanded(item.id)}
+    onOpenComments={() => onOpenComments(item.id)}
+    onLike={() => onLike(item.id)}
+  />
+{:else if item.type === 'audio'}
+  <FeedAudioPlayer
     {item}
     {expanded}
     {favorite}

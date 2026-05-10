@@ -76,6 +76,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 		return Item{}, err
 	}
 	item := itemFromFile(filename, path, kind, info)
+	l.applyMediaProbe(&item, path)
 	item.DisplayName = originalName
 	metadata := Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}
 	if !sourceModifiedAt.IsZero() {
