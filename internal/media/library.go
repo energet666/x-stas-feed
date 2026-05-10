@@ -218,7 +218,7 @@ func (l *Library) CommentsForID(id string) ([]Comment, error) {
 	if _, ok := l.itemsByID[id]; !ok {
 		return nil, os.ErrNotExist
 	}
-	return append([]Comment(nil), l.commentsByMediaID[id]...), nil
+	return cloneComments(l.commentsByMediaID[id]), nil
 }
 
 func (l *Library) AddComment(id, text, author string) (Comment, error) {
@@ -461,7 +461,7 @@ func (l *Library) ensureIndex() error {
 		comments, err := l.comments.List(item.ID)
 		if err == nil {
 			commentCount += len(comments)
-			l.commentsByMediaID[item.ID] = append([]Comment(nil), comments...)
+			l.commentsByMediaID[item.ID] = cloneComments(comments)
 			item = itemWithCommentSummary(item, comments)
 		} else {
 			commentsFailed++

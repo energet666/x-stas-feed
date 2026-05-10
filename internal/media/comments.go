@@ -145,6 +145,9 @@ func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
 		}
 		comments = append(comments, comment)
 	}
+	if comments == nil {
+		return []Comment{}, nil
+	}
 
 	return comments, nil
 }
@@ -177,6 +180,9 @@ func readCommentFile(path string) ([]Comment, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
+	}
+	if comments == nil {
+		return []Comment{}, nil
 	}
 
 	return comments, nil

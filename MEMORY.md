@@ -131,6 +131,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Full comments and compact comment previews preserve user line breaks with safe wrapping.
 - Media likes are anonymous one-way increments. Store the server-side `likeCount` in each media item's metadata JSON; do not add client IDs, unlike state, auth, or a separate likes store for v1. Successful likes publish `event: like` over the existing comments SSE stream so other open clients update immediately.
 - Comment likes follow the same anonymous one-way increment model. Store each comment's `likeCount` in its JSONL record, rewrite the media comment file atomically when a comment is liked, and publish `event: comment-like` over the existing SSE stream.
+- Feed card and comment like controls keep the heart action visible at zero likes, but hide the numeric counter until the count is greater than zero.
 - The comment composer submits with Enter; Shift+Enter inserts a newline; IME composition must not submit prematurely.
 - Opening comments focuses the composer textarea from the same user-triggered `openComments` path using Svelte `flushSync`, a stable `comment-composer-{mediaID}` element id, and short retries after the click completes; this is needed for Safari, which may ignore delayed textarea focus and leave focus on the nickname input.
 - The comment composer textarea intentionally has no placeholder, avoiding visible placeholder flicker during Safari autofocus.

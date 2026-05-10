@@ -55,7 +55,9 @@
         </span>
       {/if}
     </span>
-    <span>{item.likeCount}</span>
+    {#if item.likeCount > 0}
+      <span>{item.likeCount}</span>
+    {/if}
   </button>
 
   <button
@@ -94,7 +96,7 @@
 
   .feed-card-like-button {
     display: inline-flex;
-    min-width: 3.25rem;
+    min-width: 1rem;
     position: relative;
     flex: 0 0 auto;
     align-items: center;

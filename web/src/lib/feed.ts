@@ -108,7 +108,7 @@ export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit:
     throw new Error(message ?? `Feed request failed with ${response.status}`);
   }
 
-  return (await response.json()) as FeedPage;
+  return normalizeFeedPage((await response.json()) as FeedPage);
 }
 
 export async function fetchFavoriteFeedPage({
@@ -131,7 +131,7 @@ export async function fetchFavoriteFeedPage({
     throw new Error(message ?? `Favorite feed request failed with ${response.status}`);
   }
 
-  return (await response.json()) as FeedPage;
+  return normalizeFeedPage((await response.json()) as FeedPage);
 }
 
 export async function fetchActivity({ limit }: { limit: number }) {
@@ -152,7 +152,7 @@ export async function fetchMediaItem(mediaId: string) {
     throw new Error(message ?? `Media item request failed with ${response.status}`);
   }
 
-  return (await response.json()) as MediaItem;
+  return normalizeMediaItem((await response.json()) as MediaItem);
 }
 
 export async function fetchComments(mediaId: string) {
@@ -162,7 +162,8 @@ export async function fetchComments(mediaId: string) {
     throw new Error(message ?? `Comments request failed with ${response.status}`);
   }
 
-  return (await response.json()) as { comments: Comment[] };
+  const body = (await response.json()) as { comments: Comment[] | null };
+  return { comments: Array.isArray(body.comments) ? body.comments : [] };
 }
 
 export async function createComment(mediaId: string, text: string, author: string) {
@@ -275,4 +276,18 @@ function uploadErrorsMessage(body: UploadResult | null) {
   const firstError = body?.errors?.[0];
   if (!firstError) return undefined;
   return `${firstError.filename || 'File'}: ${firstError.error}`;
+}
+
+function normalizeFeedPage(page: FeedPage) {
+  return {
+    ...page,
+    items: Array.isArray(page.items) ? page.items.map(normalizeMediaItem) : []
+  };
+}
+
+function normalizeMediaItem(item: MediaItem) {
+  return {
+    ...item,
+    comments: Array.isArray(item.comments) ? item.comments : []
+  };
 }

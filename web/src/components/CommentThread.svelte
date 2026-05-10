@@ -47,7 +47,7 @@
     if (activeMediaId === item.id) return;
 
     activeMediaId = item.id;
-    comments = item.comments;
+    comments = Array.isArray(item.comments) ? item.comments : [];
     pendingCommentLikeCounts = {};
     commentLikeSplashIDs = {};
     draft = '';
@@ -71,8 +71,9 @@
 
     try {
       const response = await fetchComments(mediaId);
-      comments = response.comments;
-      onCommentsChanged(mediaId, response.comments);
+      const nextComments = Array.isArray(response.comments) ? response.comments : [];
+      comments = nextComments;
+      onCommentsChanged(mediaId, nextComments);
       scrollCommentsToBottom('auto');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unable to load comments';
@@ -226,7 +227,9 @@
                   </span>
                 {/if}
               </span>
-              <span>{comment.likeCount}</span>
+              {#if comment.likeCount > 0}
+                <span>{comment.likeCount}</span>
+              {/if}
             </button>
           </div>
           <p class="comment-text text-sm leading-5 text-secondary">
@@ -335,7 +338,7 @@
 
   .comment-like-button {
     display: inline-flex;
-    min-width: 2.7rem;
+    min-width: 0.875rem;
     flex: 0 0 auto;
     align-items: center;
     justify-content: flex-end;

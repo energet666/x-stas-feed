@@ -320,6 +320,28 @@ func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
 	}
 }
 
+func TestEmptyCommentFileReturnsEmptyCommentList(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	commentsDir := filepath.Join(dir, commentsDirName)
+	if err := os.MkdirAll(commentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(commentsDir, EncodeID("photo.png")+".jsonl"), []byte("\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	comments, err := NewLibrary(dir).CommentsForID(EncodeID("photo.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comments == nil || len(comments) != 0 {
+		t.Fatalf("expected empty comment slice, got %#v", comments)
+	}
+}
+
 func TestScanIgnoresGeneratedPosterDirectory(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
