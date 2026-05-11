@@ -179,6 +179,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Each completed stroke is submitted via `POST /api/boards/{id}/strokes` and broadcast via per-board SSE at `GET /api/boards/{id}/events`. Подписка на SSE активна для всех видимых досок в ленте, а не только для развернутой.
 - The frontend loads existing boards via `GET /api/boards` on startup and prepends them as virtual `MediaItem` objects with `type: 'board'`.
 - New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar.
+- **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
 
 ## Agent Workflow Constraints

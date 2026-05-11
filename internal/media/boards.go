@@ -91,6 +91,26 @@ func (bs *BoardStore) Init() error {
 		bs.boards[boardID] = state
 	}
 
+	// Ensure master board exists
+	if _, ok := bs.boards["master"]; !ok {
+		now := time.Now().UTC()
+		name := "Master Board"
+		meta := boardMeta{Name: name, CreatedAt: now}
+		metaLine, _ := json.Marshal(meta)
+		
+		filePath := bs.boardFilePath("master")
+		if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err == nil {
+			bs.boards["master"] = &boardState{
+				info: BoardInfo{
+					ID:          "master",
+					Name:        name,
+					StrokeCount: 0,
+					CreatedAt:   now,
+				},
+			}
+		}
+	}
+
 	return nil
 }
 

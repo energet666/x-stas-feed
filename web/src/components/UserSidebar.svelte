@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Dice5, UserRound } from 'lucide-svelte';
+  import DrawingBoard from './DrawingBoard.svelte';
 
   const storageFallbackName = 'Guest';
   const funnyWords = [
@@ -26,7 +27,13 @@
     'Блестящий Крендель'
   ];
 
-  let { username = $bindable(storageFallbackName) }: { username: string } = $props();
+  let { 
+    username = $bindable(storageFallbackName),
+    onExpandMasterBoard
+  }: { 
+    username: string;
+    onExpandMasterBoard: () => void;
+  } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
 
   const displayUsername = $derived(username.trim() || storageFallbackName);
@@ -120,6 +127,22 @@
       </button>
     </div>
   </div>
+
+  <div class="user-sidebar-divider"></div>
+
+  <div class="user-sidebar-body">
+    <label class="mb-3 block text-xs font-semibold uppercase text-subtle">Master Board</label>
+    <div 
+      class="master-board-preview-container" 
+      onclick={onExpandMasterBoard}
+      role="button"
+      tabindex="0"
+      onkeydown={(e) => e.key === 'Enter' && onExpandMasterBoard()}
+    >
+      <DrawingBoard boardId="master" expanded={false} {username} />
+    </div>
+    <p class="mt-2 text-[10px] text-center text-subtle">Global collaborative canvas</p>
+  </div>
 </aside>
 
 <style>
@@ -172,6 +195,34 @@
 
   .username-input:focus {
     border-color: var(--color-glass-border-hover);
+  }
+
+  .user-sidebar-divider {
+    height: 1px;
+    background: var(--color-glass-border-soft);
+    margin: 0;
+  }
+
+  .master-board-preview-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--color-glass-border-soft);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #0f0f17;
+  }
+
+  .master-board-preview-container:hover {
+    border-color: var(--color-glass-border-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .master-board-preview-container :global(.drawing-preview) {
+    height: 100%;
   }
 
 </style>

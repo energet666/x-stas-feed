@@ -12,6 +12,7 @@
   import MediaCard from './components/MediaCard.svelte';
   import SocialActivityPanel from './components/SocialActivityPanel.svelte';
   import UserSidebar from './components/UserSidebar.svelte';
+  import DrawingBoard from './components/DrawingBoard.svelte';
   import {
     commentEventsURL,
     createBoard,
@@ -95,6 +96,7 @@
   let viewportFrameID: number | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
   let feedRequestVersion = 0;
+  let masterBoardExpanded = $state(false);
 
   const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
@@ -206,7 +208,7 @@
 
   $effect(() => {
     const previousOverflow = document.body.style.overflow;
-    if (expandedItemID || activityModalOpen) {
+    if (expandedItemID || activityModalOpen || masterBoardExpanded) {
       document.body.style.overflow = 'hidden';
     }
 
@@ -645,6 +647,15 @@
     return nextRecord;
   }
 
+  function toggleMasterBoard() {
+    masterBoardExpanded = !masterBoardExpanded;
+    if (masterBoardExpanded) {
+      expandedItemID = null;
+      commentsPanelItemID = null;
+      selectedActivityMedia = null;
+    }
+  }
+
   function toggleExpandedItem(id: string) {
     expandedItemID = expandedItemID === id ? null : id;
     revealCardOverlay(id);
@@ -918,6 +929,9 @@
     if (event.key === 'Escape' && expandedItemID) {
       closeExpandedItem();
     }
+    if (event.key === 'Escape' && masterBoardExpanded) {
+      toggleMasterBoard();
+    }
   }
 
   function handleWindowDragEnter(event: DragEvent) {
@@ -1002,7 +1016,10 @@
         onUploadFiles={handleUploadFiles}
         onCreateBoard={handleCreateBoard}
       />
-      <UserSidebar bind:username />
+      <UserSidebar 
+        bind:username 
+        onExpandMasterBoard={toggleMasterBoard}
+      />
     </div>
     <SocialActivityPanel
       items={activityItems}
@@ -1136,6 +1153,23 @@
       />
     {/if}
   {/if}
+
+  {#if masterBoardExpanded}
+    <div class="master-board-expanded-overlay">
+      <DrawingBoard 
+        boardId="master" 
+        expanded={true} 
+        {username} 
+      />
+      <button 
+        class="master-board-close-btn glass-button" 
+        onclick={toggleMasterBoard}
+        aria-label="Close master board"
+      >
+        Close
+      </button>
+    </div>
+  {/if}
 </main>
 
 {#if !gameActive}
@@ -1181,5 +1215,24 @@
       width: min(100% - 1.5rem, 40rem);
       margin: 1rem auto 0;
     }
+  }
+
+  .master-board-expanded-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #0f0f17;
+  }
+
+  .master-board-close-btn {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1001;
+    padding: 0.5rem 1.25rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
   }
 </style>
