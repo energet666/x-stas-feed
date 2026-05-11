@@ -71,8 +71,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/media/{id}/likes", s.handleCreateLike)
 	s.mux.HandleFunc("GET /api/media/{id}/cover", s.handleMediaCover)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
-	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
+	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
+	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
 	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
 	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
 	s.mux.HandleFunc("GET /api/boards/{id}/events", s.handleBoardEvents)
@@ -476,7 +477,7 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 		Size   float64     `json:"size"`
 		Author string      `json:"author"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&request); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid stroke payload")
 		return
 	}
@@ -493,6 +494,29 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 
 	s.boardHub.publishStroke(id, stroke)
 	writeJSON(w, http.StatusCreated, stroke)
+}
+
+func (s *Server) handleAllBoardEvents(w http.ResponseWriter, r *http.Request) {
+	ch := s.boardHub.subscribeAll()
+	defer s.boardHub.unsubscribeAll(ch)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	for {
+		select {
+		case event := <-ch:
+			data, err := json.Marshal(event.Data)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Name, data)
+			w.(http.Flusher).Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
 }
 
 func (s *Server) handleBoardEvents(w http.ResponseWriter, r *http.Request) {

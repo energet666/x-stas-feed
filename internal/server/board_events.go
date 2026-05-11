@@ -12,12 +12,31 @@ type strokeEvent struct {
 }
 
 type boardHub struct {
-	mu          sync.Mutex
-	subscribers map[string]map[chan feedEvent]struct{}
+	mu                sync.Mutex
+	subscribers       map[string]map[chan feedEvent]struct{}
+	globalSubscribers map[chan feedEvent]struct{}
 }
 
 func newBoardHub() *boardHub {
-	return &boardHub{subscribers: make(map[string]map[chan feedEvent]struct{})}
+	return &boardHub{
+		subscribers:       make(map[string]map[chan feedEvent]struct{}),
+		globalSubscribers: make(map[chan feedEvent]struct{}),
+	}
+}
+
+func (h *boardHub) subscribeAll() chan feedEvent {
+	ch := make(chan feedEvent, 64)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.globalSubscribers[ch] = struct{}{}
+	return ch
+}
+
+func (h *boardHub) unsubscribeAll(ch chan feedEvent) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	delete(h.globalSubscribers, ch)
+	close(ch)
 }
 
 func (h *boardHub) subscribe(boardID string) chan feedEvent {
@@ -56,7 +75,16 @@ func (h *boardHub) publishStroke(boardID string, stroke media.Stroke) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	// Direct subscribers
 	for ch := range h.subscribers[boardID] {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
+
+	// Global subscribers
+	for ch := range h.globalSubscribers {
 		select {
 		case ch <- event:
 		default:

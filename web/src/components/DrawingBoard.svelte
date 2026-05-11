@@ -4,10 +4,9 @@
   import {
     createStroke,
     fetchBoard,
-    boardEventsURL,
-    type Stroke,
-    type StrokeEvent
+    type Stroke
   } from '../lib/feed';
+  import { boardEvents } from '../lib/board_events.svelte';
 
   let {
     boardId,
@@ -46,7 +45,6 @@
   let mousePos = $state<number[] | null>(null);
   let showColorPicker = $state(false);
   let boardName = $state('Board');
-  let boardEvents: EventSource | undefined = undefined;
 
   const canvasWidth = 1200;
   const canvasHeight = 800;
@@ -66,18 +64,19 @@
     activeStrokeCanvas.height = canvasHeight;
 
     void loadBoard();
-    return () => {
-      boardEvents?.close();
-    };
   });
 
+  // Global SSE subscription
   $effect(() => {
-    if (boardId) {
-      subscribeToBoardEvents();
-    } else {
-      boardEvents?.close();
-      boardEvents = undefined;
-    }
+    if (!boardId) return;
+    
+    return boardEvents.subscribe((event) => {
+      if (event.boardId === boardId) {
+        if (!strokes.some((s) => s.id === event.stroke.id)) {
+          strokes = [...strokes, event.stroke];
+        }
+      }
+    });
   });
 
   // Redraw main canvas when state changes
@@ -117,21 +116,6 @@
     redraw();
   }
 
-  function subscribeToBoardEvents() {
-    boardEvents?.close();
-    boardEvents = new EventSource(boardEventsURL(boardId));
-
-    boardEvents.addEventListener('stroke', (event) => {
-      try {
-        const data = JSON.parse(event.data) as StrokeEvent;
-        if (!strokes.some((s) => s.id === data.stroke.id)) {
-          strokes = [...strokes, data.stroke];
-        }
-      } catch {
-        // Ignore malformed events
-      }
-    });
-  }
 
   function getCanvas() {
     return expanded ? canvasEl : previewCanvasEl;
