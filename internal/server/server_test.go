@@ -24,7 +24,7 @@ func TestFeedEndpointReturnsPage(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
 	res := httptest.NewRecorder()
 
@@ -49,7 +49,7 @@ func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
 	writeServerTestFile(t, dir, "b.png")
 	writeServerTestFile(t, dir, "c.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	body := bytes.NewBufferString(`{"ids":["` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":10}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -79,7 +79,7 @@ func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	writeServerTestFile(t, dir, "b.png")
 	writeServerTestFile(t, dir, "c.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	missingID := media.EncodeID("missing.png")
 	body := bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":2}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
@@ -129,7 +129,7 @@ func TestActivityEndpointReturnsLatestCommentsAcrossMedia(t *testing.T) {
 	aID := media.EncodeID("a.png")
 	bID := media.EncodeID("b.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, request := range []struct {
 		id   string
 		text string
@@ -177,7 +177,7 @@ func TestActivityEndpointIgnoresStaleCommentFilesAndCapsLimit(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	for i := 0; i < 105; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"comment"}`))
@@ -227,7 +227,7 @@ func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, text := range []string{"first", "second", "third"} {
 		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"`+text+`"}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -270,7 +270,7 @@ func TestMediaCoverEndpointRejectsInvalidAndNonAudioIDs(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	writeServerTestFile(t, dir, "song.mp3")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	for _, path := range []string{
 		"/api/media/" + media.EncodeID("../secret.mp3") + "/cover",
@@ -290,7 +290,7 @@ func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodGet, "/media/"+media.EncodeID("photo.png"), nil)
 	res := httptest.NewRecorder()
 
@@ -318,7 +318,7 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, text := range []string{"first", "second", "third"} {
 		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"`+text+`","author":"Ламповый Кабачок 42"}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -382,7 +382,7 @@ func TestCreateCommentDefaultsAndNormalizesAuthor(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"hello","author":"  Космический\n  Пончик  "}`))
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -422,7 +422,7 @@ func TestCreateCommentRejectsEmptyText(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/media/"+media.EncodeID("photo.png")+"/comments", bytes.NewBufferString(`{"text":"   "}`))
 	res := httptest.NewRecorder()
 
@@ -438,7 +438,7 @@ func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for expected := 1; expected <= 2; expected++ {
 		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/likes", nil)
 		res := httptest.NewRecorder()
@@ -483,7 +483,7 @@ func TestCommentLikeEndpointIncrementsCommentAndFeedSummary(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"liked comment"}`))
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -543,7 +543,7 @@ func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	testServer := httptest.NewServer(New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler())
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -620,7 +620,7 @@ func TestCommentEventsStreamsCreatedLikes(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	testServer := httptest.NewServer(New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler())
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -699,7 +699,7 @@ func TestCommentEventsStreamsCreatedCommentLikes(t *testing.T) {
 	writeServerTestFile(t, dir, "photo.png")
 	id := media.EncodeID("photo.png")
 
-	testServer := httptest.NewServer(New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler())
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()
 
 	postCommentRes, err := testServer.Client().Post(
@@ -789,7 +789,7 @@ func TestCommentEventsStreamsCreatedCommentLikes(t *testing.T) {
 
 func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 	dir := t.TempDir()
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	req := newUploadRequest(t, "Мой летний день.png", []byte("png-content"))
 	res := httptest.NewRecorder()
@@ -847,7 +847,7 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 
 func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 	dir := t.TempDir()
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	req := newUploadRequest(t, "clip.mp4", []byte("video"), "clip.mp4", []byte("video-two"))
 	res := httptest.NewRecorder()
@@ -883,7 +883,7 @@ func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 
 func TestUploadEndpointSavesGenericFile(t *testing.T) {
 	dir := t.TempDir()
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	req := newUploadRequest(t, "notes.txt", []byte("text"))
 	res := httptest.NewRecorder()
@@ -904,7 +904,7 @@ func TestUploadEndpointSavesGenericFile(t *testing.T) {
 
 func TestUploadEndpointStoresClientModifiedAt(t *testing.T) {
 	dir := t.TempDir()
-	handler := New(media.NewLibrary(dir), "", log.New(io.Discard, "", 0)).Handler()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	sourceModifiedAt := time.Date(2022, 3, 4, 5, 6, 7, 0, time.UTC)
 
 	req := newUploadRequestWithModifiedAt(t, "notes.txt", []byte("text"), sourceModifiedAt)
@@ -948,7 +948,8 @@ func TestUploadEndpointRejectsInvalidUploads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New(media.NewLibrary(t.TempDir()), "", log.New(io.Discard, "", 0)).Handler()
+			tmpDir := t.TempDir()
+			handler := New(media.NewLibrary(tmpDir), tmpDir, "", log.New(io.Discard, "", 0)).Handler()
 			res := httptest.NewRecorder()
 			handler.ServeHTTP(res, tt.req(t))
 
@@ -960,7 +961,8 @@ func TestUploadEndpointRejectsInvalidUploads(t *testing.T) {
 }
 
 func TestUploadEndpointRejectsKnownOversizedRequest(t *testing.T) {
-	handler := New(media.NewLibrary(t.TempDir()), "", log.New(io.Discard, "", 0)).Handler()
+	tmpDir := t.TempDir()
+	handler := New(media.NewLibrary(tmpDir), tmpDir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/uploads", strings.NewReader(""))
 	req.Header.Set("Content-Type", "multipart/form-data; boundary=test")
 	req.ContentLength = uploadMaxBytes + 1

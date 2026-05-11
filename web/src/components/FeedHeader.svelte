@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertCircle, CheckCircle2, LoaderCircle, Star, Upload } from 'lucide-svelte';
+  import { AlertCircle, CheckCircle2, LoaderCircle, Pencil, Star, Upload } from 'lucide-svelte';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
   type FeedMode = 'all' | 'favorites';
@@ -10,7 +10,8 @@
     uploadProgress,
     feedMode,
     onToggleFavoriteMode,
-    onUploadFiles
+    onUploadFiles,
+    onCreateBoard
   }: {
     uploadStatus: UploadStatus;
     uploadMessage: string;
@@ -18,6 +19,7 @@
     feedMode: FeedMode;
     onToggleFavoriteMode: () => void;
     onUploadFiles: (files: File[]) => void;
+    onCreateBoard: () => void;
   } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
@@ -126,6 +128,16 @@
         multiple
         onchange={handleInputChange}
       />
+      <button
+        class="glass-button board-create-button gap-2"
+        type="button"
+        aria-label="Create drawing board"
+        title="Create drawing board"
+        onclick={onCreateBoard}
+      >
+        <Pencil size={15} />
+        <span class="hidden sm:inline">Board</span>
+      </button>
   </div>
 </header>
 
@@ -146,7 +158,7 @@
 
   .feed-toolbar-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.5rem;
     margin-top: 0.75rem;
   }
@@ -176,6 +188,15 @@
   .favorites-mode-button-active {
     border-color: rgb(250 204 21 / 0.45);
     color: rgb(253 224 71);
+  }
+
+  .board-create-button {
+    max-width: 100%;
+  }
+
+  .board-create-button:hover {
+    border-color: rgb(168 85 247 / 0.45);
+    color: rgb(192 132 252);
   }
 
 </style>

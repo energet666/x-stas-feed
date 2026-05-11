@@ -14,13 +14,16 @@
   import UserSidebar from './components/UserSidebar.svelte';
   import {
     commentEventsURL,
+    createBoard,
     createLike,
     fetchActivity,
+    fetchBoards,
     fetchFavoriteFeedPage,
     fetchFeedPage,
     fetchMediaItem,
     uploadMedia,
     type ActivityItem,
+    type BoardInfo,
     type Comment,
     type CommentLikeEvent,
     type CommentEvent,
@@ -167,6 +170,7 @@
     window.addEventListener('resize', scheduleViewportUpdate);
     window.addEventListener(gameStartedEvent, activateGameMode);
     subscribeToCommentEvents();
+    void loadBoards();
     void loadPage();
     void loadActivity();
 
@@ -311,6 +315,47 @@
     } catch (err) {
       setUploadStatus('error', err instanceof Error ? err.message : 'Upload failed', null);
     }
+  }
+
+  async function handleCreateBoard() {
+    try {
+      const board = await createBoard('Board');
+      const boardItem = boardInfoToMediaItem(board);
+      items = [boardItem, ...items];
+      scheduleViewportUpdate();
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    } catch {
+      // Board creation failed silently
+    }
+  }
+
+  async function loadBoards() {
+    try {
+      const boards = await fetchBoards();
+      if (boards.length > 0) {
+        const boardItems = boards.map(boardInfoToMediaItem);
+        items = [...boardItems, ...items];
+        scheduleViewportUpdate();
+      }
+    } catch {
+      // Boards might not be available
+    }
+  }
+
+  function boardInfoToMediaItem(board: BoardInfo): MediaItem {
+    return {
+      id: board.id,
+      filename: board.name,
+      displayName: board.name,
+      type: 'board',
+      url: '',
+      mimeType: '',
+      size: 0,
+      modifiedAt: board.createdAt,
+      comments: [],
+      commentCount: 0,
+      likeCount: 0
+    };
   }
 
   function setUploadStatus(status: UploadStatus, message: string, progress: number | null) {
@@ -955,6 +1000,7 @@
         {feedMode}
         onToggleFavoriteMode={toggleFavoriteMode}
         onUploadFiles={handleUploadFiles}
+        onCreateBoard={handleCreateBoard}
       />
       <UserSidebar bind:username />
     </div>
@@ -1020,6 +1066,7 @@
             }
             overlayVisible={activeOverlayID === item.id}
             likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
+            username={commentUsername}
             onReveal={revealCardOverlay}
             onKeep={keepCardOverlay}
             onHide={hideCardOverlay}

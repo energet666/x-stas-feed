@@ -3,6 +3,7 @@
   import FeedAudioPlayer from './FeedAudioPlayer/FeedAudioPlayer.svelte';
   import FeedVideoPlayer from './FeedVideoPlayer/FeedVideoPlayer.svelte';
   import FileCardContent from './FileCardContent.svelte';
+  import DrawingBoardCard from './DrawingBoardCard.svelte';
   import type { MediaItem } from '../lib/feed';
 
   let {
@@ -12,6 +13,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
+    username = 'Guest',
     onReveal,
     onKeep,
     onHide,
@@ -26,6 +28,7 @@
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
+    username?: string;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
     onHide: (id: string) => void;
@@ -48,7 +51,24 @@
   }
 </script>
 
-{#if item.type === 'video'}
+{#if item.type === 'board'}
+  <DrawingBoardCard
+    {item}
+    {expanded}
+    {favorite}
+    {ambientActive}
+    {overlayVisible}
+    {likePending}
+    {username}
+    onReveal={revealOverlay}
+    onKeep={keepOverlay}
+    onHide={hideOverlay}
+    onToggleFavorite={() => onToggleFavorite(item.id)}
+    onToggleExpanded={() => onToggleExpanded(item.id)}
+    onOpenComments={() => onOpenComments(item.id)}
+    onLike={() => onLike(item.id)}
+  />
+{:else if item.type === 'video'}
   <FeedVideoPlayer
     {item}
     {expanded}

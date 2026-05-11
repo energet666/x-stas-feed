@@ -19,7 +19,7 @@ func main() {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 	library := media.NewLibraryWithLogger(*contentDir, logger)
-	app := server.New(library, *staticDir, logger)
+	app := server.New(library, *contentDir, *staticDir, logger)
 
 	httpServer := &http.Server{
 		Addr:              *addr,

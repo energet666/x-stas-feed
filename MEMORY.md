@@ -165,6 +165,22 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Generic files use a dedicated card surface with file metadata and a download link rather than trying to render the file as visual media. File upload inputs intentionally do not set an `accept` filter.
 - Uploaded files preserve the browser-provided source `File.lastModified` in metadata and return it as the item's visible `modifiedAt`; the server file mtime remains the upload time and is still used internally for feed sorting so new uploads appear near the top.
 
+## Drawing Board Decisions
+
+- Drawing boards are a separate entity from media items. They are stored as JSONL files under `test-content/.boards/{boardID}.jsonl`. The first line is JSON board metadata (name, createdAt), subsequent lines are stroke records.
+- Board IDs are random 32-character hex strings, stroke IDs are random 24-character hex strings.
+- Each stroke record contains: `id`, `tool` (freeform or line), `points` (array of [x,y] coordinate pairs), `color`, `size`, `author`, `createdAt`.
+- The `BoardStore` initializes on server startup by reading existing `.boards` JSONL files. It holds all boards and strokes in memory and appends to disk on each new stroke.
+- Drawing interaction is only available in fullscreen/expanded mode. В режиме карточки отображается предпросмотр, который синхронизируется в реальном времени.
+- **Оптимизация производительности:** Используется система из трех холстов (сетка, буфер завершенных линий, активный штрих). Отрисовка активного штриха — инкрементальная (рисуется только новый сегмент), что обеспечивает стабильные 60 FPS независимо от количества линий.
+- **Рендеринг:** Для максимальной производительности удалены тяжелые эффекты `shadowBlur`. Используется чистая быстрая линия.
+- **Интерфейс:** Панель инструментов в развернутом режиме расположена вертикально справа. Имеет динамическую прозрачность (60% в покое, 100% с блюром при наведении), чтобы не перекрывать холст и не конфликтовать с панелью комментариев.
+- **Координаты:** Математика пересчета координат курсора учитывает «леттербоксинг» (черные поля), возникающий при `object-fit: contain`, обеспечивая точность попадания в пиксель при любых пропорциях окна.
+- Each completed stroke is submitted via `POST /api/boards/{id}/strokes` and broadcast via per-board SSE at `GET /api/boards/{id}/events`. Подписка на SSE активна для всех видимых досок в ленте, а не только для развернутой.
+- The frontend loads existing boards via `GET /api/boards` on startup and prepends them as virtual `MediaItem` objects with `type: 'board'`.
+- New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar.
+- The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
+
 ## Agent Workflow Constraints
 
 - Agents may start the local server only for short verification checks and must stop it immediately afterward, unless the user explicitly asks to start or keep it running.

@@ -68,7 +68,7 @@ export type ShipSnapshot = {
   events?: ShipEvent[];
 };
 
-export type MediaKind = 'image' | 'video' | 'audio' | 'file';
+export type MediaKind = 'image' | 'video' | 'audio' | 'file' | 'board';
 
 export type AudioTags = {
   title?: string;
@@ -306,4 +306,100 @@ function normalizeMediaItem(item: MediaItem) {
     ...item,
     comments: Array.isArray(item.comments) ? item.comments : []
   };
+}
+
+// --- Drawing Board API ---
+
+export type BoardInfo = {
+  id: string;
+  name: string;
+  strokeCount: number;
+  createdAt: string;
+};
+
+export type Stroke = {
+  id: string;
+  tool: string;
+  points: number[][];
+  color: string;
+  size: number;
+  author: string;
+  createdAt: string;
+};
+
+export type StrokeEvent = {
+  boardId: string;
+  stroke: Stroke;
+};
+
+export type BoardData = {
+  board: BoardInfo;
+  strokes: Stroke[];
+};
+
+export async function createBoard(name: string) {
+  const response = await fetch('/api/boards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Board creation failed with ${response.status}`);
+  }
+
+  return (await response.json()) as BoardInfo;
+}
+
+export async function fetchBoard(boardId: string) {
+  const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}`);
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Board request failed with ${response.status}`);
+  }
+
+  const data = (await response.json()) as BoardData;
+  data.strokes = Array.isArray(data.strokes) ? data.strokes : [];
+  return data;
+}
+
+export async function fetchBoards() {
+  const response = await fetch('/api/boards');
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Boards request failed with ${response.status}`);
+  }
+
+  const data = (await response.json()) as { boards: BoardInfo[] };
+  return Array.isArray(data.boards) ? data.boards : [];
+}
+
+export async function createStroke(
+  boardId: string,
+  tool: string,
+  points: number[][],
+  color: string,
+  size: number,
+  author: string
+) {
+  const response = await fetch(
+    `/api/boards/${encodeURIComponent(boardId)}/strokes`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool, points, color, size, author })
+    }
+  );
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Stroke creation failed with ${response.status}`);
+  }
+
+  return (await response.json()) as Stroke;
+}
+
+export function boardEventsURL(boardId: string) {
+  return `/api/boards/${encodeURIComponent(boardId)}/events`;
 }

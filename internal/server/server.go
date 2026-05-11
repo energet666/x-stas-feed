@@ -28,16 +28,24 @@ type Server struct {
 	library   *media.Library
 	comments  *commentHub
 	ships     *shipHub
+	boards    *media.BoardStore
+	boardHub  *boardHub
 	staticDir string
 	logger    *log.Logger
 }
 
-func New(library *media.Library, staticDir string, logger *log.Logger) *Server {
+func New(library *media.Library, contentRoot string, staticDir string, logger *log.Logger) *Server {
+	boardStore := media.NewBoardStore(contentRoot)
+	if err := boardStore.Init(); err != nil {
+		logger.Printf("board store init failed error=%v", err)
+	}
 	s := &Server{
 		mux:       http.NewServeMux(),
 		library:   library,
 		comments:  newCommentHub(),
 		ships:     newShipHub(),
+		boards:    boardStore,
+		boardHub:  newBoardHub(),
 		staticDir: staticDir,
 		logger:    logger,
 	}
@@ -63,6 +71,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/media/{id}/likes", s.handleCreateLike)
 	s.mux.HandleFunc("GET /api/media/{id}/cover", s.handleMediaCover)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
+	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
+	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
+	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
+	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
+	s.mux.HandleFunc("GET /api/boards/{id}/events", s.handleBoardEvents)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
 }
@@ -407,6 +420,119 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFile(w, r, index)
+}
+
+func (s *Server) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid board payload")
+		return
+	}
+
+	info, err := s.boards.Create(request.Name)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create board")
+		return
+	}
+
+	s.logger.Printf("board created id=%s name=%s", info.ID, info.Name)
+	writeJSON(w, http.StatusCreated, info)
+}
+
+func (s *Server) handleListBoards(w http.ResponseWriter, r *http.Request) {
+	boards := s.boards.ListBoards()
+	writeJSON(w, http.StatusOK, map[string][]media.BoardInfo{"boards": boards})
+}
+
+func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	info, err := s.boards.Get(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	strokes, err := s.boards.Strokes(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"board":   info,
+		"strokes": strokes,
+	})
+}
+
+func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var request struct {
+		Tool   string      `json:"tool"`
+		Points [][]float64 `json:"points"`
+		Color  string      `json:"color"`
+		Size   float64     `json:"size"`
+		Author string      `json:"author"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid stroke payload")
+		return
+	}
+
+	stroke, err := s.boards.AddStroke(id, request.Tool, request.Points, request.Color, request.Size, request.Author)
+	if err != nil {
+		if errors.Is(err, media.ErrBoardNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	s.boardHub.publishStroke(id, stroke)
+	writeJSON(w, http.StatusCreated, stroke)
+}
+
+func (s *Server) handleBoardEvents(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	if _, err := s.boards.Get(id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming is not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	events := s.boardHub.subscribe(id)
+	defer s.boardHub.unsubscribe(id, events)
+
+	_, _ = fmt.Fprint(w, ": connected\n\n")
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event := <-events:
+			data, err := json.Marshal(event.Data)
+			if err != nil {
+				continue
+			}
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Name, data)
+			flusher.Flush()
+		}
+	}
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {
