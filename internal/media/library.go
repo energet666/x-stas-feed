@@ -45,6 +45,7 @@ var mediaExtensions = map[string]string{
 	".ogg":  "video",
 	".ogv":  "video",
 	".webm": "video",
+	".board": "board",
 }
 
 func SupportedExtensions() []string {
@@ -824,10 +825,20 @@ func audioMetadataMatches(audio AudioMetadata, info os.FileInfo) bool {
 
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
 	id := EncodeID(rel)
+	displayName := filepath.Base(path)
+
+	if kind == "board" {
+		id = strings.TrimSuffix(filepath.Base(path), ".board")
+		displayName = id
+		if id == "master" {
+			displayName = "Master Board"
+		}
+	}
+
 	return Item{
 		ID:             id,
 		Filename:       filepath.Base(path),
-		DisplayName:    filepath.Base(path),
+		DisplayName:    displayName,
 		Type:           kind,
 		URL:            "/media/" + url.PathEscape(id),
 		MimeType:       mimeType(path),

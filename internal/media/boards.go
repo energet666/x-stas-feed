@@ -46,7 +46,8 @@ type boardMeta struct {
 
 // BoardStore manages board JSONL files on disk.
 type BoardStore struct {
-	root string
+	root       string // .boards directory
+	contentDir string // parent content directory
 
 	mu     sync.RWMutex
 	boards map[string]*boardState
@@ -60,8 +61,9 @@ type boardState struct {
 // NewBoardStore creates a board store rooted at the content directory.
 func NewBoardStore(contentRoot string) *BoardStore {
 	return &BoardStore{
-		root:   filepath.Join(contentRoot, boardsDirName),
-		boards: make(map[string]*boardState),
+		root:       filepath.Join(contentRoot, boardsDirName),
+		contentDir: contentRoot,
+		boards:     make(map[string]*boardState),
 	}
 }
 
@@ -89,6 +91,7 @@ func (bs *BoardStore) Init() error {
 			continue
 		}
 		bs.boards[boardID] = state
+		_ = bs.ensureBoardPlaceholder(boardID)
 	}
 
 	// Ensure master board exists
@@ -108,6 +111,7 @@ func (bs *BoardStore) Init() error {
 					CreatedAt:   now,
 				},
 			}
+			_ = bs.ensureBoardPlaceholder("master")
 		}
 	}
 
@@ -135,14 +139,8 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 	}
 
 	filePath := bs.boardFilePath(id)
-	f, err := os.Create(filePath)
-	if err != nil {
+	if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err != nil {
 		return BoardInfo{}, fmt.Errorf("create board file: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := fmt.Fprintf(f, "%s\n", metaLine); err != nil {
-		return BoardInfo{}, fmt.Errorf("write board meta: %w", err)
 	}
 
 	info := BoardInfo{
@@ -155,6 +153,8 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 	bs.mu.Lock()
 	bs.boards[id] = &boardState{info: info, strokes: nil}
 	bs.mu.Unlock()
+
+	_ = bs.ensureBoardPlaceholder(id)
 
 	return info, nil
 }
@@ -328,4 +328,12 @@ func generateStrokeID() string {
 		panic(fmt.Sprintf("generate stroke id: %v", err))
 	}
 	return hex.EncodeToString(b)
+}
+
+func (bs *BoardStore) ensureBoardPlaceholder(id string) error {
+	placeholderPath := filepath.Join(bs.contentDir, id+".board")
+	if _, err := os.Stat(placeholderPath); err == nil {
+		return nil
+	}
+	return os.WriteFile(placeholderPath, []byte{}, 0o644)
 }
