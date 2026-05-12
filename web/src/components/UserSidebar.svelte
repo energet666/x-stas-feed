@@ -131,7 +131,7 @@
   <div class="user-sidebar-divider"></div>
 
   <div class="user-sidebar-body">
-    <label class="mb-3 block text-xs font-semibold uppercase text-subtle">Master Board</label>
+    <div class="mb-3 text-xs font-semibold uppercase text-subtle">Master Board</div>
     <div 
       class="master-board-preview-container" 
       onclick={onExpandMasterBoard}
@@ -207,7 +207,7 @@
     position: relative;
     width: 100%;
     aspect-ratio: 3 / 2;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-overlay);
     border: 1px solid var(--color-glass-border-soft);
     overflow: hidden;
     cursor: pointer;

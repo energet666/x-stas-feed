@@ -975,6 +975,49 @@ func TestUploadEndpointRejectsKnownOversizedRequest(t *testing.T) {
 	}
 }
 
+func TestCreateBoardIndexesOpaqueMediaItemForComments(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+	if board.ID == "" || board.MediaID == "" || board.MediaID == board.ID {
+		t.Fatalf("expected distinct board and media ids, got %#v", board)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/media/"+board.MediaID+"/comments", bytes.NewBufferString(`{"text":"works","author":"Tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected board comment to be accepted, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=10", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	var page media.Page
+	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != board.MediaID || page.Items[0].BoardID != board.ID || page.Items[0].CommentCount != 1 {
+		t.Fatalf("expected indexed board media item with comment summary, got %#v", page)
+	}
+}
+
 func writeServerTestFile(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

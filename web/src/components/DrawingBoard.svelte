@@ -379,6 +379,7 @@
 
 <div class="drawing-board" class:drawing-board-expanded={expanded}>
   {#if expanded}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions - the focused drawing surface needs keyboard shortcuts while the canvas handles pointer input. -->
     <div
       class="drawing-canvas-wrap"
       role="application"
@@ -481,10 +482,6 @@
         height={canvasHeight}
         class="drawing-canvas-preview"
       ></canvas>
-      <div class="drawing-preview-overlay">
-        <Pencil size={24} />
-        <span class="drawing-preview-label">{boardName}</span>
-      </div>
     </div>
   {/if}
 </div>
@@ -537,26 +534,6 @@
     object-fit: cover;
     display: block;
     pointer-events: none;
-  }
-
-  .drawing-preview-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    color: rgba(255, 255, 255, 0.6);
-    pointer-events: none;
-  }
-
-  .drawing-preview-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.7;
   }
 
   .drawing-toolbar {

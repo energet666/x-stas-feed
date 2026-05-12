@@ -18,7 +18,6 @@
     createBoard,
     createLike,
     fetchActivity,
-    fetchBoards,
     fetchFavoriteFeedPage,
     fetchFeedPage,
     fetchMediaItem,
@@ -172,7 +171,6 @@
     window.addEventListener('resize', scheduleViewportUpdate);
     window.addEventListener(gameStartedEvent, activateGameMode);
     subscribeToCommentEvents();
-    void loadBoards();
     void loadPage();
     void loadActivity();
 
@@ -323,6 +321,7 @@
     try {
       const board = await createBoard('Board');
       const boardItem = boardInfoToMediaItem(board);
+      if (!boardItem) throw new Error('Board media item was not returned');
       items = [boardItem, ...items];
       scheduleViewportUpdate();
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
@@ -331,22 +330,11 @@
     }
   }
 
-  async function loadBoards() {
-    try {
-      const boards = await fetchBoards();
-      if (boards.length > 0) {
-        const boardItems = boards.map(boardInfoToMediaItem);
-        items = [...boardItems, ...items];
-        scheduleViewportUpdate();
-      }
-    } catch {
-      // Boards might not be available
-    }
-  }
-
-  function boardInfoToMediaItem(board: BoardInfo): MediaItem {
+  function boardInfoToMediaItem(board: BoardInfo): MediaItem | null {
+    if (!board.mediaId) return null;
     return {
-      id: board.id,
+      id: board.mediaId,
+      boardId: board.id,
       filename: board.name,
       displayName: board.name,
       type: 'board',

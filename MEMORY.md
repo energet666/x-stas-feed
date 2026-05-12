@@ -177,9 +177,10 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - **Интерфейс:** Панель инструментов в развернутом режиме расположена вертикально справа. Имеет динамическую прозрачность (60% в покое, 100% с блюром при наведении), чтобы не перекрывать холст и не конфликтовать с панелью комментариев.
 - **Координаты:** Математика пересчета координат курсора учитывает «леттербоксинг» (черные поля), возникающий при `object-fit: contain`, обеспечивая точность попадания в пиксель при любых пропорциях окна.
 - Each completed stroke is submitted via `POST /api/boards/{id}/strokes` and broadcast via per-board SSE at `GET /api/boards/{id}/events`. Подписка на SSE активна для всех видимых досок в ленте, а не только для развернутой.
-- The frontend loads existing boards via `GET /api/boards` on startup and prepends them as virtual `MediaItem` objects with `type: 'board'`.
-- New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar.
-- **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения.
+- Regular boards are exposed in the feed through `{boardID}.board` placeholder files in the media root. The feed item keeps a normal opaque 64-character media `id` for comments, likes, metadata, favorites, and media lookup, and exposes the drawing board identity separately as `boardId`.
+- The frontend no longer prepends virtual board media from `GET /api/boards` on startup; the feed scanner is the single source for board cards, preventing duplicate board rows and split comment/like state.
+- New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar. The response includes `mediaId`, and the server inserts the placeholder into the runtime media index immediately so the new board can receive comments without a restart.
+- **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. `master.board` is not indexed into the main feed.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
 
 ## Agent Workflow Constraints

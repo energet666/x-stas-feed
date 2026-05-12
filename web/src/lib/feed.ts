@@ -82,6 +82,7 @@ export type AudioTags = {
 
 export type MediaItem = {
   id: string;
+  boardId?: string;
   filename: string;
   displayName: string;
   type: MediaKind;
@@ -312,6 +313,7 @@ function normalizeMediaItem(item: MediaItem) {
 
 export type BoardInfo = {
   id: string;
+  mediaId?: string;
   name: string;
   strokeCount: number;
   createdAt: string;

@@ -35,8 +35,7 @@
     onLike: () => void;
   } = $props();
 
-  // The boardId is stored in item.filename (the board ID assigned by the server)
-  const boardId = $derived(item.id);
+  const boardId = $derived(item.boardId ?? item.id);
 </script>
 
 <FeedCardFrame

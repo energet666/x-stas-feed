@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type Stroke struct {
 // BoardInfo holds summary information about a board returned to the client.
 type BoardInfo struct {
 	ID          string    `json:"id"`
+	MediaID     string    `json:"mediaId,omitempty"`
 	Name        string    `json:"name"`
 	StrokeCount int       `json:"strokeCount"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -91,7 +93,9 @@ func (bs *BoardStore) Init() error {
 			continue
 		}
 		bs.boards[boardID] = state
-		_ = bs.ensureBoardPlaceholder(boardID)
+		if boardID != "master" {
+			_ = bs.ensureBoardPlaceholder(boardID, state.info.CreatedAt)
+		}
 	}
 
 	// Ensure master board exists
@@ -100,7 +104,7 @@ func (bs *BoardStore) Init() error {
 		name := "Master Board"
 		meta := boardMeta{Name: name, CreatedAt: now}
 		metaLine, _ := json.Marshal(meta)
-		
+
 		filePath := bs.boardFilePath("master")
 		if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err == nil {
 			bs.boards["master"] = &boardState{
@@ -111,7 +115,6 @@ func (bs *BoardStore) Init() error {
 					CreatedAt:   now,
 				},
 			}
-			_ = bs.ensureBoardPlaceholder("master")
 		}
 	}
 
@@ -145,6 +148,7 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 
 	info := BoardInfo{
 		ID:          id,
+		MediaID:     EncodeID(id + ".board"),
 		Name:        name,
 		StrokeCount: 0,
 		CreatedAt:   now,
@@ -154,7 +158,7 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 	bs.boards[id] = &boardState{info: info, strokes: nil}
 	bs.mu.Unlock()
 
-	_ = bs.ensureBoardPlaceholder(id)
+	_ = bs.ensureBoardPlaceholder(id, now)
 
 	return info, nil
 }
@@ -180,6 +184,12 @@ func (bs *BoardStore) ListBoards() []BoardInfo {
 	for _, state := range bs.boards {
 		boards = append(boards, state.info)
 	}
+	sort.Slice(boards, func(i, j int) bool {
+		if !boards[i].CreatedAt.Equal(boards[j].CreatedAt) {
+			return boards[i].CreatedAt.After(boards[j].CreatedAt)
+		}
+		return boards[i].ID < boards[j].ID
+	})
 	return boards
 }
 
@@ -306,6 +316,7 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 	return &boardState{
 		info: BoardInfo{
 			ID:          id,
+			MediaID:     boardMediaID(id),
 			Name:        meta.Name,
 			StrokeCount: len(strokes),
 			CreatedAt:   meta.CreatedAt,
@@ -330,10 +341,26 @@ func generateStrokeID() string {
 	return hex.EncodeToString(b)
 }
 
-func (bs *BoardStore) ensureBoardPlaceholder(id string) error {
+func boardMediaID(id string) string {
+	if id == "master" {
+		return ""
+	}
+	return EncodeID(id + ".board")
+}
+
+func (bs *BoardStore) ensureBoardPlaceholder(id string, modifiedAt time.Time) error {
 	placeholderPath := filepath.Join(bs.contentDir, id+".board")
 	if _, err := os.Stat(placeholderPath); err == nil {
+		if !modifiedAt.IsZero() {
+			_ = os.Chtimes(placeholderPath, modifiedAt, modifiedAt)
+		}
 		return nil
 	}
-	return os.WriteFile(placeholderPath, []byte{}, 0o644)
+	if err := os.WriteFile(placeholderPath, []byte{}, 0o644); err != nil {
+		return err
+	}
+	if !modifiedAt.IsZero() {
+		_ = os.Chtimes(placeholderPath, modifiedAt, modifiedAt)
+	}
+	return nil
 }

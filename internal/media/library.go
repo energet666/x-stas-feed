@@ -26,25 +26,25 @@ const (
 )
 
 var mediaExtensions = map[string]string{
-	".avif": "image",
-	".gif":  "image",
-	".jpeg": "image",
-	".jpg":  "image",
-	".png":  "image",
-	".webp": "image",
-	".aac":  "audio",
-	".flac": "audio",
-	".m4a":  "audio",
-	".mp3":  "audio",
-	".oga":  "audio",
-	".opus": "audio",
-	".wav":  "audio",
-	".m4v":  "video",
-	".mov":  "video",
-	".mp4":  "video",
-	".ogg":  "video",
-	".ogv":  "video",
-	".webm": "video",
+	".avif":  "image",
+	".gif":   "image",
+	".jpeg":  "image",
+	".jpg":   "image",
+	".png":   "image",
+	".webp":  "image",
+	".aac":   "audio",
+	".flac":  "audio",
+	".m4a":   "audio",
+	".mp3":   "audio",
+	".oga":   "audio",
+	".opus":  "audio",
+	".wav":   "audio",
+	".m4v":   "video",
+	".mov":   "video",
+	".mp4":   "video",
+	".ogg":   "video",
+	".ogv":   "video",
+	".webm":  "video",
 	".board": "board",
 }
 
@@ -75,6 +75,7 @@ type Library struct {
 
 type Item struct {
 	ID              string     `json:"id"`
+	BoardID         string     `json:"boardId,omitempty"`
 	Filename        string     `json:"filename"`
 	DisplayName     string     `json:"displayName"`
 	Type            string     `json:"type"`
@@ -380,6 +381,10 @@ func (l *Library) Scan() ([]Item, error) {
 			unsupportedFiles++
 			return nil
 		}
+		if kind == "board" && strings.EqualFold(filepath.Base(path), "master.board") {
+			unsupportedFiles++
+			return nil
+		}
 		supportedFiles++
 
 		info, err := entry.Info()
@@ -553,7 +558,13 @@ func (l *Library) insertItem(item Item, path string) error {
 	defer l.mu.Unlock()
 
 	item = itemWithCommentSummary(item, nil)
-	l.items = append(l.items, item)
+	nextItems := l.items[:0]
+	for _, existing := range l.items {
+		if existing.ID != item.ID {
+			nextItems = append(nextItems, existing)
+		}
+	}
+	l.items = append(nextItems, item)
 	sortItems(l.items)
 	l.itemsByID[item.ID] = item
 	l.pathsByID[item.ID] = path
@@ -561,6 +572,38 @@ func (l *Library) insertItem(item Item, path string) error {
 	l.commentsByMediaID[item.ID] = []Comment{}
 	l.logf("runtime index media inserted mediaID=%s filename=%s type=%s size=%d totalMediaItems=%d", item.ID, item.Filename, item.Type, item.Size, len(l.items))
 	return nil
+}
+
+func (l *Library) InsertBoardPlaceholder(boardID, displayName string) (Item, error) {
+	if strings.TrimSpace(boardID) == "" || strings.EqualFold(boardID, "master") {
+		return Item{}, errors.New("invalid board id")
+	}
+
+	path := filepath.Join(l.root, boardID+".board")
+	info, err := os.Stat(path)
+	if err != nil {
+		return Item{}, err
+	}
+
+	rel, err := filepath.Rel(l.root, path)
+	if err != nil {
+		return Item{}, err
+	}
+	rel = filepath.ToSlash(rel)
+
+	item := itemFromFile(rel, path, "board", info)
+	if name := strings.TrimSpace(displayName); name != "" {
+		item.DisplayName = name
+	}
+
+	if err := l.metadata.Set(item.ID, Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}); err != nil {
+		return Item{}, err
+	}
+	if err := l.insertItem(item, path); err != nil {
+		return Item{}, err
+	}
+
+	return cloneItem(item), nil
 }
 
 func (l *Library) setItemLocked(item Item) {
@@ -826,17 +869,19 @@ func audioMetadataMatches(audio AudioMetadata, info os.FileInfo) bool {
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
 	id := EncodeID(rel)
 	displayName := filepath.Base(path)
+	boardID := ""
 
 	if kind == "board" {
-		id = strings.TrimSuffix(filepath.Base(path), ".board")
-		displayName = id
-		if id == "master" {
+		boardID = strings.TrimSuffix(filepath.Base(path), ".board")
+		displayName = boardID
+		if boardID == "master" {
 			displayName = "Master Board"
 		}
 	}
 
 	return Item{
 		ID:             id,
+		BoardID:        boardID,
 		Filename:       filepath.Base(path),
 		DisplayName:    displayName,
 		Type:           kind,

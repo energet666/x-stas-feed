@@ -89,6 +89,41 @@ func TestScanUsesFixedLengthOpaqueMediaIDs(t *testing.T) {
 	}
 }
 
+func TestScanUsesOpaqueMediaIDAndSeparateBoardIDForBoards(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "abc123.board", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one board item, got %#v", items)
+	}
+	if items[0].ID != EncodeID("abc123.board") {
+		t.Fatalf("expected opaque media id, got %q", items[0].ID)
+	}
+	if items[0].BoardID != "abc123" {
+		t.Fatalf("expected separate board id, got %#v", items[0])
+	}
+}
+
+func TestScanIgnoresMasterBoardPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "master.board", modTime)
+	writeTestFile(t, dir, "photo.png", modTime)
+
+	items, err := NewLibrary(dir).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Filename != "photo.png" {
+		t.Fatalf("expected master board placeholder to be ignored, got %#v", items)
+	}
+}
+
 func TestScanCreatesMissingMetadataForFiles(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

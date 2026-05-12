@@ -437,6 +437,11 @@ func (s *Server) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create board")
 		return
 	}
+	if _, err := s.library.InsertBoardPlaceholder(info.ID, info.Name); err != nil {
+		s.logger.Printf("board placeholder index failed id=%s name=%s error=%v", info.ID, info.Name, err)
+		writeError(w, http.StatusInternalServerError, "failed to index board")
+		return
+	}
 
 	s.logger.Printf("board created id=%s name=%s", info.ID, info.Name)
 	writeJSON(w, http.StatusCreated, info)
