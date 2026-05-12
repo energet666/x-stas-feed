@@ -128,22 +128,17 @@
     </div>
   </div>
 
-  <div class="user-sidebar-divider"></div>
-
-  <div class="user-sidebar-body">
-    <div class="mb-3 text-xs font-semibold uppercase text-subtle">Master Board</div>
-    <div 
-      class="master-board-preview-container" 
-      onclick={onExpandMasterBoard}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && onExpandMasterBoard()}
-    >
-      <DrawingBoard boardId="master" expanded={false} {username} />
-    </div>
-    <p class="mt-2 text-[10px] text-center text-subtle">Global collaborative canvas</p>
-  </div>
 </aside>
+
+<button
+  class="master-board-preview-container"
+  type="button"
+  aria-label="Open master drawing board"
+  title="Open master drawing board"
+  onclick={onExpandMasterBoard}
+>
+  <DrawingBoard boardId="master" expanded={false} {username} />
+</button>
 
 <style>
   .user-sidebar {
@@ -197,20 +192,16 @@
     border-color: var(--color-glass-border-hover);
   }
 
-  .user-sidebar-divider {
-    height: 1px;
-    background: var(--color-glass-border-soft);
-    margin: 0;
-  }
-
   .master-board-preview-container {
     position: relative;
+    display: block;
     width: 100%;
     aspect-ratio: 3 / 2;
     border-radius: var(--radius-overlay);
     border: 1px solid var(--color-glass-border-soft);
     overflow: hidden;
     cursor: pointer;
+    padding: 0;
     transition: all 0.2s ease;
     background: #0f0f17;
   }

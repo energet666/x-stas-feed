@@ -36,6 +36,7 @@
   } = $props();
 
   const boardId = $derived(item.boardId ?? item.id);
+  const suppressOverlays = $derived(expanded);
 </script>
 
 <FeedCardFrame
@@ -45,6 +46,7 @@
   ambientActive={false}
   {overlayVisible}
   {likePending}
+  {suppressOverlays}
   {onReveal}
   {onKeep}
   {onHide}
@@ -54,6 +56,6 @@
   {onLike}
 >
   {#snippet content()}
-    <DrawingBoard {boardId} {expanded} {username} />
+    <DrawingBoard {boardId} {expanded} {username} onClose={expanded ? onToggleExpanded : undefined} />
   {/snippet}
 </FeedCardFrame>

@@ -1144,18 +1144,12 @@
 
   {#if masterBoardExpanded}
     <div class="master-board-expanded-overlay">
-      <DrawingBoard 
-        boardId="master" 
-        expanded={true} 
-        {username} 
+      <DrawingBoard
+        boardId="master"
+        expanded={true}
+        username={commentUsername}
+        onClose={toggleMasterBoard}
       />
-      <button 
-        class="master-board-close-btn glass-button" 
-        onclick={toggleMasterBoard}
-        aria-label="Close master board"
-      >
-        Close
-      </button>
     </div>
   {/if}
 </main>
@@ -1210,17 +1204,5 @@
     inset: 0;
     z-index: 1000;
     background: #0f0f17;
-  }
-
-  .master-board-close-btn {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 1001;
-    padding: 0.5rem 1.25rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.75rem;
   }
 </style>

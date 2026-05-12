@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Pencil, Minus, Palette } from 'lucide-svelte';
+  import { Minus, Palette, Pencil, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -11,11 +11,13 @@
   let {
     boardId,
     expanded = false,
-    username = 'Guest'
+    username = 'Guest',
+    onClose
   }: {
     boardId: string;
     expanded: boolean;
     username: string;
+    onClose?: () => void;
   } = $props();
 
   type Tool = 'freeform' | 'line';
@@ -375,6 +377,11 @@
       event.stopPropagation();
     }
   }
+
+  function closeBoard(event: MouseEvent) {
+    event.stopPropagation();
+    onClose?.();
+  }
 </script>
 
 <div class="drawing-board" class:drawing-board-expanded={expanded}>
@@ -397,6 +404,18 @@
         onpointerup={handlePointerUp}
         style="cursor: crosshair; touch-action: none;"
       ></canvas>
+
+      {#if onClose}
+        <button
+          class="drawing-close-btn"
+          type="button"
+          aria-label="Close drawing board"
+          title="Close drawing board"
+          onclick={closeBoard}
+        >
+          <X size={18} />
+        </button>
+      {/if}
 
       <div class="drawing-toolbar">
         <div class="drawing-toolbar-group">
@@ -555,6 +574,33 @@
     -webkit-backdrop-filter: blur(4px);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: auto;
+  }
+
+  .drawing-close-btn {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 12;
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0.75rem;
+    background: rgba(15, 15, 23, 0.72);
+    color: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    transition:
+      background 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .drawing-close-btn:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(15, 15, 23, 0.9);
+    color: #fff;
   }
 
   .drawing-toolbar:hover {
