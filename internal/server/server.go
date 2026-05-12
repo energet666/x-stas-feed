@@ -76,7 +76,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
 	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
 	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
-	s.mux.HandleFunc("GET /api/boards/{id}/events", s.handleBoardEvents)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
 }
@@ -502,49 +501,19 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAllBoardEvents(w http.ResponseWriter, r *http.Request) {
-	ch := s.boardHub.subscribeAll()
-	defer s.boardHub.unsubscribeAll(ch)
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	for {
-		select {
-		case event := <-ch:
-			data, err := json.Marshal(event.Data)
-			if err != nil {
-				continue
-			}
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Name, data)
-			w.(http.Flusher).Flush()
-		case <-r.Context().Done():
-			return
-		}
-	}
-}
-
-func (s *Server) handleBoardEvents(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	if _, err := s.boards.Get(id); err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming is not supported")
 		return
 	}
 
+	ch := s.boardHub.subscribeAll()
+	defer s.boardHub.unsubscribeAll(ch)
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
-
-	events := s.boardHub.subscribe(id)
-	defer s.boardHub.unsubscribe(id, events)
 
 	_, _ = fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
@@ -553,7 +522,7 @@ func (s *Server) handleBoardEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case event := <-events:
+		case event := <-ch:
 			data, err := json.Marshal(event.Data)
 			if err != nil {
 				continue

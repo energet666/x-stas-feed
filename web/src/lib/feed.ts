@@ -401,7 +401,3 @@ export async function createStroke(
 
   return (await response.json()) as Stroke;
 }
-
-export function boardEventsURL(boardId: string) {
-  return `/api/boards/${encodeURIComponent(boardId)}/events`;
-}
