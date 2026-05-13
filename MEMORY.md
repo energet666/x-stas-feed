@@ -156,6 +156,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The comment composer submits with Enter; Shift+Enter inserts a newline; IME composition must not submit prematurely.
 - Opening comments focuses the composer textarea from the same user-triggered `openComments` path using Svelte `flushSync`, a stable `comment-composer-{mediaID}` element id, and short retries after the click completes; this is needed for Safari, which may ignore delayed textarea focus and leave focus on the nickname input.
 - The comment composer textarea intentionally has no placeholder, avoiding visible placeholder flicker during Safari autofocus.
+- The comment composer uses `EmojiPanel.svelte`, which wraps lazy-loaded `emoji-mart` with bundled `@emoji-mart/data` and patches the picker's shadow DOM layout so category navigation stays fixed at the bottom. `CommentThread.svelte` owns textarea cursor insertion.
+- `EmojiPanel.svelte` lazy-loads `@emoji-mart/data/i18n/ru.json` and passes `locale: 'ru'` plus `i18n` to `emoji-mart`; this localizes picker UI text but does not add Russian searchable emoji keywords by itself.
+- The comment composer layout keeps the emoji trigger in a separate right-side actions column rather than absolutely overlaying it on the resizable textarea.
 - A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 - The nickname input must not stay focused on initial page open. `UserSidebar` watches the first 1.5 seconds after mount and blurs only non-user-initiated restored focus on that input, while preserving normal click and keyboard focus afterward.
 - On screens below the desktop side-rail breakpoint, the stacked left rail must cap at `40rem`, matching the rendered feed card column inside the feed section's horizontal padding; do not widen it to the section's outer `42rem` max.

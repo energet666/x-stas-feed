@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { Heart, LoaderCircle, MessageCircle } from 'lucide-svelte';
+  import { Heart, LoaderCircle, MessageCircle, Smile } from 'lucide-svelte';
+  import EmojiPanel from './EmojiPanel.svelte';
   import {
     createComment,
     createCommentLike,
@@ -36,6 +37,8 @@
   let commentLikeSplashIDs = $state<Record<string, boolean>>({});
   let commentListEl = $state<HTMLDivElement | undefined>(undefined);
   let commentFormEl = $state<HTMLFormElement | undefined>(undefined);
+  let commentInputEl = $state<HTMLTextAreaElement | undefined>(undefined);
+  let emojiPanelOpen = $state(false);
 
   const canSubmit = $derived(draft.trim().length > 0 && !submitting && item !== undefined);
 
@@ -50,6 +53,7 @@
     comments = Array.isArray(item.comments) ? item.comments : [];
     pendingCommentLikeCounts = {};
     commentLikeSplashIDs = {};
+    emojiPanelOpen = false;
     draft = '';
     scrollCommentsToBottom('auto');
     void loadComments(item.id);
@@ -94,6 +98,7 @@
       const comment = await createComment(item.id, text, username);
       appendComment(item.id, comment);
       draft = '';
+      emojiPanelOpen = false;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unable to save comment';
     } finally {
@@ -106,6 +111,28 @@
 
     event.preventDefault();
     commentFormEl?.requestSubmit();
+  }
+
+  function toggleEmojiPanel(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    emojiPanelOpen = !emojiPanelOpen;
+  }
+
+  async function insertEmoji(emoji: string) {
+    const input = commentInputEl;
+    if (!input) {
+      draft += emoji;
+      return;
+    }
+
+    const selectionStart = input.selectionStart ?? draft.length;
+    const selectionEnd = input.selectionEnd ?? selectionStart;
+    draft = `${draft.slice(0, selectionStart)}${emoji}${draft.slice(selectionEnd)}`;
+    await tick();
+    const cursorPosition = selectionStart + emoji.length;
+    input.focus();
+    input.setSelectionRange(cursorPosition, cursorPosition);
   }
 
   function appendComment(mediaId: string, comment: Comment) {
@@ -248,12 +275,13 @@
 </div>
 
 <form bind:this={commentFormEl} class="comment-thread-form" onsubmit={submitComment}>
-  <div>
+  <div class="comment-composer">
     <label class="sr-only" for={item ? `comment-composer-${item.id}` : 'comment-composer'}>Add a comment</label>
     <!-- svelte-ignore a11y_autofocus - the comments UI is opened by an explicit user action and should be ready for typing. -->
     <textarea
       id={item ? `comment-composer-${item.id}` : 'comment-composer'}
       autofocus
+      bind:this={commentInputEl}
       data-comment-composer={item?.id}
       class="comment-input"
       rows="1"
@@ -261,6 +289,22 @@
       bind:value={draft}
       onkeydown={handleCommentKeydown}
     ></textarea>
+    <div class="comment-composer-actions">
+      <button
+        class="emoji-toggle-button"
+        class:emoji-toggle-button-active={emojiPanelOpen}
+        type="button"
+        aria-label="Open emoji panel"
+        aria-expanded={emojiPanelOpen}
+        onclick={toggleEmojiPanel}
+      >
+        <Smile size={18} />
+      </button>
+    </div>
+
+    {#if emojiPanelOpen}
+      <EmojiPanel onSelect={insertEmoji} />
+    {/if}
   </div>
 </form>
 
@@ -275,6 +319,14 @@
   .comment-thread-form {
     border-top: 1px solid var(--color-glass-border-soft);
     padding: 0.75rem;
+  }
+
+  .comment-composer {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.5rem;
   }
 
   .comment-input {
@@ -294,6 +346,35 @@
 
   .comment-input:focus {
     border-color: var(--color-glass-border-hover);
+  }
+
+  .comment-composer-actions {
+    display: flex;
+    height: 2.75rem;
+    align-items: center;
+  }
+
+  .emoji-toggle-button {
+    display: inline-grid;
+    width: 1.9rem;
+    height: 1.9rem;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--color-muted);
+    transition:
+      background 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .emoji-toggle-button:hover,
+  .emoji-toggle-button-active {
+    background: var(--color-button-hover);
+    color: var(--color-primary);
+  }
+
+  .emoji-toggle-button:hover {
+    transform: translateY(-1px);
   }
 
   .comment-text {
