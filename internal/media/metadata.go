@@ -21,6 +21,7 @@ type Metadata struct {
 	ModifiedAt  time.Time      `json:"modifiedAt,omitempty"`
 	LikeCount   int            `json:"likeCount"`
 	Audio       *AudioMetadata `json:"audio,omitempty"`
+	Video       *VideoMetadata `json:"video,omitempty"`
 }
 
 type AudioMetadata struct {
@@ -28,6 +29,13 @@ type AudioMetadata struct {
 	Tags                  AudioTags `json:"tags,omitempty"`
 	HasCover              bool      `json:"hasCover,omitempty"`
 	CoverFile             string    `json:"coverFile,omitempty"`
+	SourceSize            int64     `json:"sourceSize"`
+	SourceModTimeUnixNano int64     `json:"sourceModTimeUnixNano"`
+	ProbedAt              time.Time `json:"probedAt,omitempty"`
+}
+
+type VideoMetadata struct {
+	DurationSeconds       float64   `json:"durationSeconds,omitempty"`
 	SourceSize            int64     `json:"sourceSize"`
 	SourceModTimeUnixNano int64     `json:"sourceModTimeUnixNano"`
 	ProbedAt              time.Time `json:"probedAt,omitempty"`

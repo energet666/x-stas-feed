@@ -424,6 +424,11 @@ func (l *Library) Scan() ([]Item, error) {
 			metadata.Audio = updatedMetadata.Audio
 			metadataChanged = true
 		}
+		if updatedMetadata, ok := l.applyVideoMetadata(&item, path, info, metadata); ok {
+			metadata.Audio = updatedMetadata.Audio
+			metadata.Video = updatedMetadata.Video
+			metadataChanged = true
+		}
 		if metadataChanged {
 			if err := l.metadata.Set(item.ID, metadata); err != nil {
 				l.logf("metadata cache write failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
@@ -816,7 +821,16 @@ func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, 
 	}
 	if probed.Kind == "video" {
 		item.Type = "video"
-		return metadata, false
+		metadata.Audio = nil
+		video := VideoMetadata{
+			DurationSeconds:       probed.DurationSeconds,
+			SourceSize:            info.Size(),
+			SourceModTimeUnixNano: info.ModTime().UnixNano(),
+			ProbedAt:              time.Now().UTC(),
+		}
+		metadata.Video = &video
+		l.applyCachedVideoMetadata(item, video)
+		return metadata, true
 	}
 	if probed.Kind == "audio" {
 		item.Type = "audio"
@@ -845,6 +859,48 @@ func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, 
 	return metadata, true
 }
 
+func (l *Library) applyVideoMetadata(item *Item, path string, info os.FileInfo, metadata Metadata) (Metadata, bool) {
+	if item.Type != "video" {
+		return metadata, false
+	}
+	if metadata.Video != nil && videoMetadataMatches(*metadata.Video, info) {
+		l.applyCachedVideoMetadata(item, *metadata.Video)
+		return metadata, false
+	}
+	probed, err := probeMedia(path)
+	if err != nil {
+		l.logf("video metadata probe failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+		return metadata, false
+	}
+	if probed.Kind == "audio" {
+		item.Type = "audio"
+		metadata.Video = nil
+		audio := AudioMetadata{
+			DurationSeconds:       probed.DurationSeconds,
+			Tags:                  probed.Tags,
+			SourceSize:            info.Size(),
+			SourceModTimeUnixNano: info.ModTime().UnixNano(),
+			ProbedAt:              time.Now().UTC(),
+		}
+		metadata.Audio = &audio
+		l.applyCachedAudioMetadata(item, audio)
+		return metadata, true
+	}
+	if probed.Kind != "video" {
+		return metadata, false
+	}
+
+	video := VideoMetadata{
+		DurationSeconds:       probed.DurationSeconds,
+		SourceSize:            info.Size(),
+		SourceModTimeUnixNano: info.ModTime().UnixNano(),
+		ProbedAt:              time.Now().UTC(),
+	}
+	metadata.Video = &video
+	l.applyCachedVideoMetadata(item, video)
+	return metadata, true
+}
+
 func (l *Library) applyCachedAudioMetadata(item *Item, audio AudioMetadata) {
 	item.Type = "audio"
 	if audio.DurationSeconds > 0 {
@@ -863,6 +919,17 @@ func (l *Library) applyCachedAudioMetadata(item *Item, audio AudioMetadata) {
 
 func audioMetadataMatches(audio AudioMetadata, info os.FileInfo) bool {
 	return audio.SourceSize == info.Size() && audio.SourceModTimeUnixNano == info.ModTime().UnixNano()
+}
+
+func (l *Library) applyCachedVideoMetadata(item *Item, video VideoMetadata) {
+	item.Type = "video"
+	if video.DurationSeconds > 0 {
+		item.DurationSeconds = video.DurationSeconds
+	}
+}
+
+func videoMetadataMatches(video VideoMetadata, info os.FileInfo) bool {
+	return video.SourceSize == info.Size() && video.SourceModTimeUnixNano == info.ModTime().UnixNano()
 }
 
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {

@@ -268,6 +268,66 @@ func TestScanIgnoresStaleStoredAudioMetadata(t *testing.T) {
 	}
 }
 
+func TestScanUsesValidStoredVideoMetadata(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "clip.mp4", modTime)
+	info, err := os.Stat(filepath.Join(dir, "clip.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	library := NewLibrary(dir)
+	if err := library.metadata.Set(EncodeID("clip.mp4"), Metadata{
+		Video: &VideoMetadata{
+			DurationSeconds:       98.765,
+			SourceSize:            info.Size(),
+			SourceModTimeUnixNano: info.ModTime().UnixNano(),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one item, got %#v", items)
+	}
+	if items[0].Type != "video" || items[0].DurationSeconds != 98.765 {
+		t.Fatalf("expected cached video duration, got %#v", items[0])
+	}
+}
+
+func TestScanIgnoresStaleStoredVideoMetadata(t *testing.T) {
+	dir := t.TempDir()
+	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeTestFile(t, dir, "clip.mp4", modTime)
+
+	library := NewLibrary(dir)
+	if err := library.metadata.Set(EncodeID("clip.mp4"), Metadata{
+		Video: &VideoMetadata{
+			DurationSeconds:       98.765,
+			SourceSize:            1,
+			SourceModTimeUnixNano: 1,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one item, got %#v", items)
+	}
+	if items[0].DurationSeconds != 0 {
+		t.Fatalf("expected stale cached video metadata to be ignored when reprobe fails, got %#v", items[0])
+	}
+}
+
 func TestScanSortsFilenameTieAscending(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

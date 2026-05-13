@@ -116,10 +116,12 @@
   onMount(() => {
     const userAgent = navigator.userAgent;
     isSafari = /Safari/.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Edg\//.test(userAgent);
+    duration = item.durationSeconds ?? 0;
     const storedTime = readStoredProgress(item.id);
     posterTime = storedTime;
     currentTime = storedTime;
-    metadataWanted = true;
+    metadataWanted = duration <= 0;
+    validateDisplayedProgress();
   });
 
   function revealControls() {
@@ -232,7 +234,7 @@
 
   function syncMetadata() {
     if (!video) return;
-    duration = Number.isFinite(video.duration) ? video.duration : 0;
+    duration = Number.isFinite(video.duration) ? video.duration : item.durationSeconds ?? 0;
     video.playbackRate = userPlaybackRate;
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
