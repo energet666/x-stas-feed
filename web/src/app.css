@@ -309,6 +309,17 @@ video {
     background: var(--color-button-bg);
   }
 
+  .debug-section-title {
+    border-top: 1px solid var(--color-glass-border-soft);
+    background: rgb(255 255 255 / 0.07);
+    padding: 0.45rem 0.75rem 0.35rem;
+    color: var(--color-subtle);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
   .debug-control-row {
     display: flex;
     align-items: center;

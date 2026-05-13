@@ -101,6 +101,13 @@ type Page struct {
 	NextCursor string `json:"nextCursor,omitempty"`
 }
 
+type IndexedItem struct {
+	Index      int  `json:"index"`
+	FirstIndex int  `json:"firstIndex"`
+	LastIndex  int  `json:"lastIndex"`
+	Item       Item `json:"item"`
+}
+
 type ActivityItem struct {
 	MediaID          string  `json:"mediaId"`
 	MediaDisplayName string  `json:"mediaDisplayName"`
@@ -118,38 +125,30 @@ func NewLibraryWithLogger(root string, logger *log.Logger) *Library {
 	return library
 }
 
-func (l *Library) Page(cursor string, requestedLimit int) (Page, error) {
-	start, err := parseCursor(cursor)
-	if err != nil {
-		return Page{}, err
-	}
-
+func (l *Library) IndexedItem(index int) (IndexedItem, error) {
 	if err := l.ensureIndex(); err != nil {
-		return Page{}, err
+		return IndexedItem{}, err
 	}
 
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	items := l.items
-	if start > len(items) {
-		start = len(items)
+	if len(l.items) == 0 {
+		return IndexedItem{}, os.ErrNotExist
+	}
+	if index == -1 {
+		index = len(l.items) - 1
+	}
+	if index < 0 || index >= len(l.items) {
+		return IndexedItem{}, os.ErrNotExist
 	}
 
-	limit := normalizeLimit(requestedLimit)
-	end := start + limit
-	if end > len(items) {
-		end = len(items)
-	}
-
-	pageItems := cloneItems(items[start:end])
-
-	page := Page{Items: pageItems}
-	if end < len(items) {
-		page.NextCursor = strconv.Itoa(end)
-	}
-
-	return page, nil
+	return IndexedItem{
+		Index:      index,
+		FirstIndex: 0,
+		LastIndex:  len(l.items) - 1,
+		Item:       cloneItem(l.items[index]),
+	}, nil
 }
 
 func (l *Library) FavoritePage(ids []string, cursor string, requestedLimit int) (Page, error) {
@@ -698,7 +697,7 @@ func sortItems(items []Item) {
 		iTime := sortTime(items[i])
 		jTime := sortTime(items[j])
 		if !iTime.Equal(jTime) {
-			return iTime.After(jTime)
+			return iTime.Before(jTime)
 		}
 		return items[i].Filename < items[j].Filename
 	})

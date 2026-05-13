@@ -97,13 +97,22 @@ type favoriteFeedRequest struct {
 }
 
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	page, err := s.library.Page(r.URL.Query().Get("cursor"), limit)
+	index, err := strconv.Atoi(r.URL.Query().Get("index"))
 	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid feed index")
+		return
+	}
+
+	item, err := s.library.IndexedItem(index)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeError(w, http.StatusNotFound, "feed item not found")
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, page)
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (s *Server) handleFavoriteFeed(w http.ResponseWriter, r *http.Request) {

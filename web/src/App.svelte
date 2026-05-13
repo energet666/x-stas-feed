@@ -19,7 +19,7 @@
     createLike,
     fetchActivity,
     fetchFavoriteFeedPage,
-    fetchFeedPage,
+    fetchFeedItem,
     fetchMediaItem,
     uploadMedia,
     type ActivityItem,
@@ -36,6 +36,7 @@
   const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscanRows = 2;
+  const preloadAheadPx = 1600;
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
   const favoritesStorageKey = 'feed-ai:favorites';
@@ -54,6 +55,10 @@
 
   let items = $state<MediaItem[]>([]);
   let nextCursor = $state<string | undefined>(undefined);
+  let firstFeedIndex = $state<number | undefined>(undefined);
+  let lastFeedIndex = $state<number | undefined>(undefined);
+  let topFeedIndex = $state<number | undefined>(undefined);
+  let bottomFeedIndex = $state<number | undefined>(undefined);
   let loading = $state(false);
   let initialLoaded = $state(false);
   let error = $state<string | null>(null);
@@ -62,6 +67,7 @@
   let scrollY = $state(0);
   let viewportHeight = $state(0);
   let listTop = $state(0);
+  let bottomSentinelTop = $state<number | undefined>(undefined);
   let measuredHeights = $state<Record<string, number>>({});
   let debugCollapsed = $state(false);
   let activeOverlayID = $state<string | null>(null);
@@ -93,11 +99,17 @@
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let uploadStatusTimer: number | undefined = undefined;
   let viewportFrameID: number | undefined = undefined;
+  let loadMoreFrameID: number | undefined = undefined;
   let commentEvents: EventSource | undefined = undefined;
   let feedRequestVersion = 0;
   let masterBoardExpanded = $state(false);
 
-  const hasMore = $derived(!initialLoaded || nextCursor !== undefined);
+  const isFavoriteMode = $derived(feedMode === 'favorites');
+  const hasMore = $derived(
+    isFavoriteMode
+      ? !initialLoaded || nextCursor !== undefined
+      : !initialLoaded || (bottomFeedIndex !== undefined && firstFeedIndex !== undefined && bottomFeedIndex > firstFeedIndex)
+  );
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
   const viewportStart = $derived(Math.max(0, scrollY - listTop));
   const viewportEnd = $derived(viewportStart + viewportHeight);
@@ -111,47 +123,49 @@
     });
   });
   const totalHeight = $derived(rows.reduce((total, row) => total + row.height, 0));
-  const visibleRange = $derived.by(() => {
+  const firstVisibleIndex = $derived.by(() => {
     if (rows.length === 0) {
-      return { start: -1, end: -1 };
+      return -1;
     }
 
     const firstVisible = rows.findIndex((row) => row.top + row.height >= viewportStart);
     if (firstVisible === -1) {
-      const lastIndex = rows.length - 1;
-      return {
-        start: Math.max(0, lastIndex - overscanRows),
-        end: lastIndex
-      };
+      return rows.length - 1;
     }
 
-    let lastVisible = firstVisible;
+    return firstVisible;
+  });
+  const lastVisibleIndex = $derived.by(() => {
+    if (firstVisibleIndex < 0) {
+      return -1;
+    }
+
+    let lastVisible = firstVisibleIndex;
     while (lastVisible + 1 < rows.length && rows[lastVisible + 1].top <= viewportEnd) {
       lastVisible += 1;
     }
 
-    return {
-      start: Math.max(0, firstVisible - overscanRows),
-      end: Math.min(rows.length - 1, lastVisible + overscanRows)
-    };
+    return lastVisible;
   });
-  const visibleRows = $derived(
-    visibleRange.start >= 0 ? rows.slice(visibleRange.start, visibleRange.end + 1) : []
+  const visibleStartIndex = $derived(firstVisibleIndex >= 0 ? Math.max(0, firstVisibleIndex - overscanRows) : -1);
+  const visibleEndIndex = $derived(
+    lastVisibleIndex >= 0 ? Math.min(rows.length - 1, lastVisibleIndex + overscanRows) : -1
   );
-  const visibleStartIndex = $derived(visibleRange.start);
-  const visibleEndIndex = $derived(visibleRange.end);
+  const visibleRows = $derived(
+    visibleStartIndex >= 0 ? rows.slice(visibleStartIndex, visibleEndIndex + 1) : []
+  );
   const topSpacer = $derived(visibleRows[0]?.top ?? 0);
   const bottomSpacer = $derived.by(() => {
     const last = visibleRows.at(-1);
     if (!last) return 0;
     return Math.max(0, totalHeight - last.top - last.height);
   });
-  const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
+  const loadedBottom = $derived(totalHeight);
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
+  const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
   const commentUsername = $derived(username.trim() || 'Guest');
   const favoriteIDSet = $derived(new Set(favoriteIDs));
-  const isFavoriteMode = $derived(feedMode === 'favorites');
   const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
   const commentsPanelFullscreen = $derived(
     commentsPanelItem !== undefined && commentsPanelItemID === expandedItemID
@@ -181,6 +195,9 @@
       if (viewportFrameID !== undefined) {
         cancelAnimationFrame(viewportFrameID);
       }
+      if (loadMoreFrameID !== undefined) {
+        cancelAnimationFrame(loadMoreFrameID);
+      }
       commentEvents?.close();
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
@@ -197,7 +214,7 @@
           void loadPage();
         }
       },
-      { rootMargin: '800px 0px 800px 0px' }
+      { rootMargin: `0px 0px ${preloadAheadPx}px 0px` }
     );
 
     observer.observe(sentinel);
@@ -231,7 +248,7 @@
   });
 
   async function loadPage() {
-    if (loading || (initialLoaded && !nextCursor)) return;
+    if (loading || (initialLoaded && !hasMore)) return;
 
     if (isFavoriteMode && favoriteIDs.length === 0) {
       initialLoaded = true;
@@ -243,20 +260,38 @@
     const requestMode = feedMode;
     const requestFavoriteIDs = favoriteIDs;
     const requestCursor = nextCursor;
+    const requestIndex = bottomFeedIndex === undefined ? -1 : bottomFeedIndex - 1;
     loading = true;
     error = null;
 
     try {
-      const page =
-        requestMode === 'favorites'
-          ? await fetchFavoriteFeedPage({ ids: requestFavoriteIDs, cursor: requestCursor, limit: pageSize })
-          : await fetchFeedPage({ cursor: requestCursor, limit: pageSize });
+      if (requestMode === 'favorites') {
+        const page = await fetchFavoriteFeedPage({ ids: requestFavoriteIDs, cursor: requestCursor, limit: pageSize });
+        if (requestVersion !== feedRequestVersion) return;
+        items = [...items, ...page.items];
+        nextCursor = page.nextCursor;
+        initialLoaded = true;
+        scheduleViewportUpdate();
+        scheduleLoadMoreCheck();
+        return;
+      }
+
+      const result = await fetchFeedItem(requestIndex);
       if (requestVersion !== feedRequestVersion) return;
-      items = [...items, ...page.items];
-      nextCursor = page.nextCursor;
+      firstFeedIndex = result.firstIndex;
+      lastFeedIndex = result.lastIndex;
+      topFeedIndex = topFeedIndex === undefined ? result.index : topFeedIndex;
+      bottomFeedIndex = result.index;
+      items = [...items, result.item];
       initialLoaded = true;
+      scheduleViewportUpdate();
+      scheduleLoadMoreCheck();
     } catch (err) {
       if (requestVersion !== feedRequestVersion) return;
+      if (!initialLoaded && !isFavoriteMode && err instanceof Error && err.message === 'feed item not found') {
+        initialLoaded = true;
+        return;
+      }
       error = err instanceof Error ? err.message : 'Unable to load feed';
       initialLoaded = true;
     } finally {
@@ -322,7 +357,8 @@
       const board = await createBoard('Board');
       const boardItem = boardInfoToMediaItem(board);
       if (!boardItem) throw new Error('Board media item was not returned');
-      items = [boardItem, ...items];
+      resetFeedState();
+      await loadPage();
       scheduleViewportUpdate();
       window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
     } catch {
@@ -367,9 +403,14 @@
     feedRequestVersion += 1;
     items = [];
     nextCursor = undefined;
+    firstFeedIndex = undefined;
+    lastFeedIndex = undefined;
+    topFeedIndex = undefined;
+    bottomFeedIndex = undefined;
     loading = false;
     initialLoaded = false;
     error = null;
+    bottomSentinelTop = undefined;
     measuredHeights = {};
     ambientReadyIDs = {};
     pendingLikeCounts = {};
@@ -389,11 +430,27 @@
     if (listEl) {
       listTop = listEl.getBoundingClientRect().top + window.scrollY;
     }
+    bottomSentinelTop = sentinel?.getBoundingClientRect().top;
   }
 
   function scheduleViewportUpdate() {
     if (viewportFrameID !== undefined) return;
     viewportFrameID = requestAnimationFrame(updateViewport);
+  }
+
+  function scheduleLoadMoreCheck() {
+    if (loadMoreFrameID !== undefined) return;
+    loadMoreFrameID = requestAnimationFrame(() => {
+      loadMoreFrameID = undefined;
+      if (isSentinelInPreloadRange()) {
+        void loadPage();
+      }
+    });
+  }
+
+  function isSentinelInPreloadRange() {
+    if (!sentinel || loading || error || (initialLoaded && !hasMore)) return false;
+    return sentinel.getBoundingClientRect().top <= window.innerHeight + preloadAheadPx;
   }
 
   function isSafariBrowser() {
@@ -409,7 +466,7 @@
         const rowTop = rowTopForID(id);
         const delta = height - previousHeight;
         measuredHeights = { ...measuredHeights, [id]: height };
-        if (delta !== 0 && rowTop !== undefined && rowTop + previousHeight < viewportStart) {
+        if (delta !== 0 && rowTop !== undefined && rowTop + previousHeight <= viewportStart) {
           window.scrollBy({ top: delta, left: 0, behavior: 'instant' });
           updateViewport();
         }
@@ -1025,7 +1082,10 @@
       </div>
     {/if}
 
-    <section bind:this={listEl} class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 pb-5 pt-4 sm:px-4">
+    <section
+      bind:this={listEl}
+      class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 pb-5 pt-4 sm:px-4"
+    >
       {#if !initialLoaded && loading}
         <div class="flex min-h-96 items-center justify-center">
           <LoaderCircle class="animate-spin text-primary" size={34} />
@@ -1056,6 +1116,7 @@
       {#each visibleRows as row (row.item.id)}
         {@const item = row.item}
         <article
+          data-media-id={item.id}
           class="glass-card mb-4 overflow-hidden"
           class:media-card-expanded={expandedItemID === item.id}
           use:measureCard={item.id}
@@ -1165,12 +1226,26 @@
     {visibleEndIndex}
     {nextCursor}
     {loading}
+    {initialLoaded}
+    {hasMore}
+    {feedMode}
     {viewportStart}
     {viewportEnd}
+    {viewportHeight}
+    {scrollY}
+    {listTop}
     {totalHeight}
+    {loadedBottom}
     {topSpacer}
     {bottomSpacer}
     {measuredCount}
+    {firstFeedIndex}
+    {lastFeedIndex}
+    {topFeedIndex}
+    {bottomFeedIndex}
+    {bottomSentinelTop}
+    {preloadAheadPx}
+    {overscanRows}
     {cardBackgroundMode}
     onToggle={toggleDebugCollapsed}
     onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}

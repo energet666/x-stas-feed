@@ -1,6 +1,7 @@
 package media
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,20 +28,20 @@ func TestScanClassifiesFilesAndSortsByModifiedTime(t *testing.T) {
 	if len(items) != 4 {
 		t.Fatalf("expected 4 feed items, got %d", len(items))
 	}
-	if items[0].Filename != "new.mp4" || items[0].Type != "video" {
-		t.Fatalf("expected newest video first, got %#v", items[0])
+	if items[0].Filename != "old.png" || items[0].Type != "image" {
+		t.Fatalf("expected oldest image first, got %#v", items[0])
 	}
-	if items[0].DisplayName != "new.mp4" {
+	if items[0].DisplayName != "old.png" {
 		t.Fatalf("expected fallback display name, got %#v", items[0])
 	}
-	if items[1].Filename != "notes.txt" || items[1].Type != "file" {
-		t.Fatalf("expected generic file second, got %#v", items[1])
+	if items[1].Filename != "song.mp3" || items[1].Type != "audio" {
+		t.Fatalf("expected mp3 to be classified as audio, got %#v", items[1])
 	}
-	if items[2].Filename != "old.png" || items[2].Type != "image" {
-		t.Fatalf("expected older image second, got %#v", items[1])
+	if items[2].Filename != "new.mp4" || items[2].Type != "video" {
+		t.Fatalf("expected newer video third, got %#v", items[2])
 	}
-	if items[3].Filename != "song.mp3" || items[3].Type != "audio" {
-		t.Fatalf("expected mp3 to be classified as audio, got %#v", items[3])
+	if items[3].Filename != "notes.txt" || items[3].Type != "file" {
+		t.Fatalf("expected generic file fourth, got %#v", items[3])
 	}
 }
 
@@ -284,63 +285,61 @@ func TestScanSortsFilenameTieAscending(t *testing.T) {
 	}
 }
 
-func TestPageUsesCursorAndNextCursor(t *testing.T) {
+func TestIndexedItemReturnsAbsoluteIndexes(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	writeTestFile(t, dir, "a.png", modTime)
 	writeTestFile(t, dir, "b.png", modTime)
 	writeTestFile(t, dir, "c.png", modTime)
 
-	page, err := NewLibrary(dir).Page("", 2)
+	library := NewLibrary(dir)
+	latest, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 || page.NextCursor != "2" {
-		t.Fatalf("expected first page with next cursor 2, got %#v", page)
+	if latest.Index != 2 || latest.FirstIndex != 0 || latest.LastIndex != 2 || latest.Item.Filename != "c.png" {
+		t.Fatalf("expected latest indexed item, got %#v", latest)
 	}
 
-	next, err := NewLibrary(dir).Page(page.NextCursor, 2)
+	first, err := library.IndexedItem(0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(next.Items) != 1 || next.NextCursor != "" {
-		t.Fatalf("expected final page with no next cursor, got %#v", next)
+	if first.Index != 0 || first.Item.Filename != "a.png" {
+		t.Fatalf("expected oldest indexed item, got %#v", first)
 	}
 }
 
-func TestPageHandlesEmptyAndMissingDirectories(t *testing.T) {
-	page, err := NewLibrary(filepath.Join(t.TempDir(), "missing")).Page("", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(page.Items) != 0 || page.NextCursor != "" {
-		t.Fatalf("expected empty page, got %#v", page)
+func TestIndexedItemHandlesEmptyAndMissingDirectories(t *testing.T) {
+	_, err := NewLibrary(filepath.Join(t.TempDir(), "missing")).IndexedItem(-1)
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected missing indexed item, got %v", err)
 	}
 }
 
-func TestPageDoesNotRescanOutOfBandFilesAfterInitialization(t *testing.T) {
+func TestIndexedItemDoesNotRescanOutOfBandFilesAfterInitialization(t *testing.T) {
 	dir := t.TempDir()
 	oldTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
 	writeTestFile(t, dir, "initial.png", oldTime)
 
 	library := NewLibrary(dir)
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Filename != "initial.png" {
-		t.Fatalf("expected initial indexed file, got %#v", page)
+	if indexed.Item.Filename != "initial.png" {
+		t.Fatalf("expected initial indexed file, got %#v", indexed)
 	}
 
 	writeTestFile(t, dir, "external.png", newTime)
 
-	page, err = library.Page("", 10)
+	indexed, err = library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Filename != "initial.png" {
-		t.Fatalf("expected out-of-band file to stay invisible until restart, got %#v", page)
+	if indexed.Item.Filename != "initial.png" {
+		t.Fatalf("expected out-of-band file to stay invisible until restart, got %#v", indexed)
 	}
 }
 
@@ -350,7 +349,7 @@ func TestSaveUploadUpdatesRuntimeIndexWithoutRescan(t *testing.T) {
 	writeTestFile(t, dir, "initial.png", oldTime)
 
 	library := NewLibrary(dir)
-	if _, err := library.Page("", 10); err != nil {
+	if _, err := library.IndexedItem(-1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -359,15 +358,15 @@ func TestSaveUploadUpdatesRuntimeIndexWithoutRescan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected uploaded item plus initial item, got %#v", page)
+	if indexed.LastIndex != 1 {
+		t.Fatalf("expected uploaded item plus initial item, got %#v", indexed)
 	}
-	if page.Items[0].ID != uploaded.ID || page.Items[0].DisplayName != "New Photo.png" {
-		t.Fatalf("expected uploaded media first with display name, got %#v", page.Items[0])
+	if indexed.Item.ID != uploaded.ID || indexed.Item.DisplayName != "New Photo.png" {
+		t.Fatalf("expected uploaded media latest with display name, got %#v", indexed.Item)
 	}
 	if _, _, err := library.PathForID(uploaded.ID); err != nil {
 		t.Fatalf("expected uploaded item path lookup to use runtime index: %v", err)
@@ -386,12 +385,12 @@ func TestSaveUploadAcceptsGenericFiles(t *testing.T) {
 		t.Fatalf("expected generic text file upload, got %#v", uploaded)
 	}
 
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != uploaded.ID {
-		t.Fatalf("expected uploaded file in feed, got %#v", page)
+	if indexed.Item.ID != uploaded.ID {
+		t.Fatalf("expected uploaded file in feed, got %#v", indexed)
 	}
 }
 
@@ -407,12 +406,12 @@ func TestSaveUploadAcceptsAudioFiles(t *testing.T) {
 		t.Fatalf("expected audio upload, got %#v", uploaded)
 	}
 
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != uploaded.ID || page.Items[0].Type != "audio" {
-		t.Fatalf("expected uploaded audio in feed, got %#v", page)
+	if indexed.Item.ID != uploaded.ID || indexed.Item.Type != "audio" {
+		t.Fatalf("expected uploaded audio in feed, got %#v", indexed)
 	}
 }
 
@@ -492,18 +491,18 @@ func TestSaveUploadWithModifiedAtDisplaysSourceTimeButSortsByServerTime(t *testi
 	writeTestFile(t, dir, "external.png", time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC))
 
 	reloaded := NewLibrary(dir)
-	page, err := reloaded.Page("", 10)
+	indexed, err := reloaded.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected two items, got %#v", page)
+	if indexed.LastIndex != 1 {
+		t.Fatalf("expected two items, got %#v", indexed)
 	}
-	if page.Items[0].ID != uploaded.ID {
-		t.Fatalf("expected uploaded item to sort by server file mtime, got %#v", page.Items)
+	if indexed.Item.ID != uploaded.ID {
+		t.Fatalf("expected uploaded item to sort by server file mtime, got %#v", indexed)
 	}
-	if !page.Items[0].ModifiedAt.Equal(oldSourceTime) {
-		t.Fatalf("expected source modified time to remain visible after reload, got %s", page.Items[0].ModifiedAt)
+	if !indexed.Item.ModifiedAt.Equal(oldSourceTime) {
+		t.Fatalf("expected source modified time to remain visible after reload, got %s", indexed.Item.ModifiedAt)
 	}
 }
 
@@ -514,7 +513,7 @@ func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	id := EncodeID("photo.png")
 
 	library := NewLibrary(dir)
-	if _, err := library.Page("", 10); err != nil {
+	if _, err := library.IndexedItem(-1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -594,22 +593,22 @@ func TestRuntimeIndexTreatsMissingLongCommentPathAsEmpty(t *testing.T) {
 	writeTestFile(t, nestedDir, strings.Repeat("media-", 20)+".png", modTime)
 
 	library := NewLibrary(dir)
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].CommentCount != 0 {
-		t.Fatalf("expected long media id to load with empty comments, got %#v", page)
+	if indexed.Item.CommentCount != 0 {
+		t.Fatalf("expected long media id to load with empty comments, got %#v", indexed)
 	}
-	if page.Items[0].Comments == nil {
+	if indexed.Item.Comments == nil {
 		t.Fatal("expected empty comments to be encoded as an empty slice")
 	}
 
-	comment, err := library.AddComment(page.Items[0].ID, "works", "Tester")
+	comment, err := library.AddComment(indexed.Item.ID, "works", "Tester")
 	if err != nil {
 		t.Fatal(err)
 	}
-	comments, err := library.CommentsForID(page.Items[0].ID)
+	comments, err := library.CommentsForID(indexed.Item.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +617,7 @@ func TestRuntimeIndexTreatsMissingLongCommentPathAsEmpty(t *testing.T) {
 	}
 }
 
-func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
+func TestIndexedItemIgnoresBrokenCommentSummary(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	writeTestFile(t, dir, "photo.png", modTime)
@@ -632,15 +631,15 @@ func TestPageIgnoresBrokenCommentSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	page, err := library.Page("", 10)
+	indexed, err := library.IndexedItem(-1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Filename != "photo.png" {
-		t.Fatalf("expected media item despite broken comments, got %#v", page)
+	if indexed.Item.Filename != "photo.png" {
+		t.Fatalf("expected media item despite broken comments, got %#v", indexed)
 	}
-	if page.Items[0].CommentCount != 0 || len(page.Items[0].Comments) != 0 {
-		t.Fatalf("expected broken summary to be omitted, got %#v", page.Items[0])
+	if indexed.Item.CommentCount != 0 || len(indexed.Item.Comments) != 0 {
+		t.Fatalf("expected broken summary to be omitted, got %#v", indexed.Item)
 	}
 }
 

@@ -20,12 +20,12 @@ import (
 	"feed-ai/internal/media"
 )
 
-func TestFeedEndpointReturnsPage(t *testing.T) {
+func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
-	req := httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -34,12 +34,12 @@ func TestFeedEndpointReturnsPage(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", res.Code)
 	}
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var response media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Filename != "photo.png" {
-		t.Fatalf("unexpected page: %#v", page)
+	if response.Index != 0 || response.Item.Filename != "photo.png" {
+		t.Fatalf("unexpected feed item: %#v", response)
 	}
 }
 
@@ -353,7 +353,7 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 		t.Fatalf("expected saved comment author, got %#v", commentsResponse.Comments[2])
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res = httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -362,18 +362,18 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 		t.Fatalf("expected feed status 200, got %d", res.Code)
 	}
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].CommentCount != 3 {
-		t.Fatalf("expected feed comment count 3, got %#v", page)
+	if feedItem.Item.CommentCount != 3 {
+		t.Fatalf("expected feed comment count 3, got %#v", feedItem)
 	}
-	if len(page.Items[0].Comments) != 2 || page.Items[0].Comments[0].Text != "second" || page.Items[0].Comments[1].Text != "third" {
-		t.Fatalf("expected latest two comments in feed summary, got %#v", page.Items[0].Comments)
+	if len(feedItem.Item.Comments) != 2 || feedItem.Item.Comments[0].Text != "second" || feedItem.Item.Comments[1].Text != "third" {
+		t.Fatalf("expected latest two comments in feed summary, got %#v", feedItem.Item.Comments)
 	}
-	if page.Items[0].Comments[1].Author != "Ламповый Кабачок 42" {
-		t.Fatalf("expected latest comment author in feed summary, got %#v", page.Items[0].Comments[1])
+	if feedItem.Item.Comments[1].Author != "Ламповый Кабачок 42" {
+		t.Fatalf("expected latest comment author in feed summary, got %#v", feedItem.Item.Comments[1])
 	}
 }
 
@@ -460,7 +460,7 @@ func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
 		}
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -469,12 +469,12 @@ func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
 		t.Fatalf("expected feed status 200, got %d", res.Code)
 	}
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].LikeCount != 2 {
-		t.Fatalf("expected feed like count 2, got %#v", page)
+	if feedItem.Item.LikeCount != 2 {
+		t.Fatalf("expected feed like count 2, got %#v", feedItem)
 	}
 }
 
@@ -520,7 +520,7 @@ func TestCommentLikeEndpointIncrementsCommentAndFeedSummary(t *testing.T) {
 		}
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res = httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -529,12 +529,12 @@ func TestCommentLikeEndpointIncrementsCommentAndFeedSummary(t *testing.T) {
 		t.Fatalf("expected feed status 200, got %d", res.Code)
 	}
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || len(page.Items[0].Comments) != 1 || page.Items[0].Comments[0].LikeCount != 2 {
-		t.Fatalf("expected feed comment like count 2, got %#v", page)
+	if len(feedItem.Item.Comments) != 1 || feedItem.Item.Comments[0].LikeCount != 2 {
+		t.Fatalf("expected feed comment like count 2, got %#v", feedItem)
 	}
 }
 
@@ -820,7 +820,7 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=1", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
@@ -828,12 +828,12 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatalf("expected feed status 200, got %d", res.Code)
 	}
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != item.ID {
-		t.Fatalf("expected uploaded item in feed, got %#v", page)
+	if feedItem.Item.ID != item.ID {
+		t.Fatalf("expected uploaded item in feed, got %#v", feedItem)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/media/"+item.ID, nil)
@@ -868,16 +868,16 @@ func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 		t.Fatalf("expected unique generated filenames, got %#v", upload.Items)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=10", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected both uploaded files in feed, got %#v", page)
+	if feedItem.LastIndex != 1 {
+		t.Fatalf("expected both uploaded files in feed, got %#v", feedItem)
 	}
 }
 
@@ -1005,16 +1005,16 @@ func TestCreateBoardIndexesOpaqueMediaItemForComments(t *testing.T) {
 		t.Fatalf("expected board comment to be accepted, got %d body=%s", res.Code, res.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?limit=10", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
-	var page media.Page
-	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != board.MediaID || page.Items[0].BoardID != board.ID || page.Items[0].CommentCount != 1 {
-		t.Fatalf("expected indexed board media item with comment summary, got %#v", page)
+	if feedItem.Item.ID != board.MediaID || feedItem.Item.BoardID != board.ID || feedItem.Item.CommentCount != 1 {
+		t.Fatalf("expected indexed board media item with comment summary, got %#v", feedItem)
 	}
 }
 

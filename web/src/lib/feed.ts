@@ -103,6 +103,13 @@ export type FeedPage = {
   nextCursor?: string;
 };
 
+export type IndexedFeedItem = {
+  index: number;
+  firstIndex: number;
+  lastIndex: number;
+  item: MediaItem;
+};
+
 export type UploadResult = {
   items: MediaItem[];
   errors?: { filename: string; error: string }[];
@@ -114,17 +121,20 @@ export type UploadProgress = {
   percent: number;
 };
 
-export async function fetchFeedPage({ cursor, limit }: { cursor?: string; limit: number }) {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (cursor) params.set('cursor', cursor);
+export async function fetchFeedItem(index: number) {
+  const params = new URLSearchParams({ index: String(index) });
 
   const response = await fetch(`/api/feed?${params.toString()}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Feed request failed with ${response.status}`);
+    throw new Error(message ?? `Feed item request failed with ${response.status}`);
   }
 
-  return normalizeFeedPage((await response.json()) as FeedPage);
+  const result = (await response.json()) as IndexedFeedItem;
+  return {
+    ...result,
+    item: normalizeMediaItem(result.item)
+  };
 }
 
 export async function fetchFavoriteFeedPage({

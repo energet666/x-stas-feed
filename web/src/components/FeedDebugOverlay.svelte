@@ -11,12 +11,26 @@
     visibleEndIndex,
     nextCursor,
     loading,
+    initialLoaded,
+    hasMore,
+    feedMode,
     viewportStart,
     viewportEnd,
+    viewportHeight,
+    scrollY,
+    listTop,
     totalHeight,
+    loadedBottom,
     topSpacer,
     bottomSpacer,
     measuredCount,
+    firstFeedIndex,
+    lastFeedIndex,
+    topFeedIndex,
+    bottomFeedIndex,
+    bottomSentinelTop,
+    preloadAheadPx,
+    overscanRows,
     cardBackgroundMode,
     onToggle,
     onCardBackgroundModeChange
@@ -30,16 +44,34 @@
     visibleEndIndex: number;
     nextCursor?: string;
     loading: boolean;
+    initialLoaded: boolean;
+    hasMore: boolean;
+    feedMode: 'all' | 'favorites';
     viewportStart: number;
     viewportEnd: number;
+    viewportHeight: number;
+    scrollY: number;
+    listTop: number;
     totalHeight: number;
+    loadedBottom: number;
     topSpacer: number;
     bottomSpacer: number;
     measuredCount: number;
+    firstFeedIndex?: number;
+    lastFeedIndex?: number;
+    topFeedIndex?: number;
+    bottomFeedIndex?: number;
+    bottomSentinelTop?: number;
+    preloadAheadPx: number;
+    overscanRows: number;
     cardBackgroundMode: 'simple' | 'ambient';
     onToggle: () => void;
     onCardBackgroundModeChange: (mode: 'simple' | 'ambient') => void;
   } = $props();
+
+  const formatPx = (value: number | undefined) => (value === undefined ? '-' : `${Math.round(value)}px`);
+  const formatNumber = (value: number | undefined) => (value === undefined ? '-' : String(value));
+  const formatBool = (value: boolean) => (value ? 'yes' : 'no');
 </script>
 
 <aside class="debug-overlay">
@@ -81,9 +113,18 @@
       </div>
     </div>
 
+    <div class="debug-section-title">Window</div>
     <dl class="debug-grid">
       <div>
-        <dt>Loaded</dt>
+        <dt>Mode</dt>
+        <dd>{feedMode}</dd>
+      </div>
+      <div>
+        <dt>Ready</dt>
+        <dd>{formatBool(initialLoaded)}</dd>
+      </div>
+      <div>
+        <dt>Items</dt>
         <dd>{loadedCount}</dd>
       </div>
       <div>
@@ -91,36 +132,76 @@
         <dd>{mountedCount}</dd>
       </div>
       <div>
-        <dt>Unloaded</dt>
+        <dt>Visible rows</dt>
+        <dd>{visibleStartIndex >= 0 ? `${visibleStartIndex}-${visibleEndIndex}` : '-'}</dd>
+      </div>
+      <div>
+        <dt>Hidden rows</dt>
         <dd>{unloadedBefore} / {unloadedAfter}</dd>
       </div>
       <div>
-        <dt>Window</dt>
-        <dd>{visibleStartIndex >= 0 ? `${visibleStartIndex}-${visibleEndIndex}` : '-'}</dd>
+        <dt>Measured</dt>
+        <dd>{measuredCount}</dd>
+      </div>
+      <div>
+        <dt>Overscan</dt>
+        <dd>{overscanRows}</dd>
+      </div>
+    </dl>
+
+    <div class="debug-section-title">Feed indexes</div>
+    <dl class="debug-grid">
+      <div>
+        <dt>Bounds</dt>
+        <dd>{formatNumber(firstFeedIndex)}-{formatNumber(lastFeedIndex)}</dd>
+      </div>
+      <div>
+        <dt>Loaded span</dt>
+        <dd>{formatNumber(topFeedIndex)}-{formatNumber(bottomFeedIndex)}</dd>
+      </div>
+      <div>
+        <dt>Load older</dt>
+        <dd>{formatBool(hasMore)} / {formatBool(loading)}</dd>
       </div>
       <div>
         <dt>Cursor</dt>
         <dd>{nextCursor ?? 'end'}</dd>
       </div>
       <div>
-        <dt>Loading</dt>
-        <dd>{loading ? 'yes' : 'no'}</dd>
+        <dt>Preload</dt>
+        <dd>{preloadAheadPx}px</dd>
       </div>
+    </dl>
+
+    <div class="debug-section-title">Geometry</div>
+    <dl class="debug-grid">
       <div>
         <dt>Viewport</dt>
         <dd>{Math.round(viewportStart)}-{Math.round(viewportEnd)}</dd>
       </div>
       <div>
-        <dt>Total height</dt>
-        <dd>{Math.round(totalHeight)}</dd>
+        <dt>Window h</dt>
+        <dd>{Math.round(viewportHeight)}px</dd>
+      </div>
+      <div>
+        <dt>Scroll / list</dt>
+        <dd>{Math.round(scrollY)} / {Math.round(listTop)}</dd>
+      </div>
+      <div>
+        <dt>Items height</dt>
+        <dd>{Math.round(totalHeight)}px</dd>
+      </div>
+      <div>
+        <dt>Loaded bottom</dt>
+        <dd>{Math.round(loadedBottom)}px</dd>
       </div>
       <div>
         <dt>Spacers</dt>
         <dd>{Math.round(topSpacer)} / {Math.round(bottomSpacer)}</dd>
       </div>
       <div>
-        <dt>Measured</dt>
-        <dd>{measuredCount}</dd>
+        <dt>Sentinel</dt>
+        <dd>{formatPx(bottomSentinelTop)}</dd>
       </div>
     </dl>
   {/if}

@@ -22,7 +22,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Media IDs are server-controlled opaque SHA-256 hex identities derived from the normalized relative media path. They are fixed-length and not decodable by clients. Clients must not provide filesystem paths for media or comments.
 - Media serving and comment APIs must validate IDs through the same safe lookup model.
 - Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
-- Feed pagination is cursor-based through `GET /api/feed?cursor=&limit=`.
+- Main feed indexing is append-only and oldest-to-newest internally: index `0` is the oldest item, the highest index is the newest item, and `GET /api/feed?index=-1` returns the newest item plus `firstIndex`/`lastIndex` bounds. Other non-negative indexes fetch exactly one feed item. The frontend renders the main feed newest-first by requesting decreasing indexes as the user scrolls down.
 - Favorites feed pagination uses `POST /api/feed/favorites` with browser-owned ordered media IDs. The server does safe ID lookup against scanned media, ignores stale/missing IDs, preserves the request order, and applies cursor/limit over that ordered ID list.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
 - Media and comment serving uses a long-lived in-memory runtime index initialized once from disk. After startup, out-of-band filesystem media additions/removals are intentionally unsupported until restart; server-managed uploads, comments, comment likes, and media likes update the runtime index directly while preserving filesystem-backed durability.
@@ -56,7 +56,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - daisyUI was removed; keep styling in Tailwind classes, scoped component CSS, and the small global theme/component primitives in `web/src/app.css`.
 - `App.svelte` is the feed coordinator: pagination, virtualization, measurement, scroll anchoring, overlay state, expanded media state, comments panel state, and SSE subscription.
 - Keep presentational pieces split into focused components instead of growing `App.svelte`.
-- Feed virtualization keeps only the viewport window plus two overscan cards before and after it mounted. Dynamic card height changes above the viewport compensate scroll position manually.
+- Feed virtualization keeps every fetched card in the frontend `items` array as the loaded feed model, computes `rows` as geometry for all loaded items, and mounts only `visibleRows` plus overscan into the DOM. Top and bottom spacer elements are derived from the full `rows` map, not accumulated state. This trades some JS memory for simpler and resize-tolerant scroll math: unloaded DOM cards still keep identity, order, and last known or estimated height in the model. A bottom sentinel loads older decreasing indexes when the loaded geometry does not extend far enough below the viewport.
 - Feed pagination uses small pages of 6 items so approaching the end of the loaded set does not append a large batch of new posts at once.
 - Viewport updates for virtualization are scheduled through `requestAnimationFrame` so rapid scroll/resize events coalesce into one Svelte state update per frame.
 - The app must handle an empty `test-content` directory gracefully.
