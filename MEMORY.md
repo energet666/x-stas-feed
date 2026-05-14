@@ -185,7 +185,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Regular boards are exposed in the feed through `{boardID}.board` placeholder files in the media root. The feed item keeps a normal opaque 64-character media `id` for comments, likes, metadata, favorites, and media lookup, and exposes the drawing board identity separately as `boardId`.
 - The frontend no longer prepends virtual board media from `GET /api/boards` on startup; the feed scanner is the single source for board cards, preventing duplicate board rows and split comment/like state.
 - New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar. The response includes `mediaId`, and the server inserts the placeholder into the runtime media index immediately so the new board can receive comments without a restart.
-- **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. `master.board` is not indexed into the main feed.
+- **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически и хранится только как `test-content/.boards/master.jsonl`. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. Для нее не создается `.board` placeholder в media root, потому что она не является элементом основной ленты.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
 
 ## Agent Workflow Constraints

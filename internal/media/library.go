@@ -380,10 +380,6 @@ func (l *Library) Scan() ([]Item, error) {
 			unsupportedFiles++
 			return nil
 		}
-		if kind == "board" && strings.EqualFold(filepath.Base(path), "master.board") {
-			unsupportedFiles++
-			return nil
-		}
 		supportedFiles++
 
 		info, err := entry.Info()
