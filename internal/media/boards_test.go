@@ -37,3 +37,71 @@ func TestBoardStoreInitCreatesPlaceholderWithBoardCreatedAt(t *testing.T) {
 		t.Fatalf("expected placeholder mtime to match board creation time, got %s", info.ModTime().UTC())
 	}
 }
+
+func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stroke, err := store.AddStroke(info.ID, "line", [][]float64{
+		{-1.234, 40.567},
+		{1200.987, 799.949},
+	}, "#fff", 4, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := [][]float64{{-1.2, 40.6}, {1201, 799.9}}
+	if !samePoints(stroke.Points, expected) {
+		t.Fatalf("expected normalized points %#v, got %#v", expected, stroke.Points)
+	}
+
+	strokes, err := store.Strokes(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(strokes) != 1 || !samePoints(strokes[0].Points, expected) {
+		t.Fatalf("expected stored normalized points %#v, got %#v", expected, strokes)
+	}
+}
+
+func TestBoardStoreAddStrokeRejectsInvalidPoints(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.AddStroke(info.ID, "line", [][]float64{{1, 2, 3}, {4, 5}}, "#fff", 4, "Tester"); err == nil {
+		t.Fatal("expected invalid coordinate pair to be rejected")
+	}
+}
+
+func samePoints(a, b [][]float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if len(a[i]) != len(b[i]) {
+			return false
+		}
+		for j := range a[i] {
+			if a[i][j] != b[i][j] {
+				return false
+			}
+		}
+	}
+	return true
+}

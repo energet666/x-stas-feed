@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,7 @@ import (
 )
 
 const boardsDirName = ".boards"
+const boardPointPrecision = 10
 
 // ErrBoardNotFound is returned when a board ID does not match any existing board.
 var ErrBoardNotFound = errors.New("board not found")
@@ -217,6 +219,10 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	if len(points) < 2 {
 		return Stroke{}, errors.New("stroke must have at least 2 points")
 	}
+	normalizedPoints, err := normalizeStrokePoints(points)
+	if err != nil {
+		return Stroke{}, err
+	}
 	color = strings.TrimSpace(color)
 	if color == "" {
 		color = "#ffffff"
@@ -239,7 +245,7 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	stroke := Stroke{
 		ID:        generateStrokeID(),
 		Tool:      tool,
-		Points:    points,
+		Points:    normalizedPoints,
 		Color:     color,
 		Size:      size,
 		Author:    author,
@@ -269,6 +275,32 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	bs.mu.Unlock()
 
 	return stroke, nil
+}
+
+func normalizeStrokePoints(points [][]float64) ([][]float64, error) {
+	normalized := make([][]float64, len(points))
+	for i, point := range points {
+		if len(point) != 2 {
+			return nil, errors.New("stroke points must be [x,y] coordinate pairs")
+		}
+		x, err := normalizeBoardCoordinate(point[0])
+		if err != nil {
+			return nil, err
+		}
+		y, err := normalizeBoardCoordinate(point[1])
+		if err != nil {
+			return nil, err
+		}
+		normalized[i] = []float64{x, y}
+	}
+	return normalized, nil
+}
+
+func normalizeBoardCoordinate(value float64) (float64, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, errors.New("stroke coordinates must be finite numbers")
+	}
+	return math.Round(value*boardPointPrecision) / boardPointPrecision, nil
 }
 
 func (bs *BoardStore) boardFilePath(id string) string {
