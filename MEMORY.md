@@ -158,6 +158,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The comment composer textarea intentionally has no placeholder, avoiding visible placeholder flicker during Safari autofocus.
 - The comment composer uses `EmojiPanel.svelte`, which wraps lazy-loaded `emoji-mart` with bundled `@emoji-mart/data` and patches the picker's shadow DOM layout so category navigation stays fixed at the bottom. `CommentThread.svelte` owns textarea cursor insertion.
 - `EmojiPanel.svelte` lazy-loads `@emoji-mart/data/i18n/ru.json` and passes `locale: 'ru'` plus `i18n` to `emoji-mart`; this localizes picker UI text but does not add Russian searchable emoji keywords by itself.
+- Russian emoji search is implemented by lazy-loading `web/src/lib/emoji_ru_keywords.ts`, a generated compact map from Unicode CLDR Russian annotations for all current `emoji-mart` ids plus a small set of conversational aliases, then appending those terms to emoji `keywords` at picker mount time.
 - The comment composer layout keeps the emoji trigger in a separate right-side actions column rather than absolutely overlaying it on the resizable textarea.
 - A left profile sidebar owns the local comment nickname control and a dice action that generates funny Russian nickname candidates with a random numeric suffix.
 - The nickname input must not stay focused on initial page open. `UserSidebar` watches the first 1.5 seconds after mount and blurs only non-user-initiated restored focus on that input, while preserving normal click and keyboard focus afterward.

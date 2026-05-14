@@ -4,6 +4,12 @@
   };
 
   type EmojiMartPickerConstructor = new (props: Record<string, unknown>) => unknown;
+  type EmojiMartData = {
+    emojis: Record<string, EmojiMartDataEmoji>;
+  };
+  type EmojiMartDataEmoji = {
+    keywords?: string[];
+  };
 
   let {
     onSelect
@@ -28,16 +34,17 @@
   });
 
   async function mountEmojiPicker(panel: HTMLDivElement, isCancelled: () => boolean) {
-    const [{ default: emojiData }, { default: ruI18n }, { Picker }] = await Promise.all([
+    const [{ default: emojiData }, { default: ruI18n }, { Picker }, { emojiRussianKeywords }] = await Promise.all([
       import('@emoji-mart/data'),
       import('@emoji-mart/data/i18n/ru.json'),
-      import('emoji-mart') as Promise<{ Picker: EmojiMartPickerConstructor }>
+      import('emoji-mart') as Promise<{ Picker: EmojiMartPickerConstructor }>,
+      import('../lib/emoji_ru_keywords')
     ]);
 
     if (isCancelled()) return;
 
     const picker = new Picker({
-      data: emojiData,
+      data: withRussianEmojiKeywords(emojiData, emojiRussianKeywords),
       i18n: ruI18n,
       locale: 'ru',
       theme: 'dark',
@@ -59,6 +66,26 @@
 
     panel.replaceChildren(picker);
     patchEmojiPickerLayout(picker);
+  }
+
+  function withRussianEmojiKeywords(data: unknown, russianKeywords: Record<string, string[]>) {
+    const source = data as EmojiMartData;
+    const emojis = { ...source.emojis };
+
+    for (const [emojiID, keywords] of Object.entries(russianKeywords)) {
+      const emoji = emojis[emojiID];
+      if (!emoji) continue;
+
+      emojis[emojiID] = {
+        ...emoji,
+        keywords: Array.from(new Set([...(emoji.keywords ?? []), ...keywords]))
+      };
+    }
+
+    return {
+      ...source,
+      emojis
+    };
   }
 
   function patchEmojiPickerLayout(picker: HTMLElement, attempt = 0) {
