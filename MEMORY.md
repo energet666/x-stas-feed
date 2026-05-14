@@ -192,6 +192,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Regular board previews in feed cards are clickable buttons that open the board in expanded drawing mode, matching the master board preview behavior while keeping drawing input limited to expanded mode.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
 - Expanded drawing boards place their close button at the top-right to match regular expanded media cards.
+- Expanded drawing boards hide the native canvas cursor and render a DOM brush cursor circle. Its diameter is derived from the selected brush size and the current rendered canvas scale, so it tracks the actual stroke width on resized boards.
 
 ## Agent Workflow Constraints
 

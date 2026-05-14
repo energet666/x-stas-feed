@@ -47,6 +47,10 @@
   let mousePos = $state<number[] | null>(null);
   let showColorPicker = $state(false);
   let boardName = $state('Board');
+  let brushCursorVisible = $state(false);
+  let brushCursorX = $state(0);
+  let brushCursorY = $state(0);
+  let brushCursorSize = $state(0);
 
   const canvasWidth = 1200;
   const canvasHeight = 800;
@@ -123,9 +127,9 @@
     return expanded ? canvasEl : previewCanvasEl;
   }
 
-  function canvasCoords(event: PointerEvent): [number, number] {
+  function getCanvasMetrics() {
     const canvas = getCanvas();
-    if (!canvas) return [0, 0];
+    if (!canvas) return null;
     
     const rect = canvas.getBoundingClientRect();
     const containerWidth = rect.width;
@@ -152,15 +156,51 @@
     
     const scaleX = canvasWidth / renderedWidth;
     const scaleY = canvasHeight / renderedHeight;
+
+    return { rect, renderedWidth, renderedHeight, offsetX, offsetY, scaleX, scaleY };
+  }
+
+  function canvasCoords(event: PointerEvent): [number, number] {
+    const metrics = getCanvasMetrics();
+    if (!metrics) return [0, 0];
     
     return [
-      (event.clientX - rect.left - offsetX) * scaleX,
-      (event.clientY - rect.top - offsetY) * scaleY
+      (event.clientX - metrics.rect.left - metrics.offsetX) * metrics.scaleX,
+      (event.clientY - metrics.rect.top - metrics.offsetY) * metrics.scaleY
     ];
+  }
+
+  function updateBrushCursor(event: PointerEvent) {
+    if (!expanded) return;
+
+    const metrics = getCanvasMetrics();
+    if (!metrics) return;
+
+    const wrap = (event.currentTarget as HTMLElement).parentElement;
+    if (!wrap) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const displayScale = metrics.renderedWidth / canvasWidth;
+
+    brushCursorVisible = true;
+    brushCursorX = event.clientX - wrapRect.left;
+    brushCursorY = event.clientY - wrapRect.top;
+    brushCursorSize = Math.max(2, currentSize * displayScale);
+  }
+
+  function handlePointerEnter(event: PointerEvent) {
+    updateBrushCursor(event);
+  }
+
+  function handlePointerLeave() {
+    if (!isDrawing) {
+      brushCursorVisible = false;
+    }
   }
 
   function handlePointerDown(event: PointerEvent) {
     if (!expanded) return;
+    updateBrushCursor(event);
     const canvas = getCanvas();
     if (!canvas) return;
     canvas.setPointerCapture(event.pointerId);
@@ -188,6 +228,7 @@
 
   function handlePointerMove(event: PointerEvent) {
     if (!expanded) return;
+    updateBrushCursor(event);
 
     const [x, y] = canvasCoords(event);
 
@@ -220,6 +261,7 @@
 
   function handlePointerUp(event: PointerEvent) {
     if (!expanded) return;
+    updateBrushCursor(event);
     const canvas = getCanvas();
     if (canvas) canvas.releasePointerCapture(event.pointerId);
 
@@ -367,6 +409,10 @@
 
   function selectSize(size: number) {
     currentSize = size;
+    if (brushCursorVisible && canvasEl) {
+      const metrics = getCanvasMetrics();
+      brushCursorSize = metrics ? Math.max(2, size * (metrics.renderedWidth / canvasWidth)) : size;
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -402,8 +448,20 @@
         onpointerdown={handlePointerDown}
         onpointermove={handlePointerMove}
         onpointerup={handlePointerUp}
-        style="cursor: crosshair; touch-action: none;"
+        onpointerenter={handlePointerEnter}
+        onpointerleave={handlePointerLeave}
+        style="cursor: none; touch-action: none;"
       ></canvas>
+      <div
+        class="drawing-brush-cursor"
+        class:drawing-brush-cursor-visible={brushCursorVisible}
+        style="
+          width: {brushCursorSize}px;
+          height: {brushCursorSize}px;
+          transform: translate3d({brushCursorX}px, {brushCursorY}px, 0) translate(-50%, -50%);
+          border-color: {currentColor};
+        "
+      ></div>
 
       {#if onClose}
         <button
@@ -538,6 +596,29 @@
     height: 100%;
     object-fit: contain;
     display: block;
+  }
+
+  .drawing-brush-cursor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 8;
+    border: 1.5px solid #fff;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.55),
+      0 0 8px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 90ms ease,
+      width 90ms ease,
+      height 90ms ease;
+    will-change: transform, width, height;
+  }
+
+  .drawing-brush-cursor-visible {
+    opacity: 1;
   }
 
   .drawing-preview {
