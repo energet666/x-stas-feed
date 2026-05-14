@@ -10,6 +10,14 @@ Bundled file:
 
 SHA-256:
 
-`b6631cd5732a20207cba553344291b56e54c584dfe2e383b43e431f7446c31ba`
+`28fa407627db8b5a46ff9a9ecbdf204528324694ccbd635467b42dd7df86c0f1`
+
+Bundled file:
+
+`ffmpeg-master-latest-win64-gpl/bin/ffprobe.exe`
+
+SHA-256:
+
+`040036c5de4b3daf5b5ea08b218864a0cd71d658422b2c85076b2a33af47d791`
 
 Keep `LICENSE.txt` with release artifacts that include this binary.

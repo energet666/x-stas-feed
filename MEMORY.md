@@ -115,7 +115,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Video ambient canvas updates dynamically during playback, but draws only every fifth animation frame. Safari can stutter when `drawImage(video)` updates a blurred canvas on every frame, so keep this throttled unless profiling shows enough headroom.
 - Idle feed videos use backend-provided `durationSeconds` for duration/seek controls when available and switch to `auto` only while playing or expanded. Safari cards with cached duration keep `preload="none"` until interaction. Avoid client-side preview seeks during scroll, especially in Safari.
 - Video preview frames are served as cached JPEG posters through `GET /api/media/{id}/poster?time=`. The frontend chooses the poster time from saved per-video watch progress, falling back to the first frame when the user has not watched that video.
-- Poster generation resolves FFmpeg from `tools/ffmpeg/{GOOS}-{GOARCH}/ffmpeg[.exe]` relative to the current working directory or server executable directory before falling back to system `PATH`. Bundled binaries are local ignored files; release packaging should include only the target platform's binary and retain FFmpeg license/provenance notes with the artifact.
+- Poster generation resolves FFmpeg from `tools/ffmpeg/{GOOS}-{GOARCH}/ffmpeg[.exe]` relative to the current working directory or server executable directory before falling back to system `PATH`. Probe metadata resolves FFprobe from the same layout as `ffprobe[.exe]`. Bundled binaries are local ignored files; release packaging should include only the target platform's binaries and retain FFmpeg license/provenance notes with the artifact.
 - Idle video ambient backgrounds use the same poster JPEG as the video element instead of seeking/loading the video.
 - After any user interaction with a mounted video card, remove the poster cover, remove the video `poster` attribute, and stop using poster ambient for that card lifetime. From that point, the real video element/canvas owns visuals.
 - Video ambient canvas dimensions track the source video aspect ratio; keeping a square canvas makes `object-fit: cover` crop live ambient differently from poster ambient.
@@ -191,7 +191,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 ## Agent Workflow Constraints
 
 - Agents may start the local server only for short verification checks and must stop it immediately afterward, unless the user explicitly asks to start or keep it running.
-- Use `make package-win` to rebuild the root Windows package: frontend into `build/feed-ai-win64/web/dist`, Go `server.exe` for Windows amd64, and `build/feed-ai-win64.zip`.
+- Use `make package-win` to rebuild the root Windows package: frontend into `build/feed-ai-win64/web/dist`, Go `server.exe` for Windows amd64, bundled Windows amd64 FFmpeg/FFprobe tools when present, and `build/feed-ai-win64.zip`.
 - Record only important new decisions, constraints, verification-relevant outcomes, and known issues here. Do not append routine changelog entries.
 
 ## Known Environment Notes
