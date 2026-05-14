@@ -193,6 +193,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
 - Expanded drawing boards place their close button at the top-right to match regular expanded media cards.
 - Expanded drawing boards hide the native canvas cursor and render a DOM brush cursor circle. Its diameter is derived from the selected brush size and the current rendered canvas scale, so it tracks the actual stroke width on resized boards.
+- Drawing board toolbar keeps quick brush-size and color presets, but also exposes a custom numeric brush size input (clamped client-side to 1-96) and a native custom color picker. The custom color picker is a rectangular palette button with a small current-color preview so it does not look like another round preset swatch.
+- The latest selected drawing brush color and size are persisted in browser `localStorage` under `feed-ai:drawing-brush-color` and `feed-ai:drawing-brush-size`; storage failures are ignored and settings continue in memory.
+- Freeform board strokes may contain a single point. A click without drag is stored as a one-point freeform stroke and rendered as a filled circle with diameter equal to the brush size; line strokes still require at least two points.
 
 ## Agent Workflow Constraints
 

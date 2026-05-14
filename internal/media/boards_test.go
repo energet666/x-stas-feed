@@ -72,6 +72,46 @@ func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
 	}
 }
 
+func TestBoardStoreAddStrokeAllowsSingleFreeformPoint(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stroke, err := store.AddStroke(info.ID, "freeform", [][]float64{{10.04, 20.06}}, "#fff", 4, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := [][]float64{{10, 20.1}}
+	if !samePoints(stroke.Points, expected) {
+		t.Fatalf("expected normalized point %#v, got %#v", expected, stroke.Points)
+	}
+}
+
+func TestBoardStoreAddStrokeRejectsSingleLinePoint(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.AddStroke(info.ID, "line", [][]float64{{10, 20}}, "#fff", 4, "Tester"); err == nil {
+		t.Fatal("expected single-point line stroke to be rejected")
+	}
+}
+
 func TestBoardStoreAddStrokeRejectsInvalidPoints(t *testing.T) {
 	dir := t.TempDir()
 	store := NewBoardStore(dir)

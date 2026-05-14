@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Minus, Palette, Pencil, X } from 'lucide-svelte';
+  import { Palette, Pencil, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -28,6 +28,10 @@
   ];
 
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
+  const MIN_BRUSH_SIZE = 1;
+  const MAX_BRUSH_SIZE = 96;
+  const brushColorStorageKey = 'feed-ai:drawing-brush-color';
+  const brushSizeStorageKey = 'feed-ai:drawing-brush-size';
 
   let canvasEl = $state<HTMLCanvasElement | undefined>(undefined);
   let previewCanvasEl = $state<HTMLCanvasElement | undefined>(undefined);
@@ -56,6 +60,8 @@
   const canvasHeight = 800;
 
   onMount(() => {
+    loadBrushSettings();
+
     gridCanvas = document.createElement('canvas');
     gridCanvas.width = canvasWidth;
     gridCanvas.height = canvasHeight;
@@ -265,7 +271,7 @@
     const canvas = getCanvas();
     if (canvas) canvas.releasePointerCapture(event.pointerId);
 
-    if (currentTool === 'freeform' && isDrawing && currentPoints.length >= 2) {
+    if (currentTool === 'freeform' && isDrawing && currentPoints.length >= 1) {
       isDrawing = false;
       void submitStroke('freeform', currentPoints);
       currentPoints = [];
@@ -359,6 +365,15 @@
     ctx.restore();
   }
 
+  function drawPoint(ctx: CanvasRenderingContext2D, point: number[], color: string, size: number) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(point[0], point[1], size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawStroke(
     ctx: CanvasRenderingContext2D,
     points: number[][],
@@ -366,7 +381,11 @@
     size: number,
     tool: string
   ) {
-    if (points.length < 2) return;
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      drawPoint(ctx, points[0], color, size);
+      return;
+    }
 
     ctx.save();
     ctx.lineCap = 'round';
@@ -404,14 +423,67 @@
 
   function selectColor(color: string) {
     currentColor = color;
+    saveBrushColor(color);
     showColorPicker = false;
   }
 
+  function setCustomColor(color: string) {
+    currentColor = color;
+    saveBrushColor(color);
+  }
+
   function selectSize(size: number) {
-    currentSize = size;
+    const normalizedSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, Math.round(size)));
+    currentSize = normalizedSize;
+    saveBrushSize(normalizedSize);
     if (brushCursorVisible && canvasEl) {
       const metrics = getCanvasMetrics();
-      brushCursorSize = metrics ? Math.max(2, size * (metrics.renderedWidth / canvasWidth)) : size;
+      brushCursorSize = metrics
+        ? Math.max(2, normalizedSize * (metrics.renderedWidth / canvasWidth))
+        : normalizedSize;
+    }
+  }
+
+  function handleCustomSizeInput(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    selectSize(input.valueAsNumber || MIN_BRUSH_SIZE);
+  }
+
+  function handleCustomSizeWheel(event: WheelEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectSize(currentSize + (event.deltaY < 0 ? 1 : -1));
+  }
+
+  function loadBrushSettings() {
+    try {
+      const storedColor = window.localStorage.getItem(brushColorStorageKey);
+      if (storedColor && /^#[0-9a-f]{6}$/i.test(storedColor)) {
+        currentColor = storedColor;
+      }
+
+      const storedSize = Number.parseInt(window.localStorage.getItem(brushSizeStorageKey) ?? '', 10);
+      if (Number.isFinite(storedSize)) {
+        currentSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, storedSize));
+      }
+    } catch {
+      // Ignore storage failures; drawing controls should keep working in memory.
+    }
+  }
+
+  function saveBrushColor(color: string) {
+    try {
+      window.localStorage.setItem(brushColorStorageKey, color);
+    } catch {
+      // Ignore storage failures; the selected color still applies in memory.
+    }
+  }
+
+  function saveBrushSize(size: number) {
+    try {
+      window.localStorage.setItem(brushSizeStorageKey, String(size));
+    } catch {
+      // Ignore storage failures; the selected size still applies in memory.
     }
   }
 
@@ -491,7 +563,17 @@
             title="Line"
             onclick={() => selectTool('line')}
           >
-            <Minus size={16} />
+            <svg
+              class="drawing-segment-icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              aria-hidden="true"
+            >
+              <line x1="7" y1="17" x2="17" y2="7"></line>
+              <circle cx="7" cy="17" r="2.25"></circle>
+              <circle cx="17" cy="7" r="2.25"></circle>
+            </svg>
           </button>
         </div>
 
@@ -511,6 +593,18 @@
               ></span>
             </button>
           {/each}
+          <input
+            class="drawing-size-custom"
+            type="number"
+            min={MIN_BRUSH_SIZE}
+            max={MAX_BRUSH_SIZE}
+            step="1"
+            value={currentSize}
+            aria-label="Custom brush size"
+            title="Custom brush size"
+            oninput={handleCustomSizeInput}
+            onwheel={handleCustomSizeWheel}
+          />
         </div>
 
         <div class="drawing-toolbar-divider"></div>
@@ -539,13 +633,20 @@
                   onclick={() => selectColor(color)}
                 ></button>
               {/each}
-              <input
-                type="color"
+              <label class="drawing-color-custom-wrap" title="Custom color" aria-label="Custom color">
+                <Palette size={14} />
+                <span
+                  class="drawing-color-custom-preview"
+                  style="background: {currentColor};"
+                ></span>
+                <input
+                  type="color"
                 class="drawing-color-custom"
                 value={currentColor}
-                oninput={(e) => selectColor((e.currentTarget as HTMLInputElement).value)}
-                title="Custom color"
+                oninput={(e) => setCustomColor((e.currentTarget as HTMLInputElement).value)}
+                onchange={(e) => selectColor((e.currentTarget as HTMLInputElement).value)}
               />
+            </label>
             </div>
           {/if}
         </div>
@@ -753,6 +854,14 @@
     color: #fff;
   }
 
+  .drawing-segment-icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
   .drawing-color-indicator {
     width: 8px;
     height: 8px;
@@ -790,13 +899,40 @@
     display: block;
   }
 
+  .drawing-size-custom {
+    width: 2.5rem;
+    height: 1.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    outline: none;
+    transition:
+      background 150ms ease,
+      border-color 150ms ease;
+  }
+
+  .drawing-size-custom:hover,
+  .drawing-size-custom:focus {
+    border-color: rgba(255, 255, 255, 0.26);
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .drawing-size-custom::-webkit-inner-spin-button,
+  .drawing-size-custom::-webkit-outer-spin-button {
+    opacity: 0.85;
+  }
+
   .drawing-color-grid {
     position: absolute;
     bottom: 3rem;
     left: 50%;
     transform: translateX(-50%);
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, 1.75rem);
     gap: 0.35rem;
     padding: 0.6rem;
     border-radius: 0.75rem;
@@ -812,7 +948,7 @@
     left: auto;
     right: 3.5rem;
     transform: none;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1.75rem);
   }
 
   .drawing-color-swatch {
@@ -833,23 +969,46 @@
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
   }
 
-  .drawing-color-custom {
-    width: 1.75rem;
+  .drawing-color-custom-wrap {
+    position: relative;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    width: 100%;
     height: 1.75rem;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.78);
     cursor: pointer;
-    padding: 0;
-    overflow: hidden;
+    transition:
+      background 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease;
   }
 
-  .drawing-color-custom::-webkit-color-swatch-wrapper {
-    padding: 0;
+  .drawing-color-custom-wrap:hover {
+    border-color: rgba(255, 255, 255, 0.34);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
   }
 
-  .drawing-color-custom::-webkit-color-swatch {
-    border: none;
-    border-radius: 50%;
+  .drawing-color-custom-preview {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 0.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  }
+
+  .drawing-color-custom {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
   }
 </style>

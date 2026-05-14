@@ -216,8 +216,11 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	if tool != "freeform" && tool != "line" {
 		return Stroke{}, errors.New("invalid tool: must be freeform or line")
 	}
-	if len(points) < 2 {
-		return Stroke{}, errors.New("stroke must have at least 2 points")
+	if len(points) == 0 {
+		return Stroke{}, errors.New("stroke must have at least 1 point")
+	}
+	if tool == "line" && len(points) < 2 {
+		return Stroke{}, errors.New("line stroke must have at least 2 points")
 	}
 	normalizedPoints, err := normalizeStrokePoints(points)
 	if err != nil {
