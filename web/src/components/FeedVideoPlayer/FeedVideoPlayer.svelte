@@ -33,6 +33,8 @@
     type SafariVideoElement
   } from './utils';
 
+  const KEYBOARD_FAST_FORWARD_RATE = 5;
+
   let {
     item,
     expanded,
@@ -78,6 +80,7 @@
   let playBlocked = $state(false);
   let supportsVolumeControl = $state(true);
   let showSpeedIndicator = $state(false);
+  let temporaryPlaybackRate = $state<number | null>(null);
   let seekFeedbackSide = $state<'left' | 'right' | null>(null);
   let seekFeedbackAmount = $state(10);
   let seekFeedbackTick = $state(0);
@@ -88,6 +91,7 @@
   let spaceTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let isSpaceDown = false;
   let isSpaceLongPress = false;
+  let isArrowRightDown = false;
   let lastSeekFeedbackAt = 0;
   let previewFrameRequested = false;
   let progressRestored = false;
@@ -112,6 +116,7 @@
   const videoPreload = $derived(expanded || !paused ? 'auto' : isSafari && !metadataWanted ? 'none' : 'metadata');
   const posterURL = $derived(mediaPosterURL(item.id, posterTime));
   const activePosterURL = $derived(hasVideoInteraction ? undefined : posterURL);
+  const displayedPlaybackRate = $derived(temporaryPlaybackRate ?? userPlaybackRate);
 
   onMount(() => {
     const userAgent = navigator.userAgent;
@@ -235,7 +240,7 @@
   function syncMetadata() {
     if (!video) return;
     duration = Number.isFinite(video.duration) ? video.duration : item.durationSeconds ?? 0;
-    video.playbackRate = userPlaybackRate;
+    applyEffectivePlaybackRate();
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
     syncAmbientCanvasSize();
@@ -457,8 +462,25 @@
 
   function setPlaybackRate(rate: number) {
     userPlaybackRate = rate;
-    if (video) video.playbackRate = rate;
+    applyEffectivePlaybackRate();
     showSpeed();
+  }
+
+  function applyEffectivePlaybackRate() {
+    if (video) video.playbackRate = temporaryPlaybackRate ?? userPlaybackRate;
+  }
+
+  function setTemporaryPlaybackRate(rate: number) {
+    temporaryPlaybackRate = rate;
+    applyEffectivePlaybackRate();
+    showSpeed();
+  }
+
+  function clearTemporaryPlaybackRate(rate: number) {
+    if (temporaryPlaybackRate === rate) {
+      temporaryPlaybackRate = null;
+      applyEffectivePlaybackRate();
+    }
   }
 
   function changePlaybackRate(direction: 1 | -1) {
@@ -470,13 +492,14 @@
   }
 
   function handleKeyboard(event: KeyboardEvent, phase: 'down' | 'up') {
+    if (phase === 'up') {
+      handleKeyUp(event);
+      return;
+    }
+
     if (!isActivePlayer() || isEditableTarget(event.target)) return;
 
-    if (phase === 'down') {
-      handleKeyDown(event);
-    } else {
-      handleKeyUp(event);
-    }
+    handleKeyDown(event);
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -490,7 +513,7 @@
       spaceTimer = setTimeout(() => {
         if (!video) return;
         isSpaceLongPress = true;
-        video.playbackRate = 2;
+        setTemporaryPlaybackRate(2);
         if (video.paused) safePlay();
       }, LONG_PRESS_DELAY_MS);
       return;
@@ -502,24 +525,41 @@
       return;
     }
 
-    if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
+    if (event.code === 'ArrowRight') {
       event.preventDefault();
-      seekBy(event.code === 'ArrowRight' ? 1 : -1);
+      if (isArrowRightDown) return;
+      isArrowRightDown = true;
+      setActivePlayer();
+      setTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
+      if (video?.paused) safePlay();
+      return;
+    }
+
+    if (event.code === 'ArrowLeft') {
+      event.preventDefault();
+      seekBy(-1);
     }
   }
 
   function handleKeyUp(event: KeyboardEvent) {
     if (event.code === 'Space') {
+      if (!isSpaceDown) return;
       event.preventDefault();
       isSpaceDown = false;
       clearTimeout(spaceTimer);
 
       if (isSpaceLongPress) {
-        if (video) video.playbackRate = userPlaybackRate;
+        clearTemporaryPlaybackRate(2);
       } else {
         void togglePlay();
       }
       return;
+    }
+
+    if (event.code === 'ArrowRight' && isArrowRightDown) {
+      event.preventDefault();
+      isArrowRightDown = false;
+      clearTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
     }
   }
 
@@ -794,7 +834,7 @@
       {seekFeedbackAmount}
       {seekFeedbackTick}
       {showSpeedIndicator}
-      {userPlaybackRate}
+      userPlaybackRate={displayedPlaybackRate}
       onTogglePlay={togglePlay}
     />
   {/snippet}
