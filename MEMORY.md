@@ -187,6 +187,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar. The response includes `mediaId`, and the server inserts the placeholder into the runtime media index immediately so the new board can receive comments without a restart.
 - **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически и хранится только как `test-content/.boards/master.jsonl`. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. Для нее не создается `.board` placeholder в media root, потому что она не является элементом основной ленты.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
+- Expanded drawing boards place their close button at the top-right to match regular expanded media cards.
 
 ## Agent Workflow Constraints
 

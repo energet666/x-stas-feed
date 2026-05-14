@@ -579,7 +579,7 @@
   .drawing-close-btn {
     position: absolute;
     top: 1rem;
-    left: 1rem;
+    right: 1rem;
     z-index: 12;
     display: grid;
     width: 2.5rem;
