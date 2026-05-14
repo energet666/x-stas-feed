@@ -408,6 +408,4 @@ export async function createStroke(
     const message = await responseErrorMessage(response);
     throw new Error(message ?? `Stroke creation failed with ${response.status}`);
   }
-
-  return (await response.json()) as Stroke;
 }

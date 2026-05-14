@@ -1018,6 +1018,55 @@ func TestCreateBoardIndexesOpaqueMediaItemForComments(t *testing.T) {
 	}
 }
 
+func TestCreateStrokeReturnsNoContentAndPersistsStroke(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected board creation status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/strokes", bytes.NewBufferString(`{"tool":"freeform","points":[[1,2],[3,4]],"color":"#fff","size":4,"author":"Tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected stroke creation status 204, got %d body=%s", res.Code, res.Body.String())
+	}
+	if res.Body.Len() != 0 {
+		t.Fatalf("expected empty stroke creation body, got %q", res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected board fetch status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var data struct {
+		Strokes []media.Stroke `json:"strokes"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Strokes) != 1 || data.Strokes[0].Author != "Tester" {
+		t.Fatalf("expected persisted stroke, got %#v", data.Strokes)
+	}
+}
+
 func writeServerTestFile(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

@@ -506,7 +506,7 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.boardHub.publishStroke(id, stroke)
-	writeJSON(w, http.StatusCreated, stroke)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleAllBoardEvents(w http.ResponseWriter, r *http.Request) {

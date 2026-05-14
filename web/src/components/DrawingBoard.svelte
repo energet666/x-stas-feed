@@ -289,10 +289,7 @@
 
   async function submitStroke(tool: string, points: number[][]) {
     try {
-      const stroke = await createStroke(boardId, tool, points, currentColor, currentSize, username);
-      if (!strokes.some((s) => s.id === stroke.id)) {
-        strokes = [...strokes, stroke];
-      }
+      await createStroke(boardId, tool, points, currentColor, currentSize, username);
     } catch {
       // Failed to submit stroke
     }
