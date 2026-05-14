@@ -988,13 +988,18 @@
 
   function upsertBoardActivity(event: StrokeEvent, boardName: string, mediaId?: string) {
     const existing = activityItems.find((item) => item.type === 'board' && item.boardId === event.boardId);
+    const author = event.stroke.author || 'Guest';
+    const authors = existing?.type === 'board'
+      ? [...existing.authors.filter((existingAuthor) => existingAuthor !== author), author]
+      : [author];
     const updatedItem: ActivityItem = {
       type: 'board',
       boardId: event.boardId,
       mediaId,
       boardName,
       strokeCount: existing?.type === 'board' ? existing.strokeCount + 1 : 1,
-      lastAuthor: event.stroke.author || 'Guest',
+      authors,
+      lastAuthor: author,
       updatedAt: event.stroke.createdAt
     };
 

@@ -24,6 +24,13 @@
     mobileOpen = false;
     onSelect(item);
   }
+
+  function formatBoardAuthors(authors: string[]) {
+    const names = authors.filter(Boolean);
+    if (names.length === 0) return 'Guest';
+    if (names.length <= 3) return names.join(', ');
+    return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
+  }
 </script>
 
 <button
@@ -85,7 +92,9 @@
               <span class="truncate">{item.boardName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="truncate font-extrabold text-primary">{item.lastAuthor || 'Guest'}</span>
+              <span class="activity-row-author-name truncate font-extrabold text-primary" title={item.authors.join(', ') || 'Guest'}>
+                {formatBoardAuthors(item.authors)}
+              </span>
               <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
             </span>
             <span class="activity-row-text">
@@ -183,6 +192,10 @@
     gap: 0.35rem;
     font-size: 0.76rem;
     line-height: 1.2;
+  }
+
+  .activity-row-author-name {
+    min-width: 0;
   }
 
   .activity-row-author time {

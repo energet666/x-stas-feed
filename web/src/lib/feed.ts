@@ -36,6 +36,7 @@ export type BoardActivityItem = {
   mediaId?: string;
   boardName: string;
   strokeCount: number;
+  authors: string[];
   lastAuthor: string;
   updatedAt: string;
 };
