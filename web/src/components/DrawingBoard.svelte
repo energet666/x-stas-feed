@@ -42,6 +42,7 @@
   let activeStrokeCanvas: HTMLCanvasElement | undefined;
 
   let strokes = $state<Stroke[]>([]);
+  let strokeIds = new Set<string>();
   let currentTool = $state<Tool>('freeform');
   let currentColor = $state('#ffffff');
   let currentSize = $state(4);
@@ -84,9 +85,7 @@
     
     return boardEvents.subscribe((event) => {
       if (event.boardId === boardId) {
-        if (!strokes.some((s) => s.id === event.stroke.id)) {
-          strokes = [...strokes, event.stroke];
-        }
+        appendCommittedStroke(event.stroke);
       }
     });
   });
@@ -98,33 +97,42 @@
     }
   });
 
-  // When strokes change from outside (SSE), update committed canvas
-  $effect(() => {
-    if (strokes.length >= 0 && committedCanvas) {
-      updateCommittedCanvas();
-    }
-  });
-
   async function loadBoard() {
     try {
       const data = await fetchBoard(boardId);
       boardName = data.board.name;
-      strokes = data.strokes;
-      updateCommittedCanvas();
+      const loadedIds = new Set(data.strokes.map((stroke) => stroke.id));
+      const sseStrokes = strokes.filter((stroke) => !loadedIds.has(stroke.id));
+      rebuildCommittedCanvas([...data.strokes, ...sseStrokes]);
     } catch {
       // Board might not exist yet
     }
   }
 
-  function updateCommittedCanvas() {
+  function rebuildCommittedCanvas(nextStrokes: Stroke[]) {
     if (!committedCanvas) return;
     const ctx = committedCanvas.getContext('2d');
     if (!ctx) return;
 
+    strokes = nextStrokes;
+    strokeIds = new Set(nextStrokes.map((stroke) => stroke.id));
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    for (const stroke of strokes) {
+    for (const stroke of nextStrokes) {
       drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
     }
+    redraw();
+  }
+
+  function appendCommittedStroke(stroke: Stroke) {
+    if (strokeIds.has(stroke.id)) return;
+    strokeIds.add(stroke.id);
+    strokes = [...strokes, stroke];
+
+    if (!committedCanvas) return;
+    const ctx = committedCanvas.getContext('2d');
+    if (!ctx) return;
+
+    drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
     redraw();
   }
 

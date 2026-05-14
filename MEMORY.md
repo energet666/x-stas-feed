@@ -196,6 +196,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Drawing board toolbar keeps quick brush-size and color presets, but also exposes a custom numeric brush size input (clamped client-side to 1-96) and a native custom color picker. The custom color picker is a rectangular palette button with a small current-color preview so it does not look like another round preset swatch.
 - The latest selected drawing brush color and size are persisted in browser `localStorage` under `feed-ai:drawing-brush-color` and `feed-ai:drawing-brush-size`; storage failures are ignored and settings continue in memory.
 - Freeform board strokes may contain a single point. A click without drag is stored as a one-point freeform stroke and rendered as a filled circle with diameter equal to the brush size; line strokes still require at least two points.
+- Drawing board rendering uses layered canvases: `gridCanvas` for the static background, `committedCanvas` for server-confirmed strokes, and `activeStrokeCanvas` for the current local freeform stroke. `committedCanvas` is fully rebuilt only from the initial board snapshot or an explicit future reset; SSE stroke events append just the new stroke to the committed layer, so drawing a new stroke does not replay the full history.
 
 ## Agent Workflow Constraints
 
