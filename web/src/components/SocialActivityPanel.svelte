@@ -16,6 +16,10 @@
 
   let mobileOpen = $state(false);
 
+  function formatActivityTime(value: string) {
+    return new Date(value).toLocaleString();
+  }
+
   function selectActivity(item: ActivityItem) {
     mobileOpen = false;
     onSelect(item);
@@ -64,14 +68,14 @@
       </div>
     {:else}
       {#each items as item (item.comment.id)}
-        <button class="activity-row" type="button" onclick={() => selectActivity(item)}>
-          <span class="activity-row-meta">
-            <span class="truncate font-extrabold text-primary">{item.comment.author || 'Guest'}</span>
-            <time datetime={item.comment.createdAt}>{new Date(item.comment.createdAt).toLocaleString()}</time>
-          </span>
+        <button class="activity-row" type="button" title={formatActivityTime(item.comment.createdAt)} onclick={() => selectActivity(item)}>
           <span class="activity-row-media">
             <MessageCircle size={13} />
             <span class="truncate">{item.mediaDisplayName}</span>
+          </span>
+          <span class="activity-row-author">
+            <span class="truncate font-extrabold text-primary">{item.comment.author || 'Guest'}</span>
+            <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
           </span>
           <span class="activity-row-text">{item.comment.text}</span>
         </button>
@@ -158,21 +162,21 @@
     transform: translateY(-1px);
   }
 
-  .activity-row-meta {
+  .activity-row-author {
     display: flex;
     min-width: 0;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.35rem;
     font-size: 0.76rem;
     line-height: 1.2;
   }
 
-  .activity-row-meta time {
-    flex: 0 0 auto;
-    color: var(--color-subtle);
-    font-size: 0.66rem;
-    font-weight: 700;
+  .activity-row-author time {
+    position: absolute;
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
     white-space: nowrap;
   }
 
