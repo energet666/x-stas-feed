@@ -42,6 +42,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
+    suppressFeedChrome = false,
     onReveal,
     onKeep,
     onHide,
@@ -56,6 +57,7 @@
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
+    suppressFeedChrome?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
@@ -731,6 +733,7 @@
   {ambientActive}
   {overlayVisible}
   {likePending}
+  {suppressFeedChrome}
   {onReveal}
   {onKeep}
   {onHide}

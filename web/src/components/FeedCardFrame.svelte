@@ -16,6 +16,7 @@
     topAccessory,
     bottomAccessory,
     likePending = false,
+    suppressFeedChrome = false,
     suppressOverlays = false,
     onReveal,
     onKeep,
@@ -36,6 +37,7 @@
     topAccessory?: Snippet;
     bottomAccessory?: Snippet;
     likePending?: boolean;
+    suppressFeedChrome?: boolean;
     suppressOverlays?: boolean;
     onReveal: () => void;
     onKeep: () => void;
@@ -45,6 +47,11 @@
     onOpenComments: () => void;
     onLike: () => void;
   } = $props();
+
+  const showFeedChrome = $derived(!suppressOverlays && !suppressFeedChrome);
+  const hasTopOverlay = $derived(showFeedChrome || topAccessory !== undefined);
+  const hasBottomOverlay = $derived(showFeedChrome || bottomAccessory !== undefined);
+  const showOverlayLayer = $derived(!suppressOverlays && (hasTopOverlay || hasBottomOverlay));
 
   function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
     const target = event.currentTarget;
@@ -147,82 +154,90 @@
     </div>
   {/if}
 
-  {#if !suppressOverlays}
-    <div class="feed-card-top-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
-      <section
-        class="feed-card-panel"
-        aria-label="Media information"
-        onpointerenter={keepOverlayFromPanel}
-        onpointermove={keepOverlayFromPanel}
-        onpointerdown={keepOverlayFromPanel}
-        onpointerleave={releaseOverlayFromPanel}
-        onmouseenter={keepOverlayFromPanel}
-        onmousemove={keepOverlayFromPanel}
-        onmouseleave={releaseOverlayFromPanel}
-        ontouchstart={keepOverlayFromPanel}
-        onfocusin={keepOverlayFromPanel}
-      >
-        <FeedCardInfoPanel {item} {expanded} {favorite} {onToggleFavorite} {onToggleExpanded} />
-      </section>
+  {#if showOverlayLayer}
+    {#if hasTopOverlay}
+      <div class="feed-card-top-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
+        {#if showFeedChrome}
+          <section
+            class="feed-card-panel"
+            aria-label="Media information"
+            onpointerenter={keepOverlayFromPanel}
+            onpointermove={keepOverlayFromPanel}
+            onpointerdown={keepOverlayFromPanel}
+            onpointerleave={releaseOverlayFromPanel}
+            onmouseenter={keepOverlayFromPanel}
+            onmousemove={keepOverlayFromPanel}
+            onmouseleave={releaseOverlayFromPanel}
+            ontouchstart={keepOverlayFromPanel}
+            onfocusin={keepOverlayFromPanel}
+          >
+            <FeedCardInfoPanel {item} {expanded} {favorite} {onToggleFavorite} {onToggleExpanded} />
+          </section>
+        {/if}
 
-      {#if topAccessory}
-        <section
-          class="feed-card-panel"
-          aria-label="Media actions"
-          onpointerenter={keepOverlayFromPanel}
-          onpointermove={keepOverlayFromPanel}
-          onpointerdown={keepOverlayFromPanel}
-          onpointerleave={releaseOverlayFromPanel}
-          onmouseenter={keepOverlayFromPanel}
-          onmousemove={keepOverlayFromPanel}
-          onmouseleave={releaseOverlayFromPanel}
-          ontouchstart={keepOverlayFromPanel}
-          onfocusin={keepOverlayFromPanel}
-        >
-          {@render topAccessory()}
-        </section>
-      {/if}
-    </div>
+        {#if topAccessory}
+          <section
+            class="feed-card-panel"
+            aria-label="Media actions"
+            onpointerenter={keepOverlayFromPanel}
+            onpointermove={keepOverlayFromPanel}
+            onpointerdown={keepOverlayFromPanel}
+            onpointerleave={releaseOverlayFromPanel}
+            onmouseenter={keepOverlayFromPanel}
+            onmousemove={keepOverlayFromPanel}
+            onmouseleave={releaseOverlayFromPanel}
+            ontouchstart={keepOverlayFromPanel}
+            onfocusin={keepOverlayFromPanel}
+          >
+            {@render topAccessory()}
+          </section>
+        {/if}
+      </div>
+    {/if}
 
-    <div class="feed-card-bottom-stack">
-      {#if bottomAccessory}
-        <div class="feed-card-bottom-accessory" class:feed-card-bottom-accessory-visible={overlayVisible}>
-          <div class="feed-card-bottom-accessory-inner">
-            <section
-              class="feed-card-panel"
-              aria-label="Media controls"
-              onpointerenter={keepOverlayFromPanel}
-              onpointermove={keepOverlayFromPanel}
-              onpointerdown={keepOverlayFromPanel}
-              onpointerleave={releaseOverlayFromPanel}
-              onmouseenter={keepOverlayFromPanel}
-              onmousemove={keepOverlayFromPanel}
-              onmouseleave={releaseOverlayFromPanel}
-              ontouchstart={keepOverlayFromPanel}
-              onfocusin={keepOverlayFromPanel}
-            >
-              {@render bottomAccessory()}
-            </section>
+    {#if hasBottomOverlay}
+      <div class="feed-card-bottom-stack">
+        {#if bottomAccessory}
+          <div class="feed-card-bottom-accessory" class:feed-card-bottom-accessory-visible={overlayVisible}>
+            <div class="feed-card-bottom-accessory-inner">
+              <section
+                class="feed-card-panel"
+                aria-label="Media controls"
+                onpointerenter={keepOverlayFromPanel}
+                onpointermove={keepOverlayFromPanel}
+                onpointerdown={keepOverlayFromPanel}
+                onpointerleave={releaseOverlayFromPanel}
+                onmouseenter={keepOverlayFromPanel}
+                onmousemove={keepOverlayFromPanel}
+                onmouseleave={releaseOverlayFromPanel}
+                ontouchstart={keepOverlayFromPanel}
+                onfocusin={keepOverlayFromPanel}
+              >
+                {@render bottomAccessory()}
+              </section>
+            </div>
           </div>
-        </div>
-      {/if}
+        {/if}
 
-      <section
-        class="feed-card-panel"
-        aria-label="Comment summary"
-        onpointerenter={keepOverlayFromPanel}
-        onpointermove={keepOverlayFromPanel}
-        onpointerdown={keepOverlayFromPanel}
-        onpointerleave={releaseOverlayFromPanel}
-        onmouseenter={keepOverlayFromPanel}
-        onmousemove={keepOverlayFromPanel}
-        onmouseleave={releaseOverlayFromPanel}
-        ontouchstart={keepOverlayFromPanel}
-        onfocusin={keepOverlayFromPanel}
-      >
-        <FeedCardCommentsPreview {item} {likePending} {onOpenComments} {onLike} />
-      </section>
-    </div>
+        {#if showFeedChrome}
+          <section
+            class="feed-card-panel"
+            aria-label="Comment summary"
+            onpointerenter={keepOverlayFromPanel}
+            onpointermove={keepOverlayFromPanel}
+            onpointerdown={keepOverlayFromPanel}
+            onpointerleave={releaseOverlayFromPanel}
+            onmouseenter={keepOverlayFromPanel}
+            onmousemove={keepOverlayFromPanel}
+            onmouseleave={releaseOverlayFromPanel}
+            ontouchstart={keepOverlayFromPanel}
+            onfocusin={keepOverlayFromPanel}
+          >
+            <FeedCardCommentsPreview {item} {likePending} {onOpenComments} {onLike} />
+          </section>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </div>
 

@@ -14,6 +14,7 @@
     overlayVisible,
     likePending = false,
     username = 'Guest',
+    suppressFeedChrome = false,
     onReveal,
     onKeep,
     onHide,
@@ -29,6 +30,7 @@
     overlayVisible: boolean;
     likePending?: boolean;
     username?: string;
+    suppressFeedChrome?: boolean;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
     onHide: (id: string) => void;
@@ -60,6 +62,7 @@
     {overlayVisible}
     {likePending}
     {username}
+    {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
@@ -76,6 +79,7 @@
     {ambientActive}
     {overlayVisible}
     {likePending}
+    {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
@@ -92,6 +96,7 @@
     {ambientActive}
     {overlayVisible}
     {likePending}
+    {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
@@ -108,6 +113,7 @@
     {ambientActive}
     {overlayVisible}
     {likePending}
+    {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}
@@ -134,6 +140,7 @@
     ambientActive={false}
     {overlayVisible}
     {likePending}
+    {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}

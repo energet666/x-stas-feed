@@ -63,6 +63,7 @@
           ambientActive={true}
           {overlayVisible}
           {likePending}
+          suppressFeedChrome={true}
           onReveal={() => (overlayVisible = true)}
           onKeep={() => (overlayVisible = true)}
           onHide={() => (overlayVisible = false)}

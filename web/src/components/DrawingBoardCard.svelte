@@ -11,6 +11,7 @@
     overlayVisible,
     likePending = false,
     username = 'Guest',
+    suppressFeedChrome = false,
     onReveal,
     onKeep,
     onHide,
@@ -26,6 +27,7 @@
     overlayVisible: boolean;
     likePending?: boolean;
     username?: string;
+    suppressFeedChrome?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
@@ -51,6 +53,7 @@
   ambientActive={false}
   {overlayVisible}
   {likePending}
+  {suppressFeedChrome}
   {suppressOverlays}
   {onReveal}
   {onKeep}
