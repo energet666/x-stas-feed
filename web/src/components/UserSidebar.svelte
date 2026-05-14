@@ -98,7 +98,7 @@
   }
 </script>
 
-<aside class="user-sidebar glass-panel" aria-label="Profile settings">
+<aside class="user-sidebar glass-panel side-glass-panel" aria-label="Profile settings">
   <header class="user-sidebar-header">
     <div class="user-sidebar-avatar" aria-hidden="true">
       <UserRound size={20} />

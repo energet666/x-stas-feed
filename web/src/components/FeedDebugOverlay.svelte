@@ -74,7 +74,7 @@
   const formatBool = (value: boolean) => (value ? 'yes' : 'no');
 </script>
 
-<aside class="debug-overlay">
+<aside class="debug-overlay side-glass-panel">
   <button
     class="debug-toggle"
     type="button"

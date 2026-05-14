@@ -35,7 +35,7 @@
   <button class="activity-mobile-backdrop" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}></button>
 {/if}
 
-<aside class="activity-panel glass-panel" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
+<aside class="activity-panel glass-panel side-glass-panel" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
   <header class="activity-panel-header">
     <div class="min-w-0">
       <p class="text-xs font-semibold uppercase text-subtle">Activity</p>

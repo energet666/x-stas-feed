@@ -71,7 +71,7 @@
   }
 </script>
 
-<header class="feed-toolbar glass-panel" aria-label="Feed controls">
+<header class="feed-toolbar glass-panel side-glass-panel" aria-label="Feed controls">
   <div class="feed-toolbar-brand">
     <div class="min-w-0">
       <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed AI</h1>
