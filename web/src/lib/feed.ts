@@ -22,12 +22,25 @@ export type CommentLikeEvent = {
   likeCount: number;
 };
 
-export type ActivityItem = {
+export type CommentActivityItem = {
+  type: 'comment';
   mediaId: string;
   mediaDisplayName: string;
   mediaType: MediaKind;
   comment: Comment;
 };
+
+export type BoardActivityItem = {
+  type: 'board';
+  boardId: string;
+  mediaId?: string;
+  boardName: string;
+  strokeCount: number;
+  lastAuthor: string;
+  updatedAt: string;
+};
+
+export type ActivityItem = CommentActivityItem | BoardActivityItem;
 
 export type ShipState = {
   id: string;
@@ -168,7 +181,12 @@ export async function fetchActivity({ limit }: { limit: number }) {
     throw new Error(message ?? `Activity request failed with ${response.status}`);
   }
 
-  return (await response.json()) as { items: ActivityItem[] };
+  const data = (await response.json()) as { items: Omit<CommentActivityItem, 'type'>[] };
+  return {
+    items: Array.isArray(data.items)
+      ? data.items.map((item) => ({ ...item, type: 'comment' as const }))
+      : []
+  };
 }
 
 export async function fetchMediaItem(mediaId: string) {

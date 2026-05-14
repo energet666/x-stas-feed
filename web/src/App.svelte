@@ -13,11 +13,13 @@
   import SocialActivityPanel from './components/SocialActivityPanel.svelte';
   import UserSidebar from './components/UserSidebar.svelte';
   import DrawingBoard from './components/DrawingBoard.svelte';
+  import { boardEvents } from './lib/board_events.svelte';
   import {
     commentEventsURL,
     createBoard,
     createLike,
     fetchActivity,
+    fetchBoard,
     fetchFavoriteFeedPage,
     fetchFeedItem,
     fetchMediaItem,
@@ -28,7 +30,8 @@
     type CommentLikeEvent,
     type CommentEvent,
     type LikeEvent,
-    type MediaItem
+    type MediaItem,
+    type StrokeEvent
   } from './lib/feed';
 
   const pageSize = 6;
@@ -103,6 +106,9 @@
   let commentEvents: EventSource | undefined = undefined;
   let feedRequestVersion = 0;
   let masterBoardExpanded = $state(false);
+  let activityBoardExpandedID = $state<string | null>(null);
+  let unsubscribeBoardActivity: (() => void) | undefined = undefined;
+  const pendingBoardActivityFetches = new Set<string>();
 
   const isFavoriteMode = $derived(feedMode === 'favorites');
   const hasMore = $derived(
@@ -185,6 +191,7 @@
     window.addEventListener('resize', scheduleViewportUpdate);
     window.addEventListener(gameStartedEvent, activateGameMode);
     subscribeToCommentEvents();
+    subscribeToBoardActivity();
     void loadPage();
     void loadActivity();
 
@@ -199,6 +206,7 @@
         cancelAnimationFrame(loadMoreFrameID);
       }
       commentEvents?.close();
+      unsubscribeBoardActivity?.();
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
       window.removeEventListener(gameStartedEvent, activateGameMode);
@@ -223,7 +231,7 @@
 
   $effect(() => {
     const previousOverflow = document.body.style.overflow;
-    if (expandedItemID || activityModalOpen || masterBoardExpanded) {
+    if (expandedItemID || activityModalOpen || masterBoardExpanded || activityBoardExpandedID) {
       document.body.style.overflow = 'hidden';
     }
 
@@ -307,7 +315,8 @@
 
     try {
       const response = await fetchActivity({ limit: activityLimit });
-      activityItems = response.items;
+      const boardActivityItems = activityItems.filter((item) => item.type === 'board');
+      activityItems = sortActivityItems([...response.items, ...boardActivityItems]).slice(0, activityLimit);
     } catch (err) {
       activityError = err instanceof Error ? err.message : 'Unable to load activity';
     } finally {
@@ -698,7 +707,23 @@
       expandedItemID = null;
       commentsPanelItemID = null;
       selectedActivityMedia = null;
+      activityBoardExpandedID = null;
     }
+  }
+
+  function openActivityBoard(boardId: string) {
+    activityBoardExpandedID = boardId;
+    masterBoardExpanded = false;
+    activityModalOpen = false;
+    selectedActivityMedia = null;
+    activityMediaLoading = false;
+    activityMediaError = null;
+    expandedItemID = null;
+    commentsPanelItemID = null;
+  }
+
+  function closeActivityBoard() {
+    activityBoardExpandedID = null;
   }
 
   function toggleExpandedItem(id: string) {
@@ -724,6 +749,21 @@
   }
 
   async function openActivityMedia(activityItem: ActivityItem) {
+    if (activityItem.type === 'board') {
+      if (activityItem.boardId === 'master') {
+        masterBoardExpanded = true;
+        activityBoardExpandedID = null;
+        activityModalOpen = false;
+        selectedActivityMedia = null;
+        expandedItemID = null;
+        commentsPanelItemID = null;
+        return;
+      }
+
+      openActivityBoard(activityItem.boardId);
+      return;
+    }
+
     activityModalOpen = true;
     selectedActivityMedia = null;
     activityMediaLoading = true;
@@ -832,7 +872,7 @@
         : item
     );
     activityItems = activityItems.map((item) =>
-      item.mediaId === mediaId && item.comment.id === commentId
+      item.type === 'comment' && item.mediaId === mediaId && item.comment.id === commentId
         ? {
             ...item,
             comment: {
@@ -893,10 +933,27 @@
   }
 
   function prependActivityItem(activityItem: ActivityItem) {
-    activityItems = [
+    const nextItems = [
       activityItem,
-      ...activityItems.filter((item) => item.comment.id !== activityItem.comment.id)
-    ].slice(0, activityLimit);
+      ...activityItems.filter((item) => activityItemKey(item) !== activityItemKey(activityItem))
+    ];
+    activityItems = sortActivityItems(nextItems).slice(0, activityLimit);
+  }
+
+  function activityItemKey(item: ActivityItem) {
+    return item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.boardId}`;
+  }
+
+  function activityItemTime(item: ActivityItem) {
+    return Date.parse(item.type === 'comment' ? item.comment.createdAt : item.updatedAt) || 0;
+  }
+
+  function sortActivityItems(nextItems: ActivityItem[]) {
+    return [...nextItems].sort((a, b) => {
+      const timeDelta = activityItemTime(b) - activityItemTime(a);
+      if (timeDelta !== 0) return timeDelta;
+      return activityItemKey(a).localeCompare(activityItemKey(b));
+    });
   }
 
   async function prependActivityFromComment(event: CommentEvent) {
@@ -906,6 +963,7 @@
 
     if (item) {
       prependActivityItem({
+        type: 'comment',
         mediaId: item.id,
         mediaDisplayName: item.displayName,
         mediaType: item.type,
@@ -917,6 +975,7 @@
     try {
       const mediaItem = await fetchMediaItem(event.mediaId);
       prependActivityItem({
+        type: 'comment',
         mediaId: mediaItem.id,
         mediaDisplayName: mediaItem.displayName,
         mediaType: mediaItem.type,
@@ -925,6 +984,68 @@
     } catch {
       // Stale media can disappear between the SSE event and metadata fetch.
     }
+  }
+
+  function upsertBoardActivity(event: StrokeEvent, boardName: string, mediaId?: string) {
+    const existing = activityItems.find((item) => item.type === 'board' && item.boardId === event.boardId);
+    const updatedItem: ActivityItem = {
+      type: 'board',
+      boardId: event.boardId,
+      mediaId,
+      boardName,
+      strokeCount: existing?.type === 'board' ? existing.strokeCount + 1 : 1,
+      lastAuthor: event.stroke.author || 'Guest',
+      updatedAt: event.stroke.createdAt
+    };
+
+    prependActivityItem(updatedItem);
+  }
+
+  function boardMediaItem(boardId: string) {
+    return items.find((item) => item.type === 'board' && item.boardId === boardId);
+  }
+
+  function handleBoardActivity(event: StrokeEvent) {
+    const item = boardMediaItem(event.boardId);
+    if (item) {
+      upsertBoardActivity(event, item.displayName || item.filename || 'Board', item.id);
+      return;
+    }
+
+    if (event.boardId === 'master') {
+      upsertBoardActivity(event, 'Master Board');
+      return;
+    }
+
+    upsertBoardActivity(event, 'Board');
+    if (pendingBoardActivityFetches.has(event.boardId)) return;
+    pendingBoardActivityFetches.add(event.boardId);
+
+    void fetchBoard(event.boardId)
+      .then((data) => {
+        activityItems = activityItems.map((activityItem) =>
+          activityItem.type === 'board' && activityItem.boardId === event.boardId
+            ? {
+                ...activityItem,
+                boardName: data.board.name || activityItem.boardName,
+                mediaId: data.board.mediaId || activityItem.mediaId
+              }
+            : activityItem
+        );
+      })
+      .catch(() => {
+        // Stale board events can outlive a board fetch.
+      })
+      .finally(() => {
+        pendingBoardActivityFetches.delete(event.boardId);
+      });
+  }
+
+  function subscribeToBoardActivity() {
+    unsubscribeBoardActivity?.();
+    unsubscribeBoardActivity = boardEvents.subscribe((event) => {
+      handleBoardActivity(event);
+    });
   }
 
   function subscribeToCommentEvents() {
@@ -973,6 +1094,9 @@
     }
     if (event.key === 'Escape' && expandedItemID) {
       closeExpandedItem();
+    }
+    if (event.key === 'Escape' && activityBoardExpandedID) {
+      closeActivityBoard();
     }
     if (event.key === 'Escape' && masterBoardExpanded) {
       toggleMasterBoard();
@@ -1024,6 +1148,7 @@
     gameActive = true;
     commentsPanelItemID = null;
     expandedItemID = null;
+    activityBoardExpandedID = null;
     activityModalOpen = false;
     selectedActivityMedia = null;
     activeOverlayID = null;
@@ -1210,6 +1335,17 @@
         expanded={true}
         username={commentUsername}
         onClose={toggleMasterBoard}
+      />
+    </div>
+  {/if}
+
+  {#if activityBoardExpandedID}
+    <div class="master-board-expanded-overlay">
+      <DrawingBoard
+        boardId={activityBoardExpandedID}
+        expanded={true}
+        username={commentUsername}
+        onClose={closeActivityBoard}
       />
     </div>
   {/if}

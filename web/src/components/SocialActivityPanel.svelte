@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LoaderCircle, MessageCircle, PanelRightOpen, X } from 'lucide-svelte';
+  import { LoaderCircle, MessageCircle, PanelRightOpen, PencilLine, X } from 'lucide-svelte';
   import type { ActivityItem } from '../lib/feed';
 
   let {
@@ -42,8 +42,8 @@
 <aside class="activity-panel glass-panel side-glass-panel" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
   <header class="activity-panel-header">
     <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">Activity</p>
-      <h2 class="truncate text-base font-bold text-primary">Latest comments</h2>
+      <p class="text-xs font-semibold uppercase text-subtle">Social</p>
+      <h2 class="truncate text-base font-bold text-primary">Activity</h2>
     </div>
     <div class="flex items-center gap-2">
       <button class="activity-close glass-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
@@ -64,20 +64,34 @@
     {:else if items.length === 0}
       <div class="activity-empty px-4 text-center">
         <MessageCircle class="text-subtle" size={28} />
-        <p class="text-sm font-semibold text-muted">No comments yet</p>
+        <p class="text-sm font-semibold text-muted">No activity yet</p>
       </div>
     {:else}
-      {#each items as item (item.comment.id)}
-        <button class="activity-row" type="button" title={formatActivityTime(item.comment.createdAt)} onclick={() => selectActivity(item)}>
-          <span class="activity-row-media">
-            <MessageCircle size={13} />
-            <span class="truncate">{item.mediaDisplayName}</span>
-          </span>
-          <span class="activity-row-author">
-            <span class="truncate font-extrabold text-primary">{item.comment.author || 'Guest'}</span>
-            <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
-          </span>
-          <span class="activity-row-text">{item.comment.text}</span>
+      {#each items as item (item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.boardId}`)}
+        <button class="activity-row" type="button" title={formatActivityTime(item.type === 'comment' ? item.comment.createdAt : item.updatedAt)} onclick={() => selectActivity(item)}>
+          {#if item.type === 'comment'}
+            <span class="activity-row-media">
+              <MessageCircle size={13} />
+              <span class="truncate">{item.mediaDisplayName}</span>
+            </span>
+            <span class="activity-row-author">
+              <span class="truncate font-extrabold text-primary">{item.comment.author || 'Guest'}</span>
+              <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
+            </span>
+            <span class="activity-row-text">{item.comment.text}</span>
+          {:else}
+            <span class="activity-row-media">
+              <PencilLine size={13} />
+              <span class="truncate">{item.boardName}</span>
+            </span>
+            <span class="activity-row-author">
+              <span class="truncate font-extrabold text-primary">{item.lastAuthor || 'Guest'}</span>
+              <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
+            </span>
+            <span class="activity-row-text">
+              {item.strokeCount === 1 ? 'added 1 stroke' : `added ${item.strokeCount} strokes`}
+            </span>
+          {/if}
         </button>
       {/each}
     {/if}

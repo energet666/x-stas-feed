@@ -37,7 +37,7 @@
 <div class="activity-modal" role="dialog" aria-modal="true" aria-label="Activity media">
   <header class="activity-modal-header">
     <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">Activity comment</p>
+      <p class="text-xs font-semibold uppercase text-subtle">{item?.type === 'board' ? 'Board activity' : 'Activity comment'}</p>
       <h2 class="truncate text-base font-bold text-primary">{item?.displayName ?? 'Loading media'}</h2>
     </div>
     <button class="glass-icon-button" type="button" aria-label="Close media" onclick={onClose}>

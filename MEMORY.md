@@ -197,6 +197,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The latest selected drawing brush color and size are persisted in browser `localStorage` under `feed-ai:drawing-brush-color` and `feed-ai:drawing-brush-size`; storage failures are ignored and settings continue in memory.
 - Freeform board strokes may contain a single point. A click without drag is stored as a one-point freeform stroke and rendered as a filled circle with diameter equal to the brush size; line strokes still require at least two points.
 - Drawing board rendering uses layered canvases: `gridCanvas` for the static background, `committedCanvas` for server-confirmed strokes, and `activeStrokeCanvas` for the current local freeform stroke. `committedCanvas` is fully rebuilt only from the initial board snapshot or an explicit future reset; SSE stroke events append just the new stroke to the committed layer, so drawing a new stroke does not replay the full history.
+- The social activity panel treats drawing-board strokes as live aggregated activity, not one notification per stroke. Frontend board SSE events upsert one `board` activity item per `boardId`, increment its stroke count, update last author/time, and sort it together with comment activity by most recent timestamp. Clicking board activity opens the expanded drawing board directly without the comments modal. Board activity is live-only for now; backend `/api/activity` still persists and returns comment activity.
 
 ## Agent Workflow Constraints
 
