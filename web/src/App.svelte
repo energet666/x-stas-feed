@@ -1181,28 +1181,6 @@
   <BackgroundParticles />
   <AsteroidsShip username={commentUsername} />
   {#if !gameActive}
-    <div class="left-rail">
-      <FeedHeader
-        {uploadStatus}
-        {uploadMessage}
-        {uploadProgress}
-        {feedMode}
-        onToggleFavoriteMode={toggleFavoriteMode}
-        onUploadFiles={handleUploadFiles}
-        onCreateBoard={handleCreateBoard}
-      />
-      <UserSidebar 
-        bind:username 
-        onExpandMasterBoard={toggleMasterBoard}
-      />
-    </div>
-    <SocialActivityPanel
-      items={activityItems}
-      loading={activityLoading}
-      error={activityError}
-      onSelect={openActivityMedia}
-    />
-
     {#if pageDragActive}
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="glass-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
@@ -1212,95 +1190,120 @@
       </div>
     {/if}
 
-    <section
-      bind:this={listEl}
-      class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 pb-5 pt-4 sm:px-4"
-    >
-      {#if !initialLoaded && loading}
-        <div class="flex min-h-96 items-center justify-center">
-          <LoaderCircle class="animate-spin text-primary" size={34} />
-        </div>
-      {/if}
-
-      {#if isEmpty && !isFavoriteMode}
-        <EmptyFeedState onRetry={retry} onUploadFiles={handleUploadFiles} />
-      {/if}
-
-      {#if isEmpty && isFavoriteMode}
-        <div class="glass-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
-          <div class="grid size-12 place-items-center rounded-full border border-glass-border-soft bg-button-bg text-primary">
-            <Star size={22} />
-          </div>
-          <div class="space-y-1">
-            <h2 class="text-base font-bold text-primary">No favorites to show</h2>
-            <p class="max-w-xs text-sm font-semibold text-muted">Star media cards to keep them here.</p>
-          </div>
-          <button class="glass-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
-        </div>
-      {/if}
-
-      {#if topSpacer > 0}
-        <div aria-hidden="true" style={`height: ${topSpacer}px`}></div>
-      {/if}
-
-      {#each visibleRows as row (row.item.id)}
-        {@const item = row.item}
-        <article
-          data-media-id={item.id}
-          class="glass-card mb-4 overflow-hidden"
-          class:media-card-expanded={expandedItemID === item.id}
-          use:measureCard={item.id}
-          use:prepareAmbient={item.id}
-        >
-          <MediaCard
-            {item}
-            expanded={expandedItemID === item.id}
-            favorite={favoriteIDSet.has(item.id)}
-            ambientActive={
-              cardBackgroundMode === 'ambient' &&
-              (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
-            }
-            overlayVisible={activeOverlayID === item.id}
-            likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
-            username={commentUsername}
-            onReveal={revealCardOverlay}
-            onKeep={keepCardOverlay}
-            onHide={hideCardOverlay}
-            onToggleFavorite={toggleFavorite}
-            onToggleExpanded={toggleExpandedItem}
-            onOpenComments={openComments}
-            onLike={likeItem}
-          />
-          {#if commentsPanelItemID === item.id && !commentsPanelFullscreen}
-            <CommentsPanel
-              {item}
-              username={commentUsername}
-              commentEvent={latestCommentEvent}
-              commentLikeEvent={latestCommentLikeEvent}
-              onClose={closeComments}
-              onCommentsChanged={updateItemComments}
-              onCommentLikeChanged={updateItemCommentLikeCount}
-            />
-          {/if}
-        </article>
-      {/each}
-
-      {#if bottomSpacer > 0}
-        <div aria-hidden="true" style={`height: ${bottomSpacer}px`}></div>
-      {/if}
-
-      {#if error}
-        <FeedError message={error} onRetry={retry} />
-      {/if}
-
-      <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
-        {#if loading && initialLoaded}
-          <LoaderCircle class="animate-spin text-muted" size={26} />
-        {:else if initialLoaded && !hasMore && items.length > 0}
-          <p class="text-sm font-semibold text-muted">End of feed</p>
-        {/if}
+    <div class="app-layout">
+      <div class="left-rail">
+        <FeedHeader
+          {uploadStatus}
+          {uploadMessage}
+          {uploadProgress}
+          {feedMode}
+          onToggleFavoriteMode={toggleFavoriteMode}
+          onUploadFiles={handleUploadFiles}
+          onCreateBoard={handleCreateBoard}
+        />
+        <UserSidebar 
+          bind:username 
+          onExpandMasterBoard={toggleMasterBoard}
+        />
       </div>
-    </section>
+
+      <section
+        bind:this={listEl}
+        class="virtual-feed mx-auto flex w-full max-w-2xl flex-col px-3 pb-5 pt-4 sm:px-4"
+      >
+        {#if !initialLoaded && loading}
+          <div class="flex min-h-96 items-center justify-center">
+            <LoaderCircle class="animate-spin text-primary" size={34} />
+          </div>
+        {/if}
+
+        {#if isEmpty && !isFavoriteMode}
+          <EmptyFeedState onRetry={retry} onUploadFiles={handleUploadFiles} />
+        {/if}
+
+        {#if isEmpty && isFavoriteMode}
+          <div class="glass-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
+            <div class="grid size-12 place-items-center rounded-full border border-glass-border-soft bg-button-bg text-primary">
+              <Star size={22} />
+            </div>
+            <div class="space-y-1">
+              <h2 class="text-base font-bold text-primary">No favorites to show</h2>
+              <p class="max-w-xs text-sm font-semibold text-muted">Star media cards to keep them here.</p>
+            </div>
+            <button class="glass-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
+          </div>
+        {/if}
+
+        {#if topSpacer > 0}
+          <div aria-hidden="true" style={`height: ${topSpacer}px`}></div>
+        {/if}
+
+        {#each visibleRows as row (row.item.id)}
+          {@const item = row.item}
+          <article
+            data-media-id={item.id}
+            class="glass-card mb-4 overflow-hidden"
+            class:media-card-expanded={expandedItemID === item.id}
+            use:measureCard={item.id}
+            use:prepareAmbient={item.id}
+          >
+            <MediaCard
+              {item}
+              expanded={expandedItemID === item.id}
+              favorite={favoriteIDSet.has(item.id)}
+              ambientActive={
+                cardBackgroundMode === 'ambient' &&
+                (ambientReadyIDs[item.id] || expandedItemID === item.id || commentsPanelItemID === item.id)
+              }
+              overlayVisible={activeOverlayID === item.id}
+              likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
+              username={commentUsername}
+              onReveal={revealCardOverlay}
+              onKeep={keepCardOverlay}
+              onHide={hideCardOverlay}
+              onToggleFavorite={toggleFavorite}
+              onToggleExpanded={toggleExpandedItem}
+              onOpenComments={openComments}
+              onLike={likeItem}
+            />
+            {#if commentsPanelItemID === item.id && !commentsPanelFullscreen}
+              <CommentsPanel
+                {item}
+                username={commentUsername}
+                commentEvent={latestCommentEvent}
+                commentLikeEvent={latestCommentLikeEvent}
+                onClose={closeComments}
+                onCommentsChanged={updateItemComments}
+                onCommentLikeChanged={updateItemCommentLikeCount}
+              />
+            {/if}
+          </article>
+        {/each}
+
+        {#if bottomSpacer > 0}
+          <div aria-hidden="true" style={`height: ${bottomSpacer}px`}></div>
+        {/if}
+
+        {#if error}
+          <FeedError message={error} onRetry={retry} />
+        {/if}
+
+        <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
+          {#if loading && initialLoaded}
+            <LoaderCircle class="animate-spin text-muted" size={26} />
+          {:else if initialLoaded && !hasMore && items.length > 0}
+            <p class="text-sm font-semibold text-muted">End of feed</p>
+          {/if}
+        </div>
+      </section>
+
+      <SocialActivityPanel
+        items={activityItems}
+        loading={activityLoading}
+        error={activityError}
+        onSelect={openActivityMedia}
+      />
+    </div>
 
     {#if commentsPanelFullscreen && commentsPanelItem}
       <div class="comments-panel-fullscreen">
@@ -1394,22 +1397,43 @@
 {/if}
 
 <style>
-  .left-rail {
-    position: fixed;
-    top: 1rem;
-    left: max(1rem, calc((100vw - 78rem) / 2));
-    z-index: 13;
-    display: flex;
-    width: 18rem;
-    flex-direction: column;
-    gap: 0.75rem;
+  .app-shell {
+    --desktop-feed-section-width: 42rem;
+    --desktop-left-rail-width: 18rem;
+    --desktop-activity-rail-width: 19rem;
+    --desktop-rail-gap: 0rem;
   }
 
-  @media (width < 1280px) {
+  .app-layout {
+    display: grid;
+    width: 100%;
+    grid-template-columns:
+      var(--desktop-left-rail-width) var(--desktop-feed-section-width)
+      var(--desktop-activity-rail-width);
+    column-gap: var(--desktop-rail-gap);
+    align-items: start;
+    justify-content: center;
+  }
+
+  .left-rail {
+    position: sticky;
+    top: 1rem;
+    z-index: 13;
+    display: flex;
+    width: var(--desktop-left-rail-width);
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  @media (width < 1344px) {
+    .app-layout {
+      display: block;
+    }
+
     .left-rail {
       position: relative;
       top: auto;
-      left: auto;
       width: min(100% - 1.5rem, 40rem);
       margin: 1rem auto 0;
     }

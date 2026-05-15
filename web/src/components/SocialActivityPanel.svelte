@@ -127,14 +127,15 @@
   }
 
   .activity-panel {
-    position: fixed;
+    position: sticky;
     top: 1rem;
-    right: max(1rem, calc((100vw - 78rem) / 2));
+    align-self: start;
     z-index: 13;
     display: flex;
-    width: 19rem;
+    width: var(--desktop-activity-rail-width);
     max-height: calc(100vh - 2rem);
     flex-direction: column;
+    margin-top: 1rem;
     overflow: hidden;
   }
 
@@ -238,7 +239,7 @@
     line-clamp: 3;
   }
 
-  @media (width < 1280px) {
+  @media (width < 1344px) {
     .activity-mobile-toggle {
       display: grid;
     }
@@ -248,12 +249,14 @@
     }
 
     .activity-panel {
+      position: fixed;
       top: 0.75rem;
       right: 0.75rem;
       bottom: 0.75rem;
       z-index: 36;
       width: min(21rem, calc(100vw - 1.5rem));
       max-height: none;
+      margin-top: 0;
       transform: translateX(calc(100% + 1rem));
       transition: transform 180ms ease;
     }
