@@ -82,7 +82,7 @@
               <span class="truncate">{item.mediaDisplayName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="truncate font-extrabold text-primary">{item.comment.author || 'Guest'}</span>
+              <span class="truncate font-semibold text-primary">{item.comment.author || 'Guest'}</span>
               <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
             </span>
             <span class="activity-row-text">{item.comment.text}</span>
@@ -92,7 +92,7 @@
               <span class="truncate">{item.boardName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="activity-row-author-name truncate font-extrabold text-primary" title={item.authors.join(', ') || 'Guest'}>
+              <span class="activity-row-author-name truncate font-semibold text-primary" title={item.authors.join(', ') || 'Guest'}>
                 {formatBoardAuthors(item.authors)}
               </span>
               <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
@@ -132,7 +132,7 @@
     right: max(1rem, calc((100vw - 78rem) / 2));
     z-index: 13;
     display: flex;
-    width: 18rem;
+    width: 19rem;
     max-height: calc(100vh - 2rem);
     flex-direction: column;
     overflow: hidden;
@@ -170,9 +170,9 @@
     display: flex;
     width: 100%;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.42rem;
     border-radius: var(--radius-overlay);
-    padding: 0.65rem 0.7rem;
+    padding: 0.72rem 0.78rem;
     color: var(--color-secondary);
     text-align: left;
     transition:
@@ -189,9 +189,9 @@
     display: flex;
     min-width: 0;
     align-items: baseline;
-    gap: 0.35rem;
-    font-size: 0.76rem;
-    line-height: 1.2;
+    gap: 0.4rem;
+    font-size: 0.86rem;
+    line-height: 1.28;
   }
 
   .activity-row-author-name {
@@ -211,11 +211,11 @@
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     color: var(--color-muted);
-    font-size: 0.72rem;
-    font-weight: 800;
-    line-height: 1.2;
+    font-size: 0.8rem;
+    font-weight: 650;
+    line-height: 1.28;
   }
 
   .activity-row-media :global(svg) {
@@ -228,9 +228,9 @@
     display: -webkit-box;
     overflow: hidden;
     color: var(--color-secondary);
-    font-size: 0.8rem;
-    font-weight: 600;
-    line-height: 1.35;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.45;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
     -webkit-box-orient: vertical;
