@@ -150,6 +150,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Comments open as an in-card overlay over the selected feed card, not as a global fixed side/bottom panel.
 - Opening comments should not lock body scrolling because the comments UI is scoped to the card surface.
 - When a card is expanded, the media frame is fixed above the page at `z-index: 79`; the comments panel must be rendered through the top-level `.comments-panel-fullscreen` viewport overlay above it, not inside the virtualized card.
+- In expanded/fullscreen cards, top and bottom feed overlay stacks and the fullscreen comments panel are horizontally capped to the feed column width (`42rem`) and centered with viewport-safe side insets, so media controls and info/comment panels do not stretch across wide screens.
 - Full comments and compact comment previews preserve user line breaks with safe wrapping.
 - Media likes are anonymous one-way increments. Store the server-side `likeCount` in each media item's metadata JSON; do not add client IDs, unlike state, auth, or a separate likes store for v1. Successful likes publish `event: like` over the existing comments SSE stream so other open clients update immediately.
 - Comment likes follow the same anonymous one-way increment model. Store each comment's `likeCount` in its JSONL record, rewrite the media comment file atomically when a comment is liked, and publish `event: comment-like` over the existing SSE stream.

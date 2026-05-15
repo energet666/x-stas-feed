@@ -146,7 +146,11 @@
 
   {#if showOverlayLayer}
     {#if hasTopOverlay}
-      <div class="feed-card-top-stack feed-card-overlay" class:feed-card-overlay-visible={overlayVisible}>
+      <div
+        class="feed-card-top-stack feed-card-overlay"
+        class:feed-card-overlay-visible={overlayVisible}
+        class:feed-card-overlay-expanded={expanded}
+      >
         {#if showFeedChrome}
           <section
             class="feed-card-panel"
@@ -186,7 +190,7 @@
     {/if}
 
     {#if hasBottomOverlay}
-      <div class="feed-card-bottom-stack">
+      <div class="feed-card-bottom-stack" class:feed-card-overlay-expanded={expanded}>
         {#if bottomAccessory}
           <div class="feed-card-bottom-accessory" class:feed-card-bottom-accessory-visible={overlayVisible}>
             <div class="feed-card-bottom-accessory-inner">
@@ -319,6 +323,11 @@
     color: var(--color-primary);
     backdrop-filter: blur(10px) saturate(140%);
     -webkit-backdrop-filter: blur(10px) saturate(140%);
+  }
+
+  .feed-card-overlay-expanded {
+    right: max(0.75rem, calc((100vw - 42rem) / 2));
+    left: max(0.75rem, calc((100vw - 42rem) / 2));
   }
 
   @media (width < 520px) {

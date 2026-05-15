@@ -322,9 +322,15 @@ video {
 
   .comments-panel-fullscreen {
     position: fixed;
-    inset: clamp(0.75rem, 3vw, 2rem);
+    --comments-panel-fullscreen-inset: clamp(0.75rem, 3vw, 2rem);
+
+    top: var(--comments-panel-fullscreen-inset);
+    bottom: var(--comments-panel-fullscreen-inset);
+    left: 50%;
     z-index: 90;
+    width: min(42rem, calc(100vw - (var(--comments-panel-fullscreen-inset) * 2)));
     border-radius: var(--radius-card);
+    transform: translateX(-50%);
   }
 
   .debug-toggle {
@@ -475,7 +481,7 @@ video {
     }
 
     .comments-panel-fullscreen {
-      inset: 0.75rem;
+      --comments-panel-fullscreen-inset: 0.75rem;
     }
   }
 
