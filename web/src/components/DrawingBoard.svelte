@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Palette, Pencil, X } from 'lucide-svelte';
+  import { Activity, Palette, Pencil, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -28,6 +28,8 @@
   ];
 
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
+  const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
+  const FREEFORM_POINT_DISTANCE = 6;
   const MIN_BRUSH_SIZE = 1;
   const MAX_BRUSH_SIZE = 96;
   const brushColorStorageKey = 'feed-ai:drawing-brush-color';
@@ -51,6 +53,7 @@
   let lineStart = $state<number[] | null>(null);
   let mousePos = $state<number[] | null>(null);
   let showColorPicker = $state(false);
+  let showDebugSegments = $state(false);
   let boardName = $state('Board');
   let brushCursorVisible = $state(false);
   let brushCursorX = $state(0);
@@ -258,13 +261,17 @@
     const dist = Math.hypot(x - lastPoint[0], y - lastPoint[1]);
     
     // Filter points that are too close to reduce data and complexity
-    if (dist < 3) return;
+    if (dist < FREEFORM_POINT_DISTANCE) return;
 
     const newPoints = [...currentPoints, [x, y]];
 
     const ctx = activeStrokeCanvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform');
+    if (showDebugSegments) {
+      drawDebugSegmentedFreeformStroke(ctx, newPoints, currentSize);
+    } else {
+      drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform');
+    }
 
     currentPoints = newPoints;
     redraw();
@@ -373,6 +380,46 @@
     ctx.beginPath();
     ctx.arc(point[0], point[1], size / 2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDebugSegmentedFreeformStroke(
+    ctx: CanvasRenderingContext2D,
+    points: number[][],
+    size: number
+  ) {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      drawPoint(ctx, points[0], DEBUG_SEGMENT_COLORS[0], size);
+      return;
+    }
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size;
+
+    let start = points[0];
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.strokeStyle = DEBUG_SEGMENT_COLORS[(i - 1) % DEBUG_SEGMENT_COLORS.length];
+      ctx.beginPath();
+      ctx.moveTo(start[0], start[1]);
+
+      let end = points[i];
+      if (i < points.length - 1) {
+        end = [
+          (points[i][0] + points[i + 1][0]) / 2,
+          (points[i][1] + points[i + 1][1]) / 2
+        ];
+        ctx.quadraticCurveTo(points[i][0], points[i][1], end[0], end[1]);
+      } else {
+        ctx.lineTo(end[0], end[1]);
+      }
+
+      ctx.stroke();
+      start = end;
+    }
+
     ctx.restore();
   }
 
@@ -576,6 +623,17 @@
               <circle cx="7" cy="17" r="2.25"></circle>
               <circle cx="17" cy="7" r="2.25"></circle>
             </svg>
+          </button>
+          <button
+            class="drawing-tool-btn"
+            class:drawing-tool-btn-active={showDebugSegments}
+            type="button"
+            title="Show point density"
+            aria-label="Show point density"
+            aria-pressed={showDebugSegments}
+            onclick={() => (showDebugSegments = !showDebugSegments)}
+          >
+            <Activity size={16} />
           </button>
         </div>
 
