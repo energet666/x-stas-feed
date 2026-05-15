@@ -261,14 +261,11 @@
     if (dist < 3) return;
 
     const newPoints = [...currentPoints, [x, y]];
-    
-    // Draw only the new segment incrementally
+
     const ctx = activeStrokeCanvas.getContext('2d')!;
-    const p1 = currentPoints[currentPoints.length - 1];
-    const p2 = [x, y];
-    
-    drawSegment(ctx, p1, p2, currentColor, currentSize);
-    
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform');
+
     currentPoints = newPoints;
     redraw();
   }
