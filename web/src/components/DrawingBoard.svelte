@@ -59,9 +59,17 @@
   let brushCursorX = $state(0);
   let brushCursorY = $state(0);
   let brushCursorSize = $state(0);
+  let sizeDragPointerId = $state<number | null>(null);
+  let sizeDragStartY = $state(0);
+  let sizeDragStartValue = $state(0);
+  let sizeDragAppliedDelta = $state(0);
+  let sizeDragActive = $state(false);
+  let sizeDragSuppressClick = $state(false);
 
   const canvasWidth = 1200;
   const canvasHeight = 800;
+  const SIZE_DRAG_STEP_PX = 3;
+  const SIZE_DRAG_START_THRESHOLD_PX = 3;
 
   onMount(() => {
     loadBrushSettings();
@@ -504,6 +512,55 @@
     selectSize(currentSize + (event.deltaY < 0 ? 1 : -1));
   }
 
+  function handleCustomSizePointerDown(event: PointerEvent) {
+    if (event.button !== 0) return;
+
+    const input = event.currentTarget as HTMLInputElement;
+    sizeDragPointerId = event.pointerId;
+    sizeDragStartY = event.clientY;
+    sizeDragStartValue = currentSize;
+    sizeDragAppliedDelta = 0;
+    sizeDragActive = false;
+    sizeDragSuppressClick = false;
+    input.setPointerCapture(event.pointerId);
+  }
+
+  function handleCustomSizePointerMove(event: PointerEvent) {
+    if (sizeDragPointerId !== event.pointerId) return;
+
+    const distance = sizeDragStartY - event.clientY;
+    if (!sizeDragActive && Math.abs(distance) < SIZE_DRAG_START_THRESHOLD_PX) return;
+
+    sizeDragActive = true;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextDelta = Math.trunc(distance / SIZE_DRAG_STEP_PX);
+    if (nextDelta === sizeDragAppliedDelta) return;
+
+    sizeDragAppliedDelta = nextDelta;
+    selectSize(sizeDragStartValue + nextDelta);
+  }
+
+  function finishCustomSizeDrag(event: PointerEvent) {
+    if (sizeDragPointerId !== event.pointerId) return;
+
+    const input = event.currentTarget as HTMLInputElement;
+    if (input.hasPointerCapture(event.pointerId)) {
+      input.releasePointerCapture(event.pointerId);
+    }
+    sizeDragSuppressClick = sizeDragActive;
+    sizeDragPointerId = null;
+    sizeDragActive = false;
+  }
+
+  function handleCustomSizeClick(event: MouseEvent) {
+    if (!sizeDragSuppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sizeDragSuppressClick = false;
+  }
+
   function loadBrushSettings() {
     try {
       const storedColor = window.localStorage.getItem(brushColorStorageKey);
@@ -655,6 +712,7 @@
           {/each}
           <input
             class="drawing-size-custom"
+            class:drawing-size-custom-dragging={sizeDragActive}
             type="number"
             min={MIN_BRUSH_SIZE}
             max={MAX_BRUSH_SIZE}
@@ -662,8 +720,13 @@
             value={currentSize}
             aria-label="Custom brush size"
             title="Custom brush size"
+            onclick={handleCustomSizeClick}
             oninput={handleCustomSizeInput}
             onwheel={handleCustomSizeWheel}
+            onpointerdown={handleCustomSizePointerDown}
+            onpointermove={handleCustomSizePointerMove}
+            onpointerup={finishCustomSizeDrag}
+            onpointercancel={finishCustomSizeDrag}
           />
         </div>
 
@@ -970,6 +1033,8 @@
     font-variant-numeric: tabular-nums;
     text-align: center;
     outline: none;
+    cursor: ns-resize;
+    user-select: none;
     transition:
       background 150ms ease,
       border-color 150ms ease;
@@ -979,6 +1044,11 @@
   .drawing-size-custom:focus {
     border-color: rgba(255, 255, 255, 0.26);
     background: rgba(255, 255, 255, 0.12);
+  }
+
+  .drawing-size-custom-dragging {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.16);
   }
 
   .drawing-size-custom::-webkit-inner-spin-button,
