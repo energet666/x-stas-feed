@@ -122,16 +122,6 @@
     {#if ambientActive}
       {#if ambientBackground}
         {@render ambientBackground()}
-      {:else if item.type === 'video'}
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <video
-          src={item.url}
-          muted
-          loop
-          playsinline
-          autoplay
-          class="ambient-media"
-        ></video>
       {:else if item.type === 'image'}
         <img
           src={item.url}

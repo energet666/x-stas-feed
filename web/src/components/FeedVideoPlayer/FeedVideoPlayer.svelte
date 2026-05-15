@@ -6,7 +6,7 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import FeedCardFrame from '../FeedCardFrame.svelte';
   import FeedVideoControls from './FeedVideoControls.svelte';
   import FeedVideoOverlay from './FeedVideoOverlay.svelte';
@@ -115,9 +115,10 @@
   const canPersistProgress = $derived(duration >= MIN_PROGRESS_SAVE_DURATION_SECONDS);
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
   const supportsPip = $derived(supportsPictureInPicture(video));
-  const videoPreload = $derived(expanded || !paused ? 'auto' : isSafari && !metadataWanted ? 'none' : 'metadata');
+  const videoPreload = $derived(hasVideoInteraction && (expanded || !paused) ? 'auto' : hasVideoInteraction && (metadataWanted || !isSafari) ? 'metadata' : 'none');
   const posterURL = $derived(mediaPosterURL(item.id, posterTime));
   const activePosterURL = $derived(hasVideoInteraction ? undefined : posterURL);
+  const activeVideoURL = $derived(hasVideoInteraction ? item.url : undefined);
   const displayedPlaybackRate = $derived(temporaryPlaybackRate ?? userPlaybackRate);
 
   onMount(() => {
@@ -214,12 +215,18 @@
     posterCoverVisible = false;
   }
 
+  async function activateVideoElement() {
+    if (hasVideoInteraction) return;
+    markVideoInteraction();
+    await tick();
+  }
+
   async function togglePlay() {
     if (!video) return;
     setActivePlayer();
     metadataWanted = true;
-    markVideoInteraction();
     markProgressInteraction();
+    await activateVideoElement();
     applySavedStartPosition();
     prepareIdleVideoFrame();
     playBlocked = false;
@@ -304,10 +311,10 @@
     const target = event.target as HTMLElement;
     if (target.closest('.video-controls')) return;
     setActivePlayer();
-    markVideoInteraction();
     clearTimeout(clickTimer);
 
     if (event.detail === 1) {
+      markVideoInteraction();
       clickTimer = setTimeout(() => {
         void togglePlay();
       }, 220);
@@ -330,13 +337,13 @@
     revealControls();
   }
 
-  function handleSeek(event: Event) {
+  async function handleSeek(event: Event) {
     if (!video) return;
     const target = event.target as HTMLInputElement;
     setActivePlayer();
     metadataWanted = true;
-    markVideoInteraction();
     markProgressInteraction();
+    await activateVideoElement();
     currentTime = Number(target.value);
     if (!Number.isFinite(currentTime) || duration <= 0) return;
     video.currentTime = currentTime;
@@ -365,7 +372,7 @@
   async function togglePip() {
     if (!video) return;
     setActivePlayer();
-    markVideoInteraction();
+    await activateVideoElement();
     const safariVideo = video as SafariVideoElement;
 
     try {
@@ -404,11 +411,12 @@
   function safePlay() {
     if (!video) return;
     metadataWanted = true;
-    markVideoInteraction();
     markProgressInteraction();
-    applySavedStartPosition();
-    playBlocked = false;
-    video.play().catch(() => {
+    activateVideoElement().then(() => {
+      applySavedStartPosition();
+      playBlocked = false;
+      return video?.play();
+    }).catch(() => {
       playBlocked = true;
       showControls = true;
     });
@@ -419,12 +427,12 @@
     return clampTime(nextTime, maxTime);
   }
 
-  function seekBy(seconds: number) {
+  async function seekBy(seconds: number) {
     if (!video) return;
     setActivePlayer();
     const baseTime = !hasVideoInteraction && currentTime > 0.5 ? currentTime : video.currentTime;
-    markVideoInteraction();
     markProgressInteraction();
+    await activateVideoElement();
     video.currentTime = clampPlaybackTime(baseTime + seconds);
     currentTime = video.currentTime;
     saveProgress();
@@ -783,7 +791,7 @@
         playsinline
         preload={videoPreload}
         poster={activePosterURL}
-        src={item.url}
+        src={activeVideoURL}
         onclick={handleVideoClick}
         onloadedmetadata={syncMetadata}
         ondurationchange={syncMetadata}
