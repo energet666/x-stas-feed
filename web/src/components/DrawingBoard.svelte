@@ -29,7 +29,10 @@
 
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
   const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
-  const FREEFORM_POINT_DISTANCE = 6;
+  const FREEFORM_POINT_DISTANCE = 3;
+  const DEFAULT_FREEFORM_SIMPLIFY_EPSILON = 1;
+  const MIN_FREEFORM_SIMPLIFY_EPSILON = 0;
+  const MAX_FREEFORM_SIMPLIFY_EPSILON = 24;
   const MIN_BRUSH_SIZE = 1;
   const MAX_BRUSH_SIZE = 96;
   const brushColorStorageKey = 'feed-ai:drawing-brush-color';
@@ -54,6 +57,9 @@
   let mousePos = $state<number[] | null>(null);
   let showColorPicker = $state(false);
   let showDebugSegments = $state(false);
+  let lastRawPointCount = $state<number | null>(null);
+  let lastSimplifiedPointCount = $state<number | null>(null);
+  let freeformSimplifyEpsilon = $state(DEFAULT_FREEFORM_SIMPLIFY_EPSILON);
   let boardName = $state('Board');
   let brushCursorVisible = $state(false);
   let brushCursorX = $state(0);
@@ -293,7 +299,10 @@
 
     if (currentTool === 'freeform' && isDrawing && currentPoints.length >= 1) {
       isDrawing = false;
-      void submitStroke('freeform', currentPoints);
+      const simplifiedPoints = simplifyFreeformPoints(currentPoints);
+      lastRawPointCount = currentPoints.length;
+      lastSimplifiedPointCount = simplifiedPoints.length;
+      void submitStroke('freeform', simplifiedPoints);
       currentPoints = [];
       if (activeStrokeCanvas) {
         activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -305,6 +314,69 @@
         activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
       }
     }
+  }
+
+  function simplifyFreeformPoints(points: number[][]) {
+    if (points.length <= 2) return points;
+
+    const keep = new Array<boolean>(points.length).fill(false);
+    keep[0] = true;
+    keep[points.length - 1] = true;
+    simplifyPointRange(points, 0, points.length - 1, freeformSimplifyEpsilon ** 2, keep);
+
+    return points.filter((_, index) => keep[index]);
+  }
+
+  function simplifyPointRange(
+    points: number[][],
+    startIndex: number,
+    endIndex: number,
+    epsilonSquared: number,
+    keep: boolean[]
+  ) {
+    if (endIndex <= startIndex + 1) return;
+
+    let farthestIndex = -1;
+    let farthestDistance = 0;
+    const start = points[startIndex];
+    const end = points[endIndex];
+
+    for (let i = startIndex + 1; i < endIndex; i += 1) {
+      const distance = pointToSegmentDistanceSquared(points[i], start, end);
+      if (distance > farthestDistance) {
+        farthestDistance = distance;
+        farthestIndex = i;
+      }
+    }
+
+    if (farthestIndex === -1 || farthestDistance <= epsilonSquared) return;
+
+    keep[farthestIndex] = true;
+    simplifyPointRange(points, startIndex, farthestIndex, epsilonSquared, keep);
+    simplifyPointRange(points, farthestIndex, endIndex, epsilonSquared, keep);
+  }
+
+  function pointToSegmentDistanceSquared(point: number[], start: number[], end: number[]) {
+    const dx = end[0] - start[0];
+    const dy = end[1] - start[1];
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (lengthSquared === 0) {
+      const pointDx = point[0] - start[0];
+      const pointDy = point[1] - start[1];
+      return pointDx * pointDx + pointDy * pointDy;
+    }
+
+    const t = Math.max(
+      0,
+      Math.min(1, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / lengthSquared)
+    );
+    const projectionX = start[0] + t * dx;
+    const projectionY = start[1] + t * dy;
+    const projectionDx = point[0] - projectionX;
+    const projectionDy = point[1] - projectionY;
+
+    return projectionDx * projectionDx + projectionDy * projectionDy;
   }
 
   async function submitStroke(tool: string, points: number[][]) {
@@ -561,6 +633,17 @@
     sizeDragSuppressClick = false;
   }
 
+  function handleSimplifyEpsilonInput(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const value = Number.isFinite(input.valueAsNumber)
+      ? input.valueAsNumber
+      : DEFAULT_FREEFORM_SIMPLIFY_EPSILON;
+    freeformSimplifyEpsilon = Math.min(
+      MAX_FREEFORM_SIMPLIFY_EPSILON,
+      Math.max(MIN_FREEFORM_SIMPLIFY_EPSILON, value)
+    );
+  }
+
   function loadBrushSettings() {
     try {
       const storedColor = window.localStorage.getItem(brushColorStorageKey);
@@ -692,6 +775,27 @@
           >
             <Activity size={16} />
           </button>
+          {#if lastRawPointCount !== null && lastSimplifiedPointCount !== null}
+            <div
+              class="drawing-point-stats"
+              title="Last stroke points before/after simplification"
+              aria-label={`Last stroke points before simplification ${lastRawPointCount}, after simplification ${lastSimplifiedPointCount}`}
+            >
+              <span>{lastRawPointCount}</span>
+              <span>{lastSimplifiedPointCount}</span>
+            </div>
+          {/if}
+          <input
+            class="drawing-epsilon-input"
+            type="number"
+            min={MIN_FREEFORM_SIMPLIFY_EPSILON}
+            max={MAX_FREEFORM_SIMPLIFY_EPSILON}
+            step="0.5"
+            value={freeformSimplifyEpsilon}
+            aria-label="Simplification error tolerance"
+            title="Simplification error tolerance"
+            oninput={handleSimplifyEpsilonInput}
+          />
         </div>
 
         <div class="drawing-toolbar-divider"></div>
@@ -975,6 +1079,61 @@
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.15);
     color: #fff;
+  }
+
+  .drawing-point-stats {
+    display: flex;
+    flex-direction: column;
+    min-width: 2.25rem;
+    max-width: 2.75rem;
+    height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.12rem;
+    padding: 0 0.35rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.4rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.64rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .drawing-point-stats span {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+
+  .drawing-epsilon-input {
+    width: 2.75rem;
+    height: 1.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    outline: none;
+    transition:
+      background 150ms ease,
+      border-color 150ms ease;
+  }
+
+  .drawing-epsilon-input:hover,
+  .drawing-epsilon-input:focus {
+    border-color: rgba(255, 255, 255, 0.26);
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .drawing-epsilon-input::-webkit-inner-spin-button,
+  .drawing-epsilon-input::-webkit-outer-spin-button {
+    opacity: 0.85;
   }
 
   .drawing-segment-icon {
