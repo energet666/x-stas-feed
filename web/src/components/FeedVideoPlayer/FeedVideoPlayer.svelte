@@ -91,9 +91,11 @@
   let clickTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let seekFeedbackTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let spaceTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  let arrowRightTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   let isSpaceDown = false;
   let isSpaceLongPress = false;
   let isArrowRightDown = false;
+  let isArrowRightLongPress = false;
   let lastSeekFeedbackAt = 0;
   let previewFrameRequested = false;
   let progressRestored = false;
@@ -430,6 +432,7 @@
   async function seekBy(seconds: number) {
     if (!video) return;
     setActivePlayer();
+    metadataWanted = true;
     const baseTime = !hasVideoInteraction && currentTime > 0.5 ? currentTime : video.currentTime;
     markProgressInteraction();
     await activateVideoElement();
@@ -539,9 +542,15 @@
       event.preventDefault();
       if (isArrowRightDown) return;
       isArrowRightDown = true;
+      isArrowRightLongPress = false;
       setActivePlayer();
-      setTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
-      if (video?.paused) safePlay();
+
+      arrowRightTimer = setTimeout(() => {
+        if (!video) return;
+        isArrowRightLongPress = true;
+        setTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
+        if (video.paused) safePlay();
+      }, LONG_PRESS_DELAY_MS);
       return;
     }
 
@@ -569,7 +578,13 @@
     if (event.code === 'ArrowRight' && isArrowRightDown) {
       event.preventDefault();
       isArrowRightDown = false;
-      clearTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
+      clearTimeout(arrowRightTimer);
+
+      if (isArrowRightLongPress) {
+        clearTemporaryPlaybackRate(KEYBOARD_FAST_FORWARD_RATE);
+      } else {
+        seekBy(1);
+      }
     }
   }
 
@@ -724,6 +739,7 @@
     clearTimeout(clickTimer);
     clearTimeout(seekFeedbackTimer);
     clearTimeout(spaceTimer);
+    clearTimeout(arrowRightTimer);
     if (activePlayerId === playerId) activePlayerId = undefined;
     stopAmbientSync();
   });

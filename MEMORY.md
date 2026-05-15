@@ -106,9 +106,9 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Keyboard behavior:
   - Space toggles play/pause; holding Space temporarily plays at 2x.
   - ArrowLeft seeks back by 1 second on keydown.
-  - Holding ArrowRight temporarily plays at 5x and restores the selected playback speed on keyup.
+  - ArrowRight short press seeks forward by 1 second on keyup; holding ArrowRight past the long-press delay temporarily plays at 5x and restores the selected playback speed on keyup.
   - ArrowUp/ArrowDown change playback speed.
-- Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling.
+- Horizontal wheel/trackpad gestures seek the active video while preserving normal vertical page scrolling. The seek path must request metadata before activating an idle video so Safari does not leave the video at `preload="none"` until the controls panel is hovered.
 - Only one mounted video should play at a time; players coordinate through a shared browser event.
 - Per-video watch progress, shared volume/mute state, and debug overlay collapsed state are persisted in `localStorage`.
 - First-run default video volume is 50% when no saved browser volume exists.
