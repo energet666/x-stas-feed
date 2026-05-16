@@ -30,11 +30,11 @@
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
   const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
   const FREEFORM_POINT_DISTANCE = 3;
-  const DEFAULT_FREEFORM_SIMPLIFY_EPSILON = 1;
+  const DEFAULT_FREEFORM_SIMPLIFY_EPSILON = 0.5;
   const MIN_FREEFORM_SIMPLIFY_EPSILON = 0;
   const MAX_FREEFORM_SIMPLIFY_EPSILON = 24;
   const MIN_BRUSH_SIZE = 1;
-  const MAX_BRUSH_SIZE = 96;
+  const MAX_BRUSH_SIZE = 200;
   const brushColorStorageKey = 'feed-ai:drawing-brush-color';
   const brushSizeStorageKey = 'feed-ai:drawing-brush-size';
 
