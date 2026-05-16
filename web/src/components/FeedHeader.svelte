@@ -80,12 +80,10 @@
     return Array.from(event.dataTransfer?.types ?? []).includes('Files');
   }
 
-  async function openBoardForm() {
+  function openBoardForm() {
     boardError = '';
     boardFormOpen = true;
-    await tick();
-    boardNameInputEl?.focus();
-    boardNameInputEl?.select();
+    focusBoardNameInput();
   }
 
   function closeBoardForm() {
@@ -105,11 +103,19 @@
       boardName = '';
     } catch (err) {
       boardError = err instanceof Error ? err.message : 'Board creation failed';
-      await tick();
-      boardNameInputEl?.focus();
+      boardCreating = false;
+      focusBoardNameInput();
     } finally {
       boardCreating = false;
     }
+  }
+
+  function focusBoardNameInput() {
+    void tick().then(() => {
+      if (!boardFormOpen || !boardNameInputEl) return;
+      boardNameInputEl.focus({ preventScroll: true });
+      boardNameInputEl.select();
+    });
   }
 
   function handleBoardNameKeydown(event: KeyboardEvent) {

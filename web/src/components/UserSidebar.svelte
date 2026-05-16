@@ -14,29 +14,49 @@
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
 
   onMount(() => {
-    let userInitiatedFocus = false;
-    let startupTimer: number | undefined = undefined;
+    let usernameFocusAllowedUntil = 0;
+    let lastFocusedElement: HTMLElement | null = null;
     const focusCheckTimers: number[] = [];
 
-    const markUserInitiatedFocus = () => {
-      userInitiatedFocus = true;
+    const allowUsernameFocus = () => {
+      usernameFocusAllowedUntil = performance.now() + 1000;
+    };
+    const isUsernameFocusAllowed = () => {
+      return performance.now() <= usernameFocusAllowedUntil;
     };
     const blurRestoredFocus = () => {
-      if (!userInitiatedFocus && document.activeElement === usernameInput) {
+      if (!isUsernameFocusAllowed() && document.activeElement === usernameInput) {
         usernameInput.blur();
+        if (lastFocusedElement?.isConnected) {
+          lastFocusedElement.focus({ preventScroll: true });
+        }
       }
     };
     const scheduleFocusCheck = (delay: number) => {
       focusCheckTimers.push(window.setTimeout(blurRestoredFocus, delay));
     };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target === usernameInput || target.closest('label[for="username-input"]')) {
+        allowUsernameFocus();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        allowUsernameFocus();
+      }
+    };
     const handleFocusIn = (event: FocusEvent) => {
       if (event.target === usernameInput) {
         scheduleFocusCheck(0);
+      } else if (event.target instanceof HTMLElement) {
+        lastFocusedElement = event.target;
       }
     };
 
-    window.addEventListener('pointerdown', markUserInitiatedFocus, { capture: true });
-    window.addEventListener('keydown', markUserInitiatedFocus, { capture: true });
+    window.addEventListener('pointerdown', handlePointerDown, { capture: true });
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
     document.addEventListener('focusin', handleFocusIn, { capture: true });
 
     void tick().then(() => {
@@ -49,17 +69,10 @@
       scheduleFocusCheck(750);
     });
 
-    startupTimer = window.setTimeout(() => {
-      document.removeEventListener('focusin', handleFocusIn, { capture: true });
-    }, 1500);
-
     return () => {
-      window.removeEventListener('pointerdown', markUserInitiatedFocus, { capture: true });
-      window.removeEventListener('keydown', markUserInitiatedFocus, { capture: true });
+      window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
       document.removeEventListener('focusin', handleFocusIn, { capture: true });
-      if (startupTimer !== undefined) {
-        window.clearTimeout(startupTimer);
-      }
       for (const timer of focusCheckTimers) {
         window.clearTimeout(timer);
       }
