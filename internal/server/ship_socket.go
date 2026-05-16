@@ -137,6 +137,11 @@ func sanitizeShipState(ship *shipState) bool {
 	if nameRunes := []rune(ship.Name); len(nameRunes) > 40 {
 		ship.Name = string(nameRunes[:40])
 	}
+	if !ship.Active {
+		ship.Bullets = nil
+		ship.Asteroid = nil
+		ship.Thrusting = false
+	}
 	return true
 }
 

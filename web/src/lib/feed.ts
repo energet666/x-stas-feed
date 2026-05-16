@@ -50,6 +50,7 @@ export type ShipState = {
   y: number;
   angle: number;
   thrusting: boolean;
+  active?: boolean;
   bullets?: ShipBullet[];
   asteroid?: ShipAsteroid;
   updatedAt?: string;

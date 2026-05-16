@@ -82,6 +82,7 @@
   const asteroidHitScore = 100;
   const collisionPenalty = 200;
   const asteroidRespawnMs = 650;
+  const shipSpawnGraceMs = 1200;
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
@@ -131,6 +132,7 @@
   let audioContext: AudioContext | undefined = undefined;
   let lastThrustSoundAt = 0;
   let smokeSpawnAccumulator = 0;
+  let shipCollisionGraceUntil = 0;
   const pendingAsteroidHits = new Set<string>();
 
   const shipTransform = $derived(
@@ -236,6 +238,10 @@
   function resize() {
     viewportWidth = window.innerWidth;
     viewportHeight = window.innerHeight;
+    if (!shipControlled) {
+      placeShipAtSpawn();
+      return;
+    }
     ship.x = wrap(ship.x, -shipSize, viewportWidth + shipSize);
     ship.y = wrap(ship.y, -shipSize, viewportHeight + shipSize);
     if (asteroid) {
@@ -331,6 +337,7 @@
     }
     if (shipControlled) return;
     shipControlled = true;
+    shipCollisionGraceUntil = performance.now() + shipSpawnGraceMs;
     window.dispatchEvent(new CustomEvent(gameStartedEvent));
     spawnAsteroid();
   }
@@ -602,9 +609,12 @@
   }
 
   function detectRemoteShipCollision() {
+    if (performance.now() < shipCollisionGraceUntil) return;
     const center = shipCenter();
     const hit = remoteShips.find(
-      (remoteShip) => Math.hypot(center.x - remoteShip.x, center.y - remoteShip.y) <= shipCollisionRadius * 2
+      (remoteShip) =>
+        isRemoteShipActive(remoteShip) &&
+        Math.hypot(center.x - remoteShip.x, center.y - remoteShip.y) <= shipCollisionRadius * 2
     );
     if (!hit) return;
 
@@ -627,6 +637,7 @@
     if (bullets.length === 0) return;
 
     for (const remoteShip of remoteShips) {
+      if (!isRemoteShipActive(remoteShip)) continue;
       const remoteAsteroid = remoteShip.asteroid;
       if (!remoteAsteroid) continue;
       const hitKey = `${remoteShip.id}:${remoteAsteroid.id}`;
@@ -649,6 +660,7 @@
   function detectRemoteBulletCollision() {
     const center = shipCenter();
     for (const remoteShip of remoteShips) {
+      if (!isRemoteShipActive(remoteShip)) continue;
       const hit = remoteShip.bullets?.find(
         (bullet) => Math.hypot(center.x - bullet.x, center.y - bullet.y) <= shipCollisionRadius + 5
       );
@@ -662,6 +674,7 @@
   function detectRemoteAsteroidCollision() {
     const center = shipCenter();
     const hit = remoteShips.find((remoteShip) => {
+      if (!isRemoteShipActive(remoteShip)) return false;
       const remoteAsteroid = remoteShip.asteroid;
       return (
         remoteAsteroid &&
@@ -707,15 +720,71 @@
 
   function resetShip() {
     keys.clear();
-    ship.x = 8;
-    ship.y = 4;
+    placeShipAtSpawn();
     ship.vx = 0;
     ship.vy = 0;
     ship.angle = 0;
     ship.thrusting = false;
     shipControlled = false;
+    shipCollisionGraceUntil = 0;
     particles = [];
     smokeSpawnAccumulator = 0;
+  }
+
+  function placeShipAtSpawn() {
+    const point = selectSpawnPoint();
+    ship.x = point.x;
+    ship.y = point.y;
+  }
+
+  function selectSpawnPoint() {
+    const points = spawnPoints();
+    const start = sessionHash() % points.length;
+
+    for (let offset = 0; offset < points.length; offset += 1) {
+      const point = points[(start + offset) % points.length];
+      const centerX = point.x + shipWidth / 2;
+      const centerY = point.y + shipHeight / 2;
+      const blocked = remoteShips.some(
+        (remoteShip) =>
+          isRemoteShipActive(remoteShip) &&
+          Math.hypot(centerX - remoteShip.x, centerY - remoteShip.y) < shipCollisionRadius * 4
+      );
+      if (!blocked) return point;
+    }
+
+    return points[start];
+  }
+
+  function spawnPoints() {
+    const margin = 18;
+    const maxX = Math.max(margin, viewportWidth - shipWidth - margin);
+    const maxY = Math.max(margin, viewportHeight - shipHeight - margin);
+    const midX = Math.max(margin, viewportWidth / 2 - shipWidth / 2);
+    const midY = Math.max(margin, viewportHeight / 2 - shipHeight / 2);
+
+    return [
+      { x: margin, y: margin },
+      { x: maxX, y: margin },
+      { x: margin, y: maxY },
+      { x: maxX, y: maxY },
+      { x: midX, y: margin },
+      { x: midX, y: maxY },
+      { x: margin, y: midY },
+      { x: maxX, y: midY }
+    ];
+  }
+
+  function sessionHash() {
+    let hash = 0;
+    for (let i = 0; i < sessionID.length; i += 1) {
+      hash = (hash * 31 + sessionID.charCodeAt(i)) >>> 0;
+    }
+    return hash;
+  }
+
+  function isRemoteShipActive(remoteShip: NetworkShipState) {
+    return remoteShip.active !== false;
   }
 
   function shipCenter() {
@@ -770,8 +839,9 @@
             y: center.y,
             angle: ship.angle,
             thrusting: ship.thrusting,
-            bullets: bullets.map((bullet) => ({ x: bullet.x, y: bullet.y })),
-            asteroid: asteroid
+            active: shipControlled && roundStatus === 'playing',
+            bullets: shipControlled ? bullets.map((bullet) => ({ x: bullet.x, y: bullet.y })) : [],
+            asteroid: shipControlled && asteroid
               ? {
                   id: asteroid.id,
                   x: asteroid.x,
@@ -1085,45 +1155,47 @@
 {/if}
 
 {#each remoteShips as remoteShip (remoteShip.id)}
-  {#if remoteShip.asteroid}
-    <svg
-      class="asteroids-rock asteroids-remote-rock"
+  {#if isRemoteShipActive(remoteShip)}
+    {#if remoteShip.asteroid}
+      <svg
+        class="asteroids-rock asteroids-remote-rock"
+        aria-hidden="true"
+        viewBox="0 0 100 100"
+        style:width={`${remoteShip.asteroid.radius * 2}px`}
+        style:height={`${remoteShip.asteroid.radius * 2}px`}
+        style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
+      >
+        <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
+        <path class="remote-rock-line" d={remoteShip.asteroid.path} />
+      </svg>
+    {/if}
+    {#each remoteShip.bullets ?? [] as bullet, index (`${remoteShip.id}-${index}`)}
+      <span
+        class="asteroids-bullet asteroids-remote-bullet"
+        aria-hidden="true"
+        style:transform={`translate3d(${bullet.x}px, ${bullet.y}px, 0) translate(-50%, -50%)`}
+      ></span>
+    {/each}
+    <div
+      class="asteroids-remote-ship"
       aria-hidden="true"
-      viewBox="0 0 100 100"
-      style:width={`${remoteShip.asteroid.radius * 2}px`}
-      style:height={`${remoteShip.asteroid.radius * 2}px`}
-      style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
+      style:transform={`translate3d(${remoteShip.x - shipWidth / 2}px, ${remoteShip.y - shipHeight / 2}px, 0) rotate(${remoteShip.angle + Math.PI / 2}rad)`}
     >
-      <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
-      <path class="remote-rock-line" d={remoteShip.asteroid.path} />
-    </svg>
-  {/if}
-  {#each remoteShip.bullets ?? [] as bullet, index (`${remoteShip.id}-${index}`)}
+      <svg viewBox="0 0 42 54" role="img">
+        <path class="remote-ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
+        <path class="remote-ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
+        <path class="remote-ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
+        <path class="remote-ship-flame" class:remote-ship-flame-active={remoteShip.thrusting} d="M21 42 27 55 21 50 15 55 21 42Z" />
+      </svg>
+    </div>
     <span
-      class="asteroids-bullet asteroids-remote-bullet"
+      class="asteroids-remote-name"
       aria-hidden="true"
-      style:transform={`translate3d(${bullet.x}px, ${bullet.y}px, 0) translate(-50%, -50%)`}
-    ></span>
-  {/each}
-  <div
-    class="asteroids-remote-ship"
-    aria-hidden="true"
-    style:transform={`translate3d(${remoteShip.x - shipWidth / 2}px, ${remoteShip.y - shipHeight / 2}px, 0) rotate(${remoteShip.angle + Math.PI / 2}rad)`}
-  >
-    <svg viewBox="0 0 42 54" role="img">
-      <path class="remote-ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
-      <path class="remote-ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
-      <path class="remote-ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
-      <path class="remote-ship-flame" class:remote-ship-flame-active={remoteShip.thrusting} d="M21 42 27 55 21 50 15 55 21 42Z" />
-    </svg>
-  </div>
-  <span
-    class="asteroids-remote-name"
-    aria-hidden="true"
-    style:transform={`translate3d(${remoteShip.x}px, ${remoteShip.y + shipHeight / 2 + 8}px, 0) translate(-50%, 0)`}
-  >
-    {remoteShip.name}
-  </span>
+      style:transform={`translate3d(${remoteShip.x}px, ${remoteShip.y + shipHeight / 2 + 8}px, 0) translate(-50%, 0)`}
+    >
+      {remoteShip.name}
+    </span>
+  {/if}
 {/each}
 
 {#if shipControlled}

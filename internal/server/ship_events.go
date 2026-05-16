@@ -14,6 +14,7 @@ type shipState struct {
 	Y         float64       `json:"y"`
 	Angle     float64       `json:"angle"`
 	Thrusting bool          `json:"thrusting"`
+	Active    bool          `json:"active"`
 	Bullets   []shipBullet  `json:"bullets,omitempty"`
 	Asteroid  *shipAsteroid `json:"asteroid,omitempty"`
 	UpdatedAt time.Time     `json:"updatedAt"`
