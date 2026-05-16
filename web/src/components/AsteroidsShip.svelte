@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { shipSocketURL, type ShipSnapshot, type ShipState as NetworkShipState } from '../lib/feed';
+  import {
+    createShipScore,
+    fetchShipScores,
+    shipSocketURL,
+    type ShipScore,
+    type ShipSnapshot,
+    type ShipState as NetworkShipState
+  } from '../lib/feed';
 
   type ShipState = {
     x: number;
@@ -52,6 +59,8 @@
     spin?: number;
   };
 
+  type RoundStatus = 'idle' | 'playing' | 'finished';
+
   const shipWidth = 43.2;
   const shipHeight = 55.2;
   const shipSize = Math.max(shipWidth, shipHeight);
@@ -69,11 +78,15 @@
   const explosionSparkCount = 10;
   const explosionDebrisCount = 4;
   const explosionSmokeCount = 5;
+  const roundDurationMs = 60_000;
+  const asteroidHitScore = 100;
+  const collisionPenalty = 200;
   const asteroidRespawnMs = 650;
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
+  const gameExitedEvent = 'feed-ai:game-exited';
   const shipPostIntervalMs = 16;
   const shipSessionStorageKey = 'feed-ai:ship-session-id';
   const keys = new Set<string>();
@@ -106,6 +119,14 @@
   let sessionID = '';
   let lastShipPostAt = 0;
   let remoteShips = $state<NetworkShipState[]>([]);
+  let roundStatus = $state<RoundStatus>('idle');
+  let roundEndsAt = 0;
+  let roundRemainingMs = $state(roundDurationMs);
+  let score = $state(0);
+  let leaderboard = $state<ShipScore[]>([]);
+  let scoreSubmitStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  let roundSaved = $state(false);
+  let scoreSubmissionID = 0;
   let shipSocket: WebSocket | undefined = undefined;
   let audioContext: AudioContext | undefined = undefined;
   let lastThrustSoundAt = 0;
@@ -115,6 +136,7 @@
   const shipTransform = $derived(
     `translate3d(${ship.x}px, ${ship.y}px, 0) rotate(${ship.angle + Math.PI / 2}rad)`
   );
+  const roundSecondsLeft = $derived(Math.max(0, Math.ceil(roundRemainingMs / 1000)));
 
   function isTextEntryTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
@@ -122,6 +144,26 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && roundStatus !== 'idle' && !isTextEntryTarget(event.target)) {
+      exitGameMode();
+      event.preventDefault();
+      return;
+    }
+    if (roundStatus === 'finished') {
+      if (event.code === 'Enter' && !videoActive && !isTextEntryTarget(event.target)) {
+        restartRound();
+        event.preventDefault();
+      }
+      if (isShipKey(event)) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (roundStatus === 'playing' && event.code === 'Enter' && !videoActive && !isTextEntryTarget(event.target)) {
+      finishRound(false);
+      event.preventDefault();
+      return;
+    }
     if (videoActive && isShipKey(event)) {
       keys.delete(keyID(event));
       ship.thrusting = false;
@@ -140,6 +182,11 @@
   }
 
   function handleKeyup(event: KeyboardEvent) {
+    if (roundStatus === 'finished' && isShipKey(event)) {
+      keys.delete(keyID(event));
+      event.preventDefault();
+      return;
+    }
     if (videoActive && isShipKey(event)) {
       keys.delete(keyID(event));
       ship.thrusting = false;
@@ -166,6 +213,7 @@
 
   function shoot() {
     startAsteroidGame();
+    if (roundStatus !== 'playing') return;
     if (bullets.length > 0) return;
 
     const centerX = ship.x + shipWidth / 2;
@@ -199,6 +247,7 @@
   function animate(now: number) {
     const delta = lastFrameAt > 0 ? Math.min((now - lastFrameAt) / 16.67, 2.4) : 1;
     lastFrameAt = now;
+    updateRoundTimer(now);
 
     if (keys.has('ArrowLeft')) {
       ship.angle -= turnSpeed * delta;
@@ -276,14 +325,130 @@
   }
 
   function startAsteroidGame() {
+    if (roundStatus === 'finished') return;
+    if (roundStatus === 'idle') {
+      startRound();
+    }
     if (shipControlled) return;
     shipControlled = true;
     window.dispatchEvent(new CustomEvent(gameStartedEvent));
     spawnAsteroid();
   }
 
+  function startRound() {
+    roundStatus = 'playing';
+    roundEndsAt = performance.now() + roundDurationMs;
+    roundRemainingMs = roundDurationMs;
+    score = 0;
+    leaderboard = [];
+    scoreSubmitStatus = 'idle';
+    roundSaved = false;
+    scoreSubmissionID += 1;
+  }
+
+  function restartRound() {
+    resetShip();
+    bullets = [];
+    particles = [];
+    asteroid = undefined;
+    explosion = undefined;
+    remoteShips = [];
+    pendingAsteroidHits.clear();
+    clearTimeout(asteroidRespawnTimer);
+    nextBulletID = 1;
+    nextAsteroidID = 1;
+    roundStatus = 'idle';
+    roundEndsAt = 0;
+    roundRemainingMs = roundDurationMs;
+    score = 0;
+    leaderboard = [];
+    scoreSubmitStatus = 'idle';
+    roundSaved = false;
+    scoreSubmissionID += 1;
+    startAsteroidGame();
+  }
+
+  function exitGameMode() {
+    resetShip();
+    bullets = [];
+    particles = [];
+    asteroid = undefined;
+    explosion = undefined;
+    pendingAsteroidHits.clear();
+    clearTimeout(asteroidRespawnTimer);
+    roundStatus = 'idle';
+    roundEndsAt = 0;
+    roundRemainingMs = roundDurationMs;
+    score = 0;
+    leaderboard = [];
+    scoreSubmitStatus = 'idle';
+    roundSaved = false;
+    scoreSubmissionID += 1;
+    void publishShip();
+    window.dispatchEvent(new CustomEvent(gameExitedEvent));
+  }
+
+  function updateRoundTimer(now: number) {
+    if (roundStatus !== 'playing') return;
+    roundRemainingMs = Math.max(0, roundEndsAt - now);
+    if (roundRemainingMs <= 0) {
+      finishRound(true);
+    }
+  }
+
+  function finishRound(shouldSubmitScore: boolean) {
+    if (roundStatus !== 'playing') return;
+    roundStatus = 'finished';
+    roundSaved = shouldSubmitScore;
+    roundRemainingMs = 0;
+    keys.clear();
+    bullets = [];
+    asteroid = undefined;
+    ship.thrusting = false;
+    shipControlled = false;
+    clearTimeout(asteroidRespawnTimer);
+    scoreSubmissionID += 1;
+    if (shouldSubmitScore) {
+      void submitScore(scoreSubmissionID, score);
+    } else {
+      void loadLeaderboard(scoreSubmissionID);
+    }
+    void publishShip();
+  }
+
+  async function submitScore(submissionID: number, finalScore: number) {
+    scoreSubmitStatus = 'saving';
+    try {
+      const scores = await createShipScore(username.trim() || 'Guest', finalScore);
+      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
+      leaderboard = scores;
+      scoreSubmitStatus = 'saved';
+    } catch {
+      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
+      scoreSubmitStatus = 'error';
+    }
+  }
+
+  async function loadLeaderboard(submissionID: number) {
+    scoreSubmitStatus = 'saving';
+    try {
+      const scores = await fetchShipScores();
+      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
+      leaderboard = scores;
+      scoreSubmitStatus = 'saved';
+    } catch {
+      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
+      scoreSubmitStatus = 'error';
+    }
+  }
+
+  function addScore(delta: number) {
+    if (roundStatus !== 'playing') return;
+    score += delta;
+  }
+
   function spawnAsteroid() {
-    if (!viewportWidth || !viewportHeight || asteroid) return;
+    if (roundStatus !== 'playing' || !viewportWidth || !viewportHeight || asteroid) return;
     const radius = 28 + Math.random() * 16;
     const position = randomAsteroidPosition(radius);
     asteroid = {
@@ -419,6 +584,7 @@
     if (!hit) return;
 
     bullets = bullets.filter((bullet) => bullet.id !== hit.id);
+    addScore(asteroidHitScore);
     destroyAsteroid(asteroid.x, asteroid.y);
   }
 
@@ -428,6 +594,7 @@
     if (Math.hypot(center.x - asteroid.x, center.y - asteroid.y) > asteroid.radius + shipCollisionRadius) return;
 
     bullets = [];
+    addScore(-collisionPenalty);
     resetShip();
     destroyAsteroid(asteroid.x, asteroid.y);
     playShipDestroySound();
@@ -442,6 +609,7 @@
     if (!hit) return;
 
     bullets = [];
+    addScore(-collisionPenalty);
     resetShip();
     explosion = {
       id: nextExplosionID++,
@@ -472,6 +640,7 @@
       bullets = bullets.filter((bullet) => bullet.id !== hit.id);
       pendingAsteroidHits.add(hitKey);
       sendAsteroidHit(remoteShip.id, remoteAsteroid.id, hit.x, hit.y);
+      addScore(asteroidHitScore);
       void publishShip();
       return;
     }
@@ -506,6 +675,7 @@
 
   function resetAfterRemoteHit(x: number, y: number) {
     bullets = [];
+    addScore(-collisionPenalty);
     resetShip();
     explosion = {
       id: nextExplosionID++,
@@ -837,6 +1007,43 @@
   });
 </script>
 
+{#if roundStatus === 'playing'}
+  <div class="asteroids-hud" aria-live="polite">
+    <span>{roundSecondsLeft}s</span>
+    <strong>{score}</strong>
+  </div>
+{/if}
+
+{#if roundStatus === 'finished'}
+  <section class="asteroids-leaderboard" aria-live="polite">
+    <div class="asteroids-leaderboard-header">
+      <span>Time</span>
+      <strong>{score}</strong>
+    </div>
+    <div class="asteroids-leaderboard-title">Leaders</div>
+    {#if !roundSaved}
+      <p>Result not saved</p>
+    {/if}
+    {#if scoreSubmitStatus === 'saving'}
+      <p>{roundSaved ? 'Saving score...' : 'Loading leaders...'}</p>
+    {:else if scoreSubmitStatus === 'error'}
+      <p>{roundSaved ? 'Score save failed' : 'Leaders unavailable'}</p>
+    {:else if leaderboard.length === 0}
+      <p>No scores yet</p>
+    {:else}
+      <ol>
+        {#each leaderboard as item, index (`${item.createdAt}-${index}`)}
+          <li class:currentScore={roundSaved && item.name === (username.trim() || 'Guest') && item.score === score}>
+            <span>{index + 1}. {item.name}</span>
+            <strong>{item.score}</strong>
+          </li>
+        {/each}
+      </ol>
+    {/if}
+    <div class="asteroids-restart">Enter to restart</div>
+  </section>
+{/if}
+
 {#each bullets as bullet (bullet.id)}
   <span
     class="asteroids-bullet"
@@ -936,6 +1143,116 @@
 {/if}
 
 <style>
+  .asteroids-hud {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    z-index: 20;
+    display: flex;
+    min-width: 9rem;
+    transform: translateX(-50%);
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    border: 1px solid rgb(226 232 240 / 0.18);
+    border-radius: 0.5rem;
+    background: rgb(2 6 23 / 0.72);
+    padding: 0.55rem 0.8rem;
+    color: rgb(226 232 240);
+    font-size: 0.9rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .asteroids-hud strong {
+    color: rgb(253 224 71);
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .asteroids-leaderboard {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 30;
+    width: min(24rem, calc(100vw - 2rem));
+    transform: translate(-50%, -50%);
+    border: 1px solid rgb(226 232 240 / 0.18);
+    border-radius: 0.5rem;
+    background: rgb(2 6 23 / 0.88);
+    padding: 1rem;
+    color: rgb(226 232 240);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.32);
+  }
+
+  .asteroids-leaderboard-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgb(226 232 240 / 0.14);
+    padding-bottom: 0.75rem;
+  }
+
+  .asteroids-leaderboard-header span,
+  .asteroids-leaderboard-title,
+  .asteroids-restart,
+  .asteroids-leaderboard p {
+    color: rgb(148 163 184);
+    font-size: 0.82rem;
+  }
+
+  .asteroids-leaderboard-header strong {
+    color: rgb(253 224 71);
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  .asteroids-leaderboard-title {
+    margin-top: 0.9rem;
+    text-transform: uppercase;
+  }
+
+  .asteroids-leaderboard ol {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0.65rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .asteroids-leaderboard li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 0.35rem;
+    padding: 0.45rem 0.55rem;
+    background: rgb(15 23 42 / 0.72);
+    font-size: 0.92rem;
+  }
+
+  .asteroids-leaderboard li.currentScore {
+    background: rgb(253 224 71 / 0.14);
+    color: rgb(254 240 138);
+  }
+
+  .asteroids-leaderboard li span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asteroids-leaderboard li strong {
+    color: rgb(253 224 71);
+  }
+
+  .asteroids-restart {
+    margin-top: 0.85rem;
+    text-align: center;
+  }
+
   .asteroids-ship {
     position: fixed;
     top: 0;

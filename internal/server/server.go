@@ -30,6 +30,7 @@ type Server struct {
 	library   *media.Library
 	comments  *commentHub
 	ships     *shipHub
+	scores    *media.GameScoreStore
 	boards    *media.BoardStore
 	boardHub  *boardHub
 	staticDir string
@@ -46,6 +47,7 @@ func New(library *media.Library, contentRoot string, staticDir string, logger *l
 		library:   library,
 		comments:  newCommentHub(),
 		ships:     newShipHub(),
+		scores:    media.NewGameScoreStore(contentRoot),
 		boards:    boardStore,
 		boardHub:  newBoardHub(),
 		staticDir: staticDir,
@@ -66,6 +68,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/uploads", s.handleUploads)
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
+	s.mux.HandleFunc("GET /api/ships/scores", s.handleShipScores)
+	s.mux.HandleFunc("POST /api/ships/scores", s.handleCreateShipScore)
 	s.mux.HandleFunc("GET /api/media/{id}", s.handleMediaItem)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
@@ -347,6 +351,33 @@ func (s *Server) handleCommentEvents(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+func (s *Server) handleShipScores(w http.ResponseWriter, r *http.Request) {
+	scores, err := s.scores.List()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load scores")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]media.GameScore{"scores": scores})
+}
+
+func (s *Server) handleCreateShipScore(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Name  string `json:"name"`
+		Score int    `json:"score"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid score payload")
+		return
+	}
+
+	scores, err := s.scores.Add(request.Name, request.Score)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save score")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string][]media.GameScore{"scores": scores})
 }
 
 func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {

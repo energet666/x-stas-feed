@@ -45,6 +45,7 @@
   const favoritesStorageKey = 'feed-ai:favorites';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
+  const gameExitedEvent = 'feed-ai:game-exited';
 
   type CardBackgroundMode = 'simple' | 'ambient';
   type FeedMode = 'all' | 'favorites';
@@ -190,6 +191,7 @@
     window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
     window.addEventListener('resize', scheduleViewportUpdate);
     window.addEventListener(gameStartedEvent, activateGameMode);
+    window.addEventListener(gameExitedEvent, deactivateGameMode);
     subscribeToCommentEvents();
     subscribeToBoardActivity();
     void loadPage();
@@ -210,6 +212,7 @@
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
       window.removeEventListener(gameStartedEvent, activateGameMode);
+      window.removeEventListener(gameExitedEvent, deactivateGameMode);
     };
   });
 
@@ -1158,6 +1161,10 @@
     selectedActivityMedia = null;
     activeOverlayID = null;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }
+
+  function deactivateGameMode() {
+    gameActive = false;
   }
 </script>
 

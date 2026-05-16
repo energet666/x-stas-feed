@@ -77,6 +77,12 @@ export type ShipEvent = {
   y?: number;
 };
 
+export type ShipScore = {
+  name: string;
+  score: number;
+  createdAt: string;
+};
+
 export type ShipSnapshot = {
   ships: ShipState[];
   events?: ShipEvent[];
@@ -253,6 +259,33 @@ export async function createCommentLike(mediaId: string, commentId: string) {
   }
 
   return (await response.json()) as { likeCount: number };
+}
+
+export async function fetchShipScores() {
+  const response = await fetch('/api/ships/scores');
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Score request failed with ${response.status}`);
+  }
+
+  const data = (await response.json()) as { scores: ShipScore[] };
+  return Array.isArray(data.scores) ? data.scores : [];
+}
+
+export async function createShipScore(name: string, score: number) {
+  const response = await fetch('/api/ships/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, score })
+  });
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Score submission failed with ${response.status}`);
+  }
+
+  const data = (await response.json()) as { scores: ShipScore[] };
+  return Array.isArray(data.scores) ? data.scores : [];
 }
 
 export function uploadMedia(files: File[], onProgress?: (progress: UploadProgress) => void) {
