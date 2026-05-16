@@ -22,6 +22,13 @@ type commentLikeEvent struct {
 	LikeCount int    `json:"likeCount"`
 }
 
+type feedItemCreatedEvent struct {
+	Index      int        `json:"index"`
+	FirstIndex int        `json:"firstIndex"`
+	LastIndex  int        `json:"lastIndex"`
+	Item       media.Item `json:"item"`
+}
+
 type feedEvent struct {
 	Name string
 	Data any
@@ -73,6 +80,18 @@ func (h *commentHub) publishCommentLike(mediaID, commentID string, likeCount int
 	h.publishEvent(feedEvent{
 		Name: "comment-like",
 		Data: commentLikeEvent{MediaID: mediaID, CommentID: commentID, LikeCount: likeCount},
+	})
+}
+
+func (h *commentHub) publishFeedItemCreated(item media.IndexedItem) {
+	h.publishEvent(feedEvent{
+		Name: "feed-item-created",
+		Data: feedItemCreatedEvent{
+			Index:      item.Index,
+			FirstIndex: item.FirstIndex,
+			LastIndex:  item.LastIndex,
+			Item:       item.Item,
+		},
 	})
 }
 

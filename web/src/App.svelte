@@ -30,6 +30,7 @@
     type Comment,
     type CommentLikeEvent,
     type CommentEvent,
+    type FeedItemCreatedEvent,
     type LikeEvent,
     type MediaItem,
     type StrokeEvent
@@ -109,6 +110,7 @@
   let feedRequestVersion = 0;
   let masterBoardExpanded = $state(false);
   let activityBoardExpandedID = $state<string | null>(null);
+  let newFeedItemCount = $state(0);
   let unsubscribeBoardActivity: (() => void) | undefined = undefined;
   const pendingBoardActivityFetches = new Set<string>();
 
@@ -430,6 +432,14 @@
     activityMediaLoading = false;
     activityMediaError = null;
     activeOverlayID = null;
+    newFeedItemCount = 0;
+  }
+
+  async function refreshFeedFromTop() {
+    resetFeedState();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    updateViewport();
+    await loadPage();
   }
 
   function updateViewport() {
@@ -1053,6 +1063,16 @@
     });
   }
 
+  function handleFeedItemCreated(event: FeedItemCreatedEvent) {
+    if (feedMode !== 'all' || !initialLoaded) return;
+    if (items.some((item) => item.id === event.item.id)) return;
+
+    const baselineTopIndex = topFeedIndex ?? lastFeedIndex;
+    if (baselineTopIndex === undefined || event.index <= baselineTopIndex) return;
+
+    newFeedItemCount = Math.max(newFeedItemCount, event.index - baselineTopIndex);
+  }
+
   function subscribeToCommentEvents() {
     commentEvents?.close();
     commentEvents = new EventSource(commentEventsURL());
@@ -1084,6 +1104,15 @@
         updateItemCommentLikeCount(nextEvent.mediaId, nextEvent.commentId, nextEvent.likeCount);
       } catch {
         // Ignore malformed stream events; feed pagination/full comment loads can recover state.
+      }
+    });
+
+    commentEvents.addEventListener('feed-item-created', (event) => {
+      try {
+        const nextEvent = JSON.parse(event.data) as FeedItemCreatedEvent;
+        handleFeedItemCreated(nextEvent);
+      } catch {
+        // Ignore malformed stream events; a manual refresh or feed reload can recover state.
       }
     });
   }
@@ -1201,7 +1230,9 @@
           {uploadMessage}
           {uploadProgress}
           {feedMode}
+          {newFeedItemCount}
           onToggleFavoriteMode={toggleFavoriteMode}
+          onRefreshFeed={refreshFeedFromTop}
           onUploadFiles={handleUploadFiles}
           onCreateBoard={handleCreateBoard}
         />

@@ -864,6 +864,87 @@ func TestCommentEventsStreamsCreatedCommentLikes(t *testing.T) {
 	}
 }
 
+func TestCommentEventsStreamsUploadedFeedItems(t *testing.T) {
+	dir := t.TempDir()
+
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
+	defer testServer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/comments/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := testServer.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", res.StatusCode)
+	}
+	if contentType := res.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "text/event-stream") {
+		t.Fatalf("expected event-stream content type, got %q", contentType)
+	}
+
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(res.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+
+	uploadReq := newUploadRequest(t, "new.png", []byte("png-content"))
+	uploadReq.URL.Scheme = "http"
+	uploadReq.URL.Host = testServer.Listener.Addr().String()
+	uploadReq.RequestURI = ""
+	uploadRes, err := testServer.Client().Do(uploadReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = uploadRes.Body.Close()
+	if uploadRes.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", uploadRes.StatusCode)
+	}
+
+	timeout := time.After(2 * time.Second)
+	seenFeedItemEvent := false
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("feed event stream closed before receiving data")
+			}
+			if line == "event: feed-item-created" {
+				seenFeedItemEvent = true
+				continue
+			}
+			if !seenFeedItemEvent || !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var event struct {
+				Index     int        `json:"index"`
+				LastIndex int        `json:"lastIndex"`
+				Item      media.Item `json:"item"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+				t.Fatal(err)
+			}
+			if event.Index != 0 || event.LastIndex != 0 || event.Item.DisplayName != "new.png" {
+				t.Fatalf("expected uploaded media event, got %#v", event)
+			}
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for feed item event")
+		}
+	}
+}
+
 func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 	dir := t.TempDir()
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()

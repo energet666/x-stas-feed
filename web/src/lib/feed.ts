@@ -131,6 +131,8 @@ export type IndexedFeedItem = {
   item: MediaItem;
 };
 
+export type FeedItemCreatedEvent = IndexedFeedItem;
+
 export type UploadResult = {
   items: MediaItem[];
   errors?: { filename: string; error: string }[];

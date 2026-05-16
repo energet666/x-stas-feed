@@ -222,6 +222,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		response.Items = append(response.Items, item)
+		s.publishFeedItemCreated(item.ID)
 	}
 
 	if len(response.Items) == 0 {
@@ -234,6 +235,15 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, response)
+}
+
+func (s *Server) publishFeedItemCreated(id string) {
+	item, err := s.library.IndexedItemForID(id)
+	if err != nil {
+		s.logger.Printf("feed item event skipped mediaID=%s error=%v", id, err)
+		return
+	}
+	s.comments.publishFeedItemCreated(item)
 }
 
 func partFilename(part *multipart.Part) string {
@@ -482,6 +492,9 @@ func (s *Server) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("board placeholder index failed id=%s name=%q error=%v", info.ID, info.Name, err)
 		writeError(w, http.StatusInternalServerError, "failed to index board")
 		return
+	}
+	if info.MediaID != "" {
+		s.publishFeedItemCreated(info.MediaID)
 	}
 
 	s.logger.Printf("board created id=%s name=%q", info.ID, info.Name)

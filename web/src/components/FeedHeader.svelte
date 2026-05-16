@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pencil, Star, Upload, X } from 'lucide-svelte';
+  import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pencil, RefreshCw, Star, Upload, X } from 'lucide-svelte';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
   type FeedMode = 'all' | 'favorites';
@@ -10,7 +10,9 @@
     uploadMessage,
     uploadProgress,
     feedMode,
+    newFeedItemCount,
     onToggleFavoriteMode,
+    onRefreshFeed,
     onUploadFiles,
     onCreateBoard
   }: {
@@ -18,7 +20,9 @@
     uploadMessage: string;
     uploadProgress: number | null;
     feedMode: FeedMode;
+    newFeedItemCount: number;
     onToggleFavoriteMode: () => void;
+    onRefreshFeed: () => void;
     onUploadFiles: (files: File[]) => void;
     onCreateBoard: (name: string) => Promise<void>;
   } = $props();
@@ -123,6 +127,21 @@
     </div>
   </div>
   <div class="feed-toolbar-actions">
+      {#if newFeedItemCount > 0 && feedMode === 'all'}
+        <button
+          class="glass-button feed-refresh-button gap-2"
+          type="button"
+          aria-label="Show new feed items"
+          title="Show new feed items"
+          onclick={onRefreshFeed}
+        >
+          <RefreshCw size={15} />
+          <span class="hidden sm:inline">
+            {newFeedItemCount === 1 ? '1 new item' : `${newFeedItemCount} new items`}
+          </span>
+          <span class="sm:hidden">{newFeedItemCount}</span>
+        </button>
+      {/if}
       <button
         class="glass-button favorites-mode-button gap-2"
         class:favorites-mode-button-active={feedMode === 'favorites'}
@@ -256,6 +275,42 @@
 
   .upload-drop-in {
     max-width: 100%;
+  }
+
+  .feed-refresh-button {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-color: transparent;
+    background:
+      linear-gradient(rgb(8 14 18 / 0.88), rgb(8 14 18 / 0.88)) padding-box,
+      linear-gradient(115deg, #22d3ee, #a78bfa, #f472b6, #facc15, #34d399, #22d3ee) border-box;
+    background-size: 100% 100%, 260% 260%;
+    color: white;
+    animation: feed-refresh-border 2.8s linear infinite;
+  }
+
+  .feed-refresh-button::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(115deg, rgb(34 211 238 / 0.18), rgb(244 114 182 / 0.2), rgb(250 204 21 / 0.14));
+  }
+
+  .feed-refresh-button:hover {
+    transform: translateY(-1px);
+  }
+
+  @keyframes feed-refresh-border {
+    from {
+      background-position: 0 0, 0% 50%;
+    }
+
+    to {
+      background-position: 0 0, 260% 50%;
+    }
   }
 
   .upload-drop-in-active {

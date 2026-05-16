@@ -151,6 +151,28 @@ func (l *Library) IndexedItem(index int) (IndexedItem, error) {
 	}, nil
 }
 
+func (l *Library) IndexedItemForID(id string) (IndexedItem, error) {
+	if err := l.ensureIndex(); err != nil {
+		return IndexedItem{}, err
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	for index, item := range l.items {
+		if item.ID == id {
+			return IndexedItem{
+				Index:      index,
+				FirstIndex: 0,
+				LastIndex:  len(l.items) - 1,
+				Item:       cloneItem(item),
+			}, nil
+		}
+	}
+
+	return IndexedItem{}, os.ErrNotExist
+}
+
 func (l *Library) FavoritePage(ids []string, cursor string, requestedLimit int) (Page, error) {
 	start, err := parseCursor(cursor)
 	if err != nil {
