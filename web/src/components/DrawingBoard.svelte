@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Activity, Palette, Pencil, X } from 'lucide-svelte';
+  import { Activity, History, Palette, Pencil, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -60,6 +60,8 @@
   let lastRawPointCount = $state<number | null>(null);
   let lastSimplifiedPointCount = $state<number | null>(null);
   let freeformSimplifyEpsilon = $state(DEFAULT_FREEFORM_SIMPLIFY_EPSILON);
+  let historyMode = $state(false);
+  let historyStrokeCount = $state(0);
   let boardName = $state('Board');
   let brushCursorVisible = $state(false);
   let brushCursorX = $state(0);
@@ -131,8 +133,14 @@
     const ctx = committedCanvas.getContext('2d');
     if (!ctx) return;
 
+    const wasViewingLatest = historyStrokeCount >= strokes.length;
     strokes = nextStrokes;
     strokeIds = new Set(nextStrokes.map((stroke) => stroke.id));
+    if (!historyMode || wasViewingLatest) {
+      historyStrokeCount = nextStrokes.length;
+    } else {
+      historyStrokeCount = Math.min(historyStrokeCount, nextStrokes.length);
+    }
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     for (const stroke of nextStrokes) {
       drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
@@ -143,7 +151,11 @@
   function appendCommittedStroke(stroke: Stroke) {
     if (strokeIds.has(stroke.id)) return;
     strokeIds.add(stroke.id);
+    const wasViewingLatest = historyStrokeCount >= strokes.length;
     strokes = [...strokes, stroke];
+    if (!historyMode || wasViewingLatest) {
+      historyStrokeCount = strokes.length;
+    }
 
     if (!committedCanvas) return;
     const ctx = committedCanvas.getContext('2d');
@@ -220,6 +232,7 @@
   }
 
   function handlePointerEnter(event: PointerEvent) {
+    if (historyMode) return;
     updateBrushCursor(event);
   }
 
@@ -230,7 +243,7 @@
   }
 
   function handlePointerDown(event: PointerEvent) {
-    if (!expanded) return;
+    if (!expanded || historyMode) return;
     updateBrushCursor(event);
     const canvas = getCanvas();
     if (!canvas) return;
@@ -258,7 +271,7 @@
   }
 
   function handlePointerMove(event: PointerEvent) {
-    if (!expanded) return;
+    if (!expanded || historyMode) return;
     updateBrushCursor(event);
 
     const [x, y] = canvasCoords(event);
@@ -292,7 +305,7 @@
   }
 
   function handlePointerUp(event: PointerEvent) {
-    if (!expanded) return;
+    if (!expanded || historyMode) return;
     updateBrushCursor(event);
     const canvas = getCanvas();
     if (canvas) canvas.releasePointerCapture(event.pointerId);
@@ -423,6 +436,13 @@
     } else {
       ctx.fillStyle = '#0f0f17';
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+
+    if (historyMode && expanded) {
+      for (const stroke of strokes.slice(0, historyStrokeCount)) {
+        drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
+      }
+      return;
     }
 
     // 2. Draw all committed strokes from buffer
@@ -644,6 +664,34 @@
     );
   }
 
+  function enterHistoryMode() {
+    historyMode = true;
+    historyStrokeCount = strokes.length;
+    lineStart = null;
+    mousePos = null;
+    isDrawing = false;
+    currentPoints = [];
+    showColorPicker = false;
+    brushCursorVisible = false;
+    if (activeStrokeCanvas) {
+      activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
+    }
+    redraw();
+  }
+
+  function exitHistoryMode() {
+    historyMode = false;
+    historyStrokeCount = strokes.length;
+    redraw();
+  }
+
+  function handleHistoryRangeInput(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const value = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : strokes.length;
+    historyStrokeCount = Math.min(strokes.length, Math.max(0, Math.round(value)));
+    redraw();
+  }
+
   function loadBrushSettings() {
     try {
       const storedColor = window.localStorage.getItem(brushColorStorageKey);
@@ -677,6 +725,12 @@
   }
 
   function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && historyMode) {
+      exitHistoryMode();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key === 'Escape' && lineStart) {
       lineStart = null;
       mousePos = null;
@@ -711,18 +765,20 @@
         onpointerup={handlePointerUp}
         onpointerenter={handlePointerEnter}
         onpointerleave={handlePointerLeave}
-        style="cursor: none; touch-action: none;"
+        style="cursor: {historyMode ? 'default' : 'none'}; touch-action: none;"
       ></canvas>
-      <div
-        class="drawing-brush-cursor"
-        class:drawing-brush-cursor-visible={brushCursorVisible}
-        style="
-          width: {brushCursorSize}px;
-          height: {brushCursorSize}px;
-          transform: translate3d({brushCursorX}px, {brushCursorY}px, 0) translate(-50%, -50%);
-          border-color: {currentColor};
-        "
-      ></div>
+      {#if !historyMode}
+        <div
+          class="drawing-brush-cursor"
+          class:drawing-brush-cursor-visible={brushCursorVisible}
+          style="
+            width: {brushCursorSize}px;
+            height: {brushCursorSize}px;
+            transform: translate3d({brushCursorX}px, {brushCursorY}px, 0) translate(-50%, -50%);
+            border-color: {currentColor};
+          "
+        ></div>
+      {/if}
 
       {#if onClose}
         <button
@@ -736,6 +792,36 @@
         </button>
       {/if}
 
+      {#if historyMode}
+        <div class="drawing-history-toolbar">
+          <input
+            class="drawing-history-range"
+            type="range"
+            min="0"
+            max={strokes.length}
+            step="1"
+            value={historyStrokeCount}
+            aria-label="Visible drawing history strokes"
+            title="Visible drawing history strokes"
+            oninput={handleHistoryRangeInput}
+          />
+          <div
+            class="drawing-history-count"
+            aria-label={`Showing ${historyStrokeCount} of ${strokes.length} strokes`}
+          >
+            {historyStrokeCount}/{strokes.length}
+          </div>
+          <button
+            class="drawing-tool-btn drawing-history-exit"
+            type="button"
+            aria-label="Exit history mode"
+            title="Exit history mode"
+            onclick={exitHistoryMode}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      {:else}
       <div class="drawing-toolbar">
         <div class="drawing-toolbar-group">
           <button
@@ -877,7 +963,20 @@
             </div>
           {/if}
         </div>
+        <div class="drawing-toolbar-divider"></div>
+        <div class="drawing-toolbar-group">
+          <button
+            class="drawing-tool-btn"
+            type="button"
+            title="History"
+            aria-label="Open history mode"
+            onclick={enterHistoryMode}
+          >
+            <History size={16} />
+          </button>
+        </div>
       </div>
+      {/if}
     </div>
   {:else}
     <div class="drawing-preview">
@@ -1018,6 +1117,50 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .drawing-history-toolbar {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.9rem;
+    background: rgba(15, 15, 23, 0.84);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.36);
+    pointer-events: auto;
+  }
+
+  .drawing-history-range {
+    width: 100%;
+    accent-color: #ffffff;
+    cursor: pointer;
+  }
+
+  .drawing-history-count {
+    min-width: 4.2rem;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .drawing-history-exit {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
   }
 
   /* Vertical toolbar on the right when expanded */
