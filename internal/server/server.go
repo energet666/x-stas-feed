@@ -550,15 +550,31 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
 		s.logger.Printf(
-			"request method=%s path=%s query=%q status=%d bytes=%d duration=%s",
+			"request method=%s path=%s query=%q%s status=%d bytes=%d duration=%s",
 			r.Method,
 			r.URL.Path,
 			r.URL.RawQuery,
+			s.mediaRequestLogFields(r),
 			recorder.status,
 			recorder.bytes,
 			time.Since(started).Round(time.Millisecond),
 		)
 	})
+}
+
+func (s *Server) mediaRequestLogFields(r *http.Request) string {
+	if !strings.HasPrefix(r.URL.Path, "/media/") && !strings.HasPrefix(r.URL.Path, "/api/media/") {
+		return ""
+	}
+	id := r.PathValue("id")
+	if id == "" {
+		return ""
+	}
+	item, err := s.library.ItemForID(id)
+	if err != nil {
+		return fmt.Sprintf(" mediaID=%s", id)
+	}
+	return fmt.Sprintf(" mediaID=%s filename=%s", id, item.Filename)
 }
 
 type statusRecorder struct {

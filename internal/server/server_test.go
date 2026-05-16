@@ -63,6 +63,24 @@ func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 	}
 }
 
+func TestMediaRequestLogIncludesFilename(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+	id := media.EncodeID("photo.png")
+
+	var logs bytes.Buffer
+	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/media/"+id, nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	output := logs.String()
+	if !strings.Contains(output, "mediaID="+id) || !strings.Contains(output, "filename=photo.png") {
+		t.Fatalf("expected media request log to include media id and filename, got %q", output)
+	}
+}
+
 func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "a.png")
