@@ -66,6 +66,9 @@
   const bulletLifetime = 82;
   const smokeLifetime = 30;
   const smokeSpawnInterval = 2.4;
+  const explosionSparkCount = 10;
+  const explosionDebrisCount = 4;
+  const explosionSmokeCount = 5;
   const asteroidRespawnMs = 650;
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
@@ -356,9 +359,9 @@
   function spawnExplosionParticles(x: number, y: number) {
     const burst: Particle[] = [];
 
-    for (let i = 0; i < 18; i += 1) {
+    for (let i = 0; i < explosionSparkCount; i += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.6 + Math.random() * 3.8;
+      const speed = 1.4 + Math.random() * 3.1;
       burst.push({
         id: nextSmokeID++,
         kind: 'spark',
@@ -367,46 +370,46 @@
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         age: 0,
-        lifetime: 18 + Math.random() * 14,
+        lifetime: 14 + Math.random() * 10,
         size: 0.45 + Math.random() * 0.75
       });
     }
 
-    for (let i = 0; i < 9; i += 1) {
+    for (let i = 0; i < explosionDebrisCount; i += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.7 + Math.random() * 2.1;
+      const speed = 0.6 + Math.random() * 1.7;
       burst.push({
         id: nextSmokeID++,
         kind: 'debris',
-        x: x + (Math.random() - 0.5) * 14,
-        y: y + (Math.random() - 0.5) * 14,
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.5) * 10,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         age: 0,
-        lifetime: 34 + Math.random() * 20,
-        size: 0.7 + Math.random() * 1.1,
+        lifetime: 24 + Math.random() * 14,
+        size: 0.65 + Math.random() * 0.85,
         angle: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * 0.28
+        spin: (Math.random() - 0.5) * 0.2
       });
     }
 
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < explosionSmokeCount; i += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.35 + Math.random() * 1.35;
+      const speed = 0.3 + Math.random() * 1;
       burst.push({
         id: nextSmokeID++,
         kind: 'smoke',
-        x: x + (Math.random() - 0.5) * 18,
-        y: y + (Math.random() - 0.5) * 18,
+        x: x + (Math.random() - 0.5) * 12,
+        y: y + (Math.random() - 0.5) * 12,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         age: 0,
-        lifetime: 42 + Math.random() * 26,
-        size: 0.9 + Math.random() * 1.6
+        lifetime: 28 + Math.random() * 16,
+        size: 0.8 + Math.random() * 1.1
       });
     }
 
-    particles = [...particles.slice(-72), ...burst];
+    particles = [...particles.slice(-40), ...burst];
   }
 
   function detectAsteroidHit() {
@@ -991,8 +994,6 @@
     height: 0.8rem;
     border-radius: 999px;
     background: rgb(148 163 184 / calc(var(--particle-alpha) * 0.28));
-    box-shadow: 0 0 8px rgb(226 232 240 / calc(var(--particle-alpha) * 0.16));
-    filter: blur(1px);
     opacity: var(--particle-alpha);
   }
 
@@ -1001,9 +1002,7 @@
     height: 0.45rem;
     border-radius: 999px;
     background: rgb(253 224 71 / calc(var(--particle-alpha) * 0.96));
-    box-shadow:
-      0 0 8px rgb(253 224 71 / calc(var(--particle-alpha) * 0.84)),
-      0 0 18px rgb(251 146 60 / calc(var(--particle-alpha) * 0.52));
+    box-shadow: 0 0 8px rgb(253 224 71 / calc(var(--particle-alpha) * 0.62));
     opacity: var(--particle-alpha);
   }
 
@@ -1012,7 +1011,6 @@
     height: 0.36rem;
     border-radius: 0.16rem;
     background: rgb(226 232 240 / calc(var(--particle-alpha) * 0.62));
-    box-shadow: 0 0 8px rgb(251 146 60 / calc(var(--particle-alpha) * 0.26));
     opacity: var(--particle-alpha);
   }
 
@@ -1073,11 +1071,8 @@
     border: 2px solid rgb(253 224 71 / 0.86);
     border-radius: 999px;
     background: radial-gradient(circle, rgb(254 240 138 / 0.65) 0 18%, rgb(251 146 60 / 0.34) 19% 42%, transparent 58%);
-    box-shadow:
-      0 0 18px rgb(253 224 71 / 0.72),
-      0 0 32px rgb(34 211 238 / 0.34);
     pointer-events: none;
-    animation: asteroid-pop 360ms ease-out forwards;
+    animation: asteroid-pop 260ms ease-out forwards;
   }
 
   .asteroids-ship svg {
