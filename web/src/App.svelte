@@ -14,6 +14,7 @@
   import UserSidebar from './components/UserSidebar.svelte';
   import DrawingBoard from './components/DrawingBoard.svelte';
   import { boardEvents } from './lib/board_events.svelte';
+  import { fallbackUsername, randomUsername } from './lib/usernames';
   import {
     commentEventsURL,
     createBoard,
@@ -86,7 +87,7 @@
   let activityModalOpen = $state(false);
   let latestCommentEvent = $state<CommentEvent | null>(null);
   let latestCommentLikeEvent = $state<CommentLikeEvent | null>(null);
-  let username = $state('Guest');
+  let username = $state(fallbackUsername);
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
@@ -171,7 +172,7 @@
   const unloadedAfter = $derived(Math.max(0, items.length - visibleEndIndex - 1));
   const unloadedBefore = $derived(Math.max(0, visibleStartIndex));
   const measuredCount = $derived(Object.keys(measuredHeights).length);
-  const commentUsername = $derived(username.trim() || 'Guest');
+  const commentUsername = $derived(username.trim() || fallbackUsername);
   const favoriteIDSet = $derived(new Set(favoriteIDs));
   const commentsPanelItem = $derived(items.find((item) => item.id === commentsPanelItemID));
   const commentsPanelFullscreen = $derived(
@@ -606,9 +607,9 @@
   function readStoredUsername() {
     try {
       const storedUsername = window.localStorage.getItem(usernameStorageKey)?.trim();
-      return storedUsername || 'Guest';
+      return storedUsername || randomUsername();
     } catch {
-      return 'Guest';
+      return randomUsername();
     }
   }
 

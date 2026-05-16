@@ -230,5 +230,6 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Go commands may need sandbox escalation when the Go build cache is outside the workspace.
 - Dependency installation may need sandbox escalation for registry access.
 - Board default display-name fix verified on 2026-05-16 with `go test ./...` and `npm --prefix web run build`.
+- If `feed-ai:comment-username` is missing or blank, the frontend now assigns the same random Russian nickname format used by the sidebar dice button, then persists it through the existing username storage effect.
 - Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.
 - Favorites implementation verified on 2026-05-09 with `go test ./...`, `npm run check` in `web`, and `npm run build` in `web`.

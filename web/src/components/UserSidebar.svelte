@@ -1,34 +1,11 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Dice5, UserRound } from 'lucide-svelte';
+  import { fallbackUsername, randomUsername } from '../lib/usernames';
   import DrawingBoard from './DrawingBoard.svelte';
 
-  const storageFallbackName = 'Guest';
-  const funnyWords = [
-    'Бодрый Кабачок',
-    'Сонный Пельмень',
-    'Хитрый Вареник',
-    'Ламповый Сырник',
-    'Космический Бублик',
-    'Шустрый Компот',
-    'Тихий Самовар',
-    'Веселый Укроп',
-    'Серьезный Батон',
-    'Мятный Блинчик',
-    'Пушистый Квас',
-    'Грозный Сухарик',
-    'Нежный Чебурек',
-    'Важный Пончик',
-    'Секретный Огурчик',
-    'Сахарный Кексик',
-    'Пиксельный Пряник',
-    'Турбо Ряженка',
-    'Уютный Лапоть',
-    'Блестящий Крендель'
-  ];
-
   let { 
-    username = $bindable(storageFallbackName),
+    username = $bindable(fallbackUsername),
     onExpandMasterBoard
   }: { 
     username: string;
@@ -36,7 +13,7 @@
   } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
 
-  const displayUsername = $derived(username.trim() || storageFallbackName);
+  const displayUsername = $derived(username.trim() || fallbackUsername);
 
   onMount(() => {
     let userInitiatedFocus = false;
@@ -92,9 +69,7 @@
   });
 
   function randomizeUsername() {
-    const word = funnyWords[Math.floor(Math.random() * funnyWords.length)] ?? storageFallbackName;
-    const suffix = Math.floor(Math.random() * 1000);
-    username = `${word} ${suffix}`;
+    username = randomUsername();
   }
 </script>
 
@@ -120,7 +95,7 @@
         maxlength="40"
         autocomplete="nickname"
         bind:value={username}
-        placeholder={storageFallbackName}
+        placeholder={fallbackUsername}
       />
       <button class="glass-icon-button" type="button" aria-label="Generate random nickname" onclick={randomizeUsername}>
         <Dice5 size={18} />
