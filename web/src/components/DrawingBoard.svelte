@@ -1121,21 +1121,21 @@
 
   .drawing-history-toolbar {
     position: absolute;
-    right: 1.25rem;
-    bottom: 1.25rem;
-    left: 1.25rem;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
     z-index: 10;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0.9rem;
-    background: rgba(15, 15, 23, 0.84);
-    backdrop-filter: blur(16px) saturate(150%);
-    -webkit-backdrop-filter: blur(16px) saturate(150%);
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.36);
+    gap: 0.55rem;
+    padding: 0.38rem 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.65rem;
+    background: rgba(15, 15, 23, 0.46);
+    backdrop-filter: blur(8px) saturate(125%);
+    -webkit-backdrop-filter: blur(8px) saturate(125%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
     pointer-events: auto;
   }
 
@@ -1146,13 +1146,13 @@
   }
 
   .drawing-history-count {
-    min-width: 4.2rem;
-    padding: 0.35rem 0.45rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.45rem;
-    background: rgba(255, 255, 255, 0.07);
-    color: rgba(255, 255, 255, 0.76);
-    font-size: 0.72rem;
+    min-width: 3.8rem;
+    padding: 0.25rem 0.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.38rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.68rem;
     font-variant-numeric: tabular-nums;
     line-height: 1;
     text-align: center;
