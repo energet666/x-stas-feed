@@ -270,7 +270,7 @@ func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	l.commentsByMediaID[id] = append(l.commentsByMediaID[id], comment)
 	l.updateItemCommentSummaryLocked(id)
 	l.insertActivityLocked(item, comment)
-	l.logf("comment appended mediaID=%s filename=%s commentID=%s duration=%s totalCommentsForMedia=%d activityItems=%d", id, item.Filename, comment.ID, time.Since(started).Round(time.Millisecond), len(l.commentsByMediaID[id]), len(l.activity))
+	l.logf("comment appended mediaID=%s filename=%q commentID=%s duration=%s totalCommentsForMedia=%d activityItems=%d", id, item.Filename, comment.ID, time.Since(started).Round(time.Millisecond), len(l.commentsByMediaID[id]), len(l.activity))
 	return comment, nil
 }
 
@@ -306,7 +306,7 @@ func (l *Library) AddCommentLike(id, commentID string) (Comment, error) {
 			l.updateItemCommentSummaryLocked(id)
 			l.updateActivityCommentLocked(id, comment)
 			item := l.itemsByID[id]
-			l.logf("comment like persisted mediaID=%s filename=%s commentID=%s likeCount=%d duration=%s commentsForMedia=%d", id, item.Filename, comment.ID, comment.LikeCount, time.Since(started).Round(time.Millisecond), len(comments))
+			l.logf("comment like persisted mediaID=%s filename=%q commentID=%s likeCount=%d duration=%s commentsForMedia=%d", id, item.Filename, comment.ID, comment.LikeCount, time.Since(started).Round(time.Millisecond), len(comments))
 			return comment, nil
 		}
 	}
@@ -344,13 +344,13 @@ func (l *Library) AddLike(id string) (int, error) {
 	}
 	item.LikeCount = metadata.LikeCount
 	l.setItemLocked(item)
-	l.logf("media like persisted mediaID=%s filename=%s likeCount=%d duration=%s", id, item.Filename, metadata.LikeCount, time.Since(started).Round(time.Millisecond))
+	l.logf("media like persisted mediaID=%s filename=%q likeCount=%d duration=%s", id, item.Filename, metadata.LikeCount, time.Since(started).Round(time.Millisecond))
 	return metadata.LikeCount, nil
 }
 
 func (l *Library) Scan() ([]Item, error) {
 	started := time.Now()
-	l.logf("media scan started root=%s", l.root)
+	l.logf("media scan started root=%q", l.root)
 
 	root, err := filepath.Abs(l.root)
 	if err != nil {
@@ -396,7 +396,7 @@ func (l *Library) Scan() ([]Item, error) {
 		item := itemFromFile(rel, path, kind, info)
 		metadataExists, metadataExistsErr := l.metadata.Exists(item.ID)
 		if metadataExistsErr != nil {
-			l.logf("metadata stat failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, metadataExistsErr)
+			l.logf("metadata stat failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, metadataExistsErr)
 		}
 		metadata, metadataErr := l.metadata.Get(item.ID)
 		if metadataErr == nil {
@@ -408,7 +408,7 @@ func (l *Library) Scan() ([]Item, error) {
 			}
 			item.LikeCount = metadata.LikeCount
 		} else {
-			l.logf("metadata load failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, metadataErr)
+			l.logf("metadata load failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, metadataErr)
 		}
 		metadataChanged := false
 		if !metadataExists && metadataExistsErr == nil {
@@ -427,7 +427,7 @@ func (l *Library) Scan() ([]Item, error) {
 		}
 		if metadataChanged {
 			if err := l.metadata.Set(item.ID, metadata); err != nil {
-				l.logf("metadata cache write failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+				l.logf("metadata cache write failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
 			}
 		}
 		items = append(items, item)
@@ -435,16 +435,16 @@ func (l *Library) Scan() ([]Item, error) {
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
-		l.logf("media scan completed root=%s duration=%s scannedFiles=0 supportedMedia=0 unsupportedFiles=0 skippedInternalDirs=0 items=0 missingRoot=true", root, time.Since(started).Round(time.Millisecond))
+		l.logf("media scan completed root=%q duration=%s scannedFiles=0 supportedMedia=0 unsupportedFiles=0 skippedInternalDirs=0 items=0 missingRoot=true", root, time.Since(started).Round(time.Millisecond))
 		return []Item{}, nil
 	}
 	if err != nil {
-		l.logf("media scan failed root=%s duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d error=%v", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, err)
+		l.logf("media scan failed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d error=%v", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, err)
 		return nil, err
 	}
 
 	sortItems(items)
-	l.logf("media scan completed root=%s duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d items=%d", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, len(items))
+	l.logf("media scan completed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d items=%d", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, len(items))
 
 	return items, nil
 }
@@ -465,11 +465,11 @@ func (l *Library) ensureIndex() error {
 	}
 
 	started := time.Now()
-	l.logf("runtime index initialization started root=%s", l.root)
+	l.logf("runtime index initialization started root=%q", l.root)
 
 	items, err := l.Scan()
 	if err != nil {
-		l.logf("runtime index initialization failed root=%s duration=%s error=%v", l.root, time.Since(started).Round(time.Millisecond), err)
+		l.logf("runtime index initialization failed root=%q duration=%s error=%v", l.root, time.Since(started).Round(time.Millisecond), err)
 		return err
 	}
 
@@ -482,7 +482,7 @@ func (l *Library) ensureIndex() error {
 
 	root, err := filepath.Abs(l.root)
 	if err != nil {
-		l.logf("runtime index initialization failed root=%s duration=%s error=%v", l.root, time.Since(started).Round(time.Millisecond), err)
+		l.logf("runtime index initialization failed root=%q duration=%s error=%v", l.root, time.Since(started).Round(time.Millisecond), err)
 		return err
 	}
 
@@ -493,7 +493,7 @@ func (l *Library) ensureIndex() error {
 	for i, item := range items {
 		path := item.sourcePath
 		if path == "" {
-			l.logf("runtime index initialization failed root=%s duration=%s mediaID=%s filename=%s error=missing source path", l.root, time.Since(started).Round(time.Millisecond), item.ID, item.Filename)
+			l.logf("runtime index initialization failed root=%q duration=%s mediaID=%s filename=%q error=missing source path", l.root, time.Since(started).Round(time.Millisecond), item.ID, item.Filename)
 			return errors.New("missing source path for media item")
 		}
 		commentFileExists, commentFileStatErr := l.comments.hasFile(item.ID)
@@ -503,7 +503,7 @@ func (l *Library) ensureIndex() error {
 			mediaWithoutCommentFile++
 		} else {
 			commentsFailed++
-			l.logf("comment cache stat failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, commentFileStatErr)
+			l.logf("comment cache stat failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, commentFileStatErr)
 		}
 		comments, err := l.comments.List(item.ID)
 		if err == nil {
@@ -512,7 +512,7 @@ func (l *Library) ensureIndex() error {
 			item = itemWithCommentSummary(item, comments)
 		} else {
 			commentsFailed++
-			l.logf("comment cache load failed mediaID=%s filename=%s commentFileExists=%t error=%v", item.ID, item.Filename, commentFileExists, err)
+			l.logf("comment cache load failed mediaID=%s filename=%q commentFileExists=%t error=%v", item.ID, item.Filename, commentFileExists, err)
 			l.commentsByMediaID[item.ID] = []Comment{}
 			item = itemWithCommentSummary(item, nil)
 		}
@@ -526,7 +526,7 @@ func (l *Library) ensureIndex() error {
 	}
 	sortActivity(l.activity)
 	l.initialized = true
-	l.logf("runtime index initialization completed root=%s duration=%s mediaItems=%d commentFilesFound=%d mediaWithoutCommentFile=%d commentFilesFailed=%d comments=%d activityItems=%d", root, time.Since(started).Round(time.Millisecond), len(l.items), commentFilesFound, mediaWithoutCommentFile, commentsFailed, commentCount, len(l.activity))
+	l.logf("runtime index initialization completed root=%q duration=%s mediaItems=%d commentFilesFound=%d mediaWithoutCommentFile=%d commentFilesFailed=%d comments=%d activityItems=%d", root, time.Since(started).Round(time.Millisecond), len(l.items), commentFilesFound, mediaWithoutCommentFile, commentsFailed, commentCount, len(l.activity))
 	return nil
 }
 
@@ -570,7 +570,7 @@ func (l *Library) insertItem(item Item, path string) error {
 	l.pathsByID[item.ID] = path
 	l.mimeTypesByID[item.ID] = item.MimeType
 	l.commentsByMediaID[item.ID] = []Comment{}
-	l.logf("runtime index media inserted mediaID=%s filename=%s type=%s size=%d totalMediaItems=%d", item.ID, item.Filename, item.Type, item.Size, len(l.items))
+	l.logf("runtime index media inserted mediaID=%s filename=%q type=%s size=%d totalMediaItems=%d", item.ID, item.Filename, item.Type, item.Size, len(l.items))
 	return nil
 }
 
@@ -818,7 +818,7 @@ func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, 
 	}
 	probed, err := probeMedia(path)
 	if err != nil {
-		l.logf("audio metadata probe failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+		l.logf("audio metadata probe failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
 		return metadata, false
 	}
 	if probed.Kind == "video" {
@@ -853,7 +853,7 @@ func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, 
 			audio.HasCover = true
 			audio.CoverFile = coverFile
 		} else {
-			l.logf("audio cover extraction failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+			l.logf("audio cover extraction failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
 		}
 	}
 	metadata.Audio = &audio
@@ -871,7 +871,7 @@ func (l *Library) applyVideoMetadata(item *Item, path string, info os.FileInfo, 
 	}
 	probed, err := probeMedia(path)
 	if err != nil {
-		l.logf("video metadata probe failed mediaID=%s filename=%s error=%v", item.ID, item.Filename, err)
+		l.logf("video metadata probe failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
 		return metadata, false
 	}
 	if probed.Kind == "audio" {

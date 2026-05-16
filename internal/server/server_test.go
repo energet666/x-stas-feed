@@ -55,7 +55,7 @@ func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 	handler.ServeHTTP(res, req)
 
 	output := logs.String()
-	if !strings.Contains(output, `path=/api/feed query="index=-1&limit=2"`) {
+	if !strings.Contains(output, `path="/api/feed" query="index=-1&limit=2"`) {
 		t.Fatalf("expected request log to include query string, got %q", output)
 	}
 	if !strings.Contains(output, "status=200") || !strings.Contains(output, "bytes=") || !strings.Contains(output, "duration=") {
@@ -76,7 +76,7 @@ func TestMediaRequestLogIncludesFilename(t *testing.T) {
 	handler.ServeHTTP(res, req)
 
 	output := logs.String()
-	if !strings.Contains(output, "mediaID="+id) || !strings.Contains(output, "filename=photo.png") {
+	if !strings.Contains(output, "mediaID="+id) || !strings.Contains(output, `filename="photo.png"`) {
 		t.Fatalf("expected media request log to include media id and filename, got %q", output)
 	}
 }

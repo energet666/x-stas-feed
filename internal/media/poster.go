@@ -60,7 +60,7 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 	if seconds == 0 {
 		if bestSeconds, cached, err := initialPosterTime(ffmpeg, path, id, info.Size(), info.ModTime().UnixNano(), cacheDir); err == nil {
 			l.logf(
-				"video poster initial time ready mediaID=%s filename=%s seconds=%.1f source=%s duration=%s",
+				"video poster initial time ready mediaID=%s filename=%q seconds=%.1f source=%s duration=%s",
 				id,
 				filename,
 				normalizePosterTime(bestSeconds),
@@ -74,7 +74,7 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 	cachePath := filepath.Join(cacheDir, posterCacheName(id, info.Size(), info.ModTime().UnixNano(), seconds))
 	if _, err := os.Stat(cachePath); err == nil {
 		l.logf(
-			"video poster ready mediaID=%s filename=%s seconds=%.1f source=cache path=%s duration=%s",
+			"video poster ready mediaID=%s filename=%q seconds=%.1f source=cache path=%q duration=%s",
 			id,
 			filename,
 			seconds,
@@ -114,7 +114,7 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 	}
 
 	l.logf(
-		"video poster ready mediaID=%s filename=%s seconds=%.1f source=generated path=%s duration=%s",
+		"video poster ready mediaID=%s filename=%q seconds=%.1f source=generated path=%q duration=%s",
 		id,
 		filename,
 		seconds,

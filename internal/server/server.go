@@ -448,12 +448,12 @@ func (s *Server) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := s.library.InsertBoardPlaceholder(info.ID, info.Name); err != nil {
-		s.logger.Printf("board placeholder index failed id=%s name=%s error=%v", info.ID, info.Name, err)
+		s.logger.Printf("board placeholder index failed id=%s name=%q error=%v", info.ID, info.Name, err)
 		writeError(w, http.StatusInternalServerError, "failed to index board")
 		return
 	}
 
-	s.logger.Printf("board created id=%s name=%s", info.ID, info.Name)
+	s.logger.Printf("board created id=%s name=%q", info.ID, info.Name)
 	writeJSON(w, http.StatusCreated, info)
 }
 
@@ -550,7 +550,7 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
 		s.logger.Printf(
-			"request method=%s path=%s query=%q%s status=%d bytes=%d duration=%s",
+			"request method=%s path=%q query=%q%s status=%d bytes=%d duration=%s",
 			r.Method,
 			r.URL.Path,
 			r.URL.RawQuery,
@@ -574,7 +574,7 @@ func (s *Server) mediaRequestLogFields(r *http.Request) string {
 	if err != nil {
 		return fmt.Sprintf(" mediaID=%s", id)
 	}
-	return fmt.Sprintf(" mediaID=%s filename=%s", id, item.Filename)
+	return fmt.Sprintf(" mediaID=%s filename=%q", id, item.Filename)
 }
 
 type statusRecorder struct {

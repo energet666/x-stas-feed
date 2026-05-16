@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,8 +22,6 @@ const (
 	cyan    = "\x1b[36m"
 	white   = "\x1b[37m"
 )
-
-var logFieldPattern = regexp.MustCompile(`\b([A-Za-z][A-Za-z0-9]*)=("[^"]*"|\S+)`)
 
 type ConsoleWriter struct {
 	out   io.Writer
@@ -74,18 +71,92 @@ func shouldColorConsole() bool {
 }
 
 func colorizeLogFields(line string) string {
-	return logFieldPattern.ReplaceAllStringFunc(line, func(match string) string {
-		parts := strings.SplitN(match, "=", 2)
-		if len(parts) != 2 {
-			return match
+	var builder strings.Builder
+	for index := 0; index < len(line); {
+		start, end, key, value, ok := nextLogField(line, index)
+		if !ok {
+			builder.WriteString(line[index:])
+			break
 		}
-		key, value := parts[0], parts[1]
+		builder.WriteString(line[index:start])
+		match := line[start:end]
 		color := colorForLogField(key, value)
 		if color == "" {
-			return match
+			builder.WriteString(match)
+		} else {
+			builder.WriteString(dim)
+			builder.WriteString(key)
+			builder.WriteString("=")
+			builder.WriteString(reset)
+			builder.WriteString(color)
+			builder.WriteString(value)
+			builder.WriteString(reset)
 		}
-		return dim + key + "=" + reset + color + value + reset
-	})
+		index = end
+	}
+	return builder.String()
+}
+
+func nextLogField(line string, offset int) (int, int, string, string, bool) {
+	for index := offset; index < len(line); index++ {
+		if !isFieldKeyStart(line[index]) || (index > 0 && isFieldKeyChar(line[index-1])) {
+			continue
+		}
+		keyEnd := index + 1
+		for keyEnd < len(line) && isFieldKeyChar(line[keyEnd]) {
+			keyEnd++
+		}
+		if keyEnd >= len(line) || line[keyEnd] != '=' {
+			continue
+		}
+		valueStart := keyEnd + 1
+		valueEnd := scanLogFieldValue(line, valueStart)
+		if valueEnd == valueStart {
+			continue
+		}
+		return index, valueEnd, line[index:keyEnd], line[valueStart:valueEnd], true
+	}
+	return 0, 0, "", "", false
+}
+
+func scanLogFieldValue(line string, start int) int {
+	if start >= len(line) {
+		return start
+	}
+	if line[start] != '"' {
+		end := start
+		for end < len(line) && !isLogFieldSeparator(line[end]) {
+			end++
+		}
+		return end
+	}
+	escaped := false
+	for end := start + 1; end < len(line); end++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if line[end] == '\\' {
+			escaped = true
+			continue
+		}
+		if line[end] == '"' {
+			return end + 1
+		}
+	}
+	return len(line)
+}
+
+func isLogFieldSeparator(char byte) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r'
+}
+
+func isFieldKeyStart(char byte) bool {
+	return (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z')
+}
+
+func isFieldKeyChar(char byte) bool {
+	return isFieldKeyStart(char) || (char >= '0' && char <= '9')
 }
 
 func colorForLogField(key, value string) string {

@@ -38,7 +38,7 @@ func (l *Library) CoverForID(id string) (string, error) {
 		coverPath := filepath.Join(l.root, coverDirName, item.CoverFile)
 		if info, err := os.Stat(coverPath); err == nil && !info.IsDir() {
 			l.logf(
-				"audio cover ready mediaID=%s filename=%s source=cache path=%s duration=%s",
+				"audio cover ready mediaID=%s filename=%q source=cache path=%q duration=%s",
 				id,
 				filename,
 				item.CoverFile,
@@ -77,7 +77,7 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 	cachePath := filepath.Join(cacheDir, cacheFile)
 	if _, err := os.Stat(cachePath); err == nil {
 		l.logf(
-			"audio cover ready mediaID=%s filename=%s source=cache path=%s duration=%s",
+			"audio cover ready mediaID=%s filename=%q source=cache path=%q duration=%s",
 			id,
 			filename,
 			cacheFile,
@@ -121,7 +121,7 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 	}
 
 	l.logf(
-		"audio cover ready mediaID=%s filename=%s source=generated path=%s duration=%s",
+		"audio cover ready mediaID=%s filename=%q source=generated path=%q duration=%s",
 		id,
 		filename,
 		cacheFile,

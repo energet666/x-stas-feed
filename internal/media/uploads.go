@@ -96,7 +96,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 	if err := l.insertItem(item, path); err != nil {
 		return Item{}, err
 	}
-	l.logf("upload saved originalName=%q mediaID=%s filename=%s type=%s size=%d duration=%s", originalName, item.ID, item.Filename, item.Type, item.Size, time.Since(started).Round(time.Millisecond))
+	l.logf("upload saved originalName=%q mediaID=%s filename=%q type=%s size=%d duration=%s", originalName, item.ID, item.Filename, item.Type, item.Size, time.Since(started).Round(time.Millisecond))
 	return item, nil
 }
 

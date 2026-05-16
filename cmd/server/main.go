@@ -28,7 +28,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	logger.Printf("server starting addr=%s contentDir=%s staticDir=%s", *addr, *contentDir, *staticDir)
+	logger.Printf("server starting addr=%s contentDir=%q staticDir=%q", *addr, *contentDir, *staticDir)
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Printf("server stopped error=%v", err)
 		os.Exit(1)
