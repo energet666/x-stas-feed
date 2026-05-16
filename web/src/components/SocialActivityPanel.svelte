@@ -47,17 +47,9 @@
 {/if}
 
 <aside class="activity-panel glass-panel side-glass-panel" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
-  <header class="activity-panel-header">
-    <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">Social</p>
-      <h2 class="truncate text-base font-bold text-primary">Activity</h2>
-    </div>
-    <div class="flex items-center gap-2">
-      <button class="activity-close glass-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
-        <X size={17} />
-      </button>
-    </div>
-  </header>
+  <button class="activity-close glass-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
+    <X size={17} />
+  </button>
 
   <div class="activity-list">
     {#if loading && items.length === 0}
@@ -137,15 +129,6 @@
     flex-direction: column;
     margin-top: 1rem;
     overflow: hidden;
-  }
-
-  .activity-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    border-bottom: 1px solid var(--color-glass-border-soft);
-    padding: 1rem;
   }
 
   .activity-close {
@@ -265,8 +248,16 @@
       transform: translateX(0);
     }
 
+    .activity-panel-mobile-open .activity-list {
+      padding-top: 3.25rem;
+    }
+
     .activity-close {
       display: grid;
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      z-index: 1;
     }
   }
 </style>

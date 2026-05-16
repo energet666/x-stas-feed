@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Dice5, UserRound } from 'lucide-svelte';
+  import { Dice5 } from 'lucide-svelte';
   import { fallbackUsername, randomUsername } from '../lib/usernames';
   import DrawingBoard from './DrawingBoard.svelte';
 
@@ -12,8 +12,6 @@
     onExpandMasterBoard: () => void;
   } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
-
-  const displayUsername = $derived(username.trim() || fallbackUsername);
 
   onMount(() => {
     let userInitiatedFocus = false;
@@ -74,18 +72,8 @@
 </script>
 
 <aside class="user-sidebar glass-panel side-glass-panel" aria-label="Profile settings">
-  <header class="user-sidebar-header">
-    <div class="user-sidebar-avatar" aria-hidden="true">
-      <UserRound size={20} />
-    </div>
-    <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">Profile</p>
-      <h2 class="truncate text-base font-bold text-primary">{displayUsername}</h2>
-    </div>
-  </header>
-
   <div class="user-sidebar-body">
-    <label class="mb-2 block text-xs font-semibold uppercase text-subtle" for="username-input">Nickname</label>
+    <label class="mb-2 block text-xs font-semibold text-subtle" for="username-input">Тебя зовут:</label>
     <div class="flex gap-2">
       <input
         bind:this={usernameInput}
@@ -121,28 +109,8 @@
     overflow: hidden;
   }
 
-  .user-sidebar-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    border-bottom: 1px solid var(--color-glass-border-soft);
-    padding: 1rem;
-  }
-
   .user-sidebar-body {
     padding: 1rem;
-  }
-
-  .user-sidebar-avatar {
-    display: grid;
-    width: 2.5rem;
-    height: 2.5rem;
-    flex-shrink: 0;
-    place-items: center;
-    border: 1px solid var(--color-glass-border-soft);
-    border-radius: var(--radius-control);
-    background: var(--color-button-bg);
-    color: var(--color-secondary);
   }
 
   .username-input {

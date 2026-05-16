@@ -119,8 +119,7 @@
 <header class="feed-toolbar glass-panel side-glass-panel" aria-label="Feed controls">
   <div class="feed-toolbar-brand">
     <div class="min-w-0">
-      <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed AI</h1>
-      <p class="text-xs font-semibold text-muted">Local media stream</p>
+      <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed+AI</h1>
     </div>
   </div>
   <div class="feed-toolbar-actions">
@@ -244,13 +243,15 @@
 
   .feed-toolbar-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
     margin-top: 0.75rem;
   }
 
   .feed-toolbar-actions :global(.glass-button) {
+    width: 100%;
     min-width: 0;
+    justify-content: flex-start;
   }
 
   .upload-drop-in {
@@ -278,11 +279,6 @@
 
   .board-create-button {
     max-width: 100%;
-  }
-
-  .board-create-button:hover {
-    border-color: rgb(168 85 247 / 0.45);
-    color: rgb(192 132 252);
   }
 
   .board-name-form {
