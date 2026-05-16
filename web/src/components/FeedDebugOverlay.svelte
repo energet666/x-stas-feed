@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Bug, ChevronDown, ChevronUp } from 'lucide-svelte';
+  import { Bug, ChevronDown } from 'lucide-svelte';
 
   let {
     collapsed,
@@ -74,20 +74,22 @@
   const formatBool = (value: boolean) => (value ? 'yes' : 'no');
 </script>
 
-<aside class="debug-overlay side-glass-panel">
+<aside class="debug-overlay side-glass-panel" class:debug-overlay-collapsed={collapsed}>
   <button
     class="debug-toggle"
+    class:debug-toggle-collapsed={collapsed}
     type="button"
     aria-label={collapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
+    title={collapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
     onclick={onToggle}
   >
-    <span class="inline-flex items-center gap-2">
-      <Bug size={14} />
-      Feed debug
-    </span>
     {#if collapsed}
-      <ChevronUp size={14} />
+      <Bug size={17} />
     {:else}
+      <span class="inline-flex items-center gap-2">
+        <Bug size={14} />
+        Feed debug
+      </span>
       <ChevronDown size={14} />
     {/if}
   </button>
