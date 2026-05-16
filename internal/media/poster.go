@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,7 @@ const (
 	posterScanStep     = 0.5
 	posterScanFPS      = 2
 	posterScanSize     = 64
+	posterSmartVersion = "smart-v1"
 )
 
 func (l *Library) PosterForID(id string, seconds float64) (string, error) {
@@ -43,15 +45,15 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 		return "", err
 	}
 
-	if seconds == 0 {
-		if bestSeconds, err := bestInitialPosterTime(ffmpeg, path); err == nil {
-			seconds = normalizePosterTime(bestSeconds)
-		}
-	}
-
 	cacheDir := filepath.Join(l.root, posterDirName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
+	}
+
+	if seconds == 0 {
+		if bestSeconds, err := initialPosterTime(ffmpeg, path, id, info.Size(), info.ModTime().UnixNano(), cacheDir); err == nil {
+			seconds = normalizePosterTime(bestSeconds)
+		}
 	}
 
 	cachePath := filepath.Join(cacheDir, posterCacheName(id, info.Size(), info.ModTime().UnixNano(), seconds))
@@ -104,6 +106,64 @@ func normalizePosterTime(seconds float64) float64 {
 func posterCacheName(id string, size int64, modTime int64, seconds float64) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%.1f", id, size, modTime, seconds)))
 	return hex.EncodeToString(sum[:]) + ".jpg"
+}
+
+func initialPosterTime(ffmpeg, path, id string, size int64, modTime int64, cacheDir string) (float64, error) {
+	cachePath := filepath.Join(cacheDir, posterSmartTimeCacheName(id, size, modTime))
+	if seconds, err := readPosterSmartTime(cachePath); err == nil {
+		return seconds, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		_ = os.Remove(cachePath)
+	}
+
+	seconds, err := bestInitialPosterTime(ffmpeg, path)
+	if err != nil {
+		return 0, err
+	}
+	if err := writePosterSmartTime(cachePath, seconds); err != nil {
+		return 0, err
+	}
+	return seconds, nil
+}
+
+func posterSmartTimeCacheName(id string, size int64, modTime int64) string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s", id, size, modTime, posterSmartVersion)))
+	return hex.EncodeToString(sum[:]) + ".poster-time"
+}
+
+func readPosterSmartTime(path string) (float64, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	seconds, err := strconv.ParseFloat(strings.TrimSpace(string(content)), 64)
+	if err != nil {
+		return 0, err
+	}
+	return normalizePosterTime(seconds), nil
+}
+
+func writePosterSmartTime(path string, seconds float64) error {
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), ".poster-time-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	_, writeErr := fmt.Fprintf(tmpFile, "%.1f\n", normalizePosterTime(seconds))
+	closeErr := tmpFile.Close()
+	if writeErr != nil {
+		_ = os.Remove(tmpPath)
+		return writeErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmpPath)
+		return closeErr
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 func bestInitialPosterTime(ffmpeg, path string) (float64, error) {

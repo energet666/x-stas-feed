@@ -1,6 +1,11 @@
 package media
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestPosterFrameUsableRejectsBlackFrame(t *testing.T) {
 	frame := solidRGBFrame(64, 64, 0, 0, 0)
@@ -73,6 +78,44 @@ func TestPosterFrameFallbackScoreRejectsDimBlurredFrame(t *testing.T) {
 
 	if posterFrameFallbackScore(frame) > 0 {
 		t.Fatal("expected dim blurred frame not to be a fallback candidate")
+	}
+}
+
+func TestPosterSmartTimeCacheRoundTripsNormalizedTime(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "time.poster-time")
+
+	if err := writePosterSmartTime(path, 0.74); err != nil {
+		t.Fatal(err)
+	}
+	seconds, err := readPosterSmartTime(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seconds != 0.5 {
+		t.Fatalf("expected normalized smart poster time 0.5, got %.1f", seconds)
+	}
+}
+
+func TestReadPosterSmartTimeRejectsInvalidCache(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "time.poster-time")
+	if err := os.WriteFile(path, []byte("not-a-time\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := readPosterSmartTime(path); err == nil {
+		t.Fatal("expected invalid smart poster time cache to fail")
+	}
+}
+
+func TestPosterSmartTimeCacheNameIncludesSourceSignature(t *testing.T) {
+	first := posterSmartTimeCacheName("media", 10, 20)
+	second := posterSmartTimeCacheName("media", 11, 20)
+
+	if first == second {
+		t.Fatal("expected source signature to affect smart poster time cache name")
+	}
+	if !strings.HasSuffix(first, ".poster-time") {
+		t.Fatalf("expected poster time cache extension, got %q", first)
 	}
 }
 
