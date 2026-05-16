@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -27,9 +28,15 @@ const (
 )
 
 func (l *Library) PosterForID(id string, seconds float64) (string, error) {
+	started := time.Now()
 	path, mimeType, err := l.PathForID(id)
 	if err != nil {
 		return "", err
+	}
+	item := l.itemSnapshot(id)
+	filename := item.Filename
+	if filename == "" {
+		filename = filepath.Base(path)
 	}
 	if !strings.HasPrefix(mimeType, "video/") {
 		return "", errors.New("posters are only available for videos")
@@ -51,13 +58,29 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 	}
 
 	if seconds == 0 {
-		if bestSeconds, err := initialPosterTime(ffmpeg, path, id, info.Size(), info.ModTime().UnixNano(), cacheDir); err == nil {
+		if bestSeconds, cached, err := initialPosterTime(ffmpeg, path, id, info.Size(), info.ModTime().UnixNano(), cacheDir); err == nil {
+			l.logf(
+				"video poster initial time ready mediaID=%s filename=%s seconds=%.1f source=%s duration=%s",
+				id,
+				filename,
+				normalizePosterTime(bestSeconds),
+				cacheSource(cached),
+				time.Since(started).Round(time.Millisecond),
+			)
 			seconds = normalizePosterTime(bestSeconds)
 		}
 	}
 
 	cachePath := filepath.Join(cacheDir, posterCacheName(id, info.Size(), info.ModTime().UnixNano(), seconds))
 	if _, err := os.Stat(cachePath); err == nil {
+		l.logf(
+			"video poster ready mediaID=%s filename=%s seconds=%.1f source=cache path=%s duration=%s",
+			id,
+			filename,
+			seconds,
+			filepath.Base(cachePath),
+			time.Since(started).Round(time.Millisecond),
+		)
 		return cachePath, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -90,6 +113,14 @@ func (l *Library) PosterForID(id string, seconds float64) (string, error) {
 		return "", err
 	}
 
+	l.logf(
+		"video poster ready mediaID=%s filename=%s seconds=%.1f source=generated path=%s duration=%s",
+		id,
+		filename,
+		seconds,
+		filepath.Base(cachePath),
+		time.Since(started).Round(time.Millisecond),
+	)
 	return cachePath, nil
 }
 
@@ -108,22 +139,29 @@ func posterCacheName(id string, size int64, modTime int64, seconds float64) stri
 	return hex.EncodeToString(sum[:]) + ".jpg"
 }
 
-func initialPosterTime(ffmpeg, path, id string, size int64, modTime int64, cacheDir string) (float64, error) {
+func initialPosterTime(ffmpeg, path, id string, size int64, modTime int64, cacheDir string) (float64, bool, error) {
 	cachePath := filepath.Join(cacheDir, posterSmartTimeCacheName(id, size, modTime))
 	if seconds, err := readPosterSmartTime(cachePath); err == nil {
-		return seconds, nil
+		return seconds, true, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		_ = os.Remove(cachePath)
 	}
 
 	seconds, err := bestInitialPosterTime(ffmpeg, path)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if err := writePosterSmartTime(cachePath, seconds); err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return seconds, nil
+	return seconds, false, nil
+}
+
+func cacheSource(cached bool) string {
+	if cached {
+		return "cache"
+	}
+	return "generated"
 }
 
 func posterSmartTimeCacheName(id string, size int64, modTime int64) string {

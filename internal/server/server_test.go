@@ -43,6 +43,26 @@ func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	}
 }
 
+func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+
+	var logs bytes.Buffer
+	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1&limit=2", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	output := logs.String()
+	if !strings.Contains(output, `path=/api/feed query="index=-1&limit=2"`) {
+		t.Fatalf("expected request log to include query string, got %q", output)
+	}
+	if !strings.Contains(output, "status=200") || !strings.Contains(output, "bytes=") || !strings.Contains(output, "duration=") {
+		t.Fatalf("expected request log to include status, bytes, and duration, got %q", output)
+	}
+}
+
 func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "a.png")

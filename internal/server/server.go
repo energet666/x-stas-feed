@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -544,9 +546,60 @@ func (s *Server) handleAllBoardEvents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
-		s.logger.Printf("request method=%s path=%s", r.Method, r.URL.Path)
+		started := time.Now()
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(recorder, r)
+		s.logger.Printf(
+			"request method=%s path=%s query=%q status=%d bytes=%d duration=%s",
+			r.Method,
+			r.URL.Path,
+			r.URL.RawQuery,
+			recorder.status,
+			recorder.bytes,
+			time.Since(started).Round(time.Millisecond),
+		)
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+	wrote  bool
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	if r.wrote {
+		return
+	}
+	r.wrote = true
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(bytes []byte) (int, error) {
+	if !r.wrote {
+		r.wrote = true
+	}
+	written, err := r.ResponseWriter.Write(bytes)
+	r.bytes += written
+	return written, err
+}
+
+func (r *statusRecorder) Flush() {
+	if flusher, ok := r.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	r.status = http.StatusSwitchingProtocols
+	r.wrote = true
+	return hijacker.Hijack()
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

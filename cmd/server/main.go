@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"feed-ai/internal/logging"
 	"feed-ai/internal/media"
 	"feed-ai/internal/server"
 )
@@ -17,7 +18,7 @@ func main() {
 	staticDir := flag.String("static-dir", "web/dist", "built frontend directory")
 	flag.Parse()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger := log.New(logging.NewConsoleWriter(os.Stdout), "", 0)
 	library := media.NewLibraryWithLogger(*contentDir, logger)
 	app := server.New(library, *contentDir, *staticDir, logger)
 

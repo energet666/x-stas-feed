@@ -618,6 +618,12 @@ func (l *Library) setItemLocked(item Item) {
 	sortItems(l.items)
 }
 
+func (l *Library) itemSnapshot(id string) Item {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.itemsByID[id]
+}
+
 func (l *Library) updateItemCommentSummaryLocked(id string) {
 	item, ok := l.itemsByID[id]
 	if !ok {

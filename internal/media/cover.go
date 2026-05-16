@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const coverDirName = ".covers"
 
 func (l *Library) CoverForID(id string) (string, error) {
+	started := time.Now()
 	path, _, err := l.PathForID(id)
 	if err != nil {
 		return "", err
@@ -25,12 +27,23 @@ func (l *Library) CoverForID(id string) (string, error) {
 	if !ok {
 		return "", os.ErrNotExist
 	}
+	filename := item.Filename
+	if filename == "" {
+		filename = filepath.Base(path)
+	}
 	if item.Type != "audio" || !item.HasCover {
 		return "", os.ErrNotExist
 	}
 	if item.CoverFile != "" && filepath.Base(item.CoverFile) == item.CoverFile {
 		coverPath := filepath.Join(l.root, coverDirName, item.CoverFile)
 		if info, err := os.Stat(coverPath); err == nil && !info.IsDir() {
+			l.logf(
+				"audio cover ready mediaID=%s filename=%s source=cache path=%s duration=%s",
+				id,
+				filename,
+				item.CoverFile,
+				time.Since(started).Round(time.Millisecond),
+			)
 			return coverPath, nil
 		}
 	}
@@ -48,10 +61,12 @@ func (l *Library) CoverForID(id string) (string, error) {
 }
 
 func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) (string, error) {
+	started := time.Now()
 	ffmpeg, err := ffmpegPath()
 	if err != nil {
 		return "", errors.New("ffmpeg is required to extract audio covers")
 	}
+	filename := filepath.Base(path)
 
 	cacheDir := filepath.Join(l.root, coverDirName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
@@ -61,6 +76,13 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 	cacheFile := coverCacheName(id, size, modTime)
 	cachePath := filepath.Join(cacheDir, cacheFile)
 	if _, err := os.Stat(cachePath); err == nil {
+		l.logf(
+			"audio cover ready mediaID=%s filename=%s source=cache path=%s duration=%s",
+			id,
+			filename,
+			cacheFile,
+			time.Since(started).Round(time.Millisecond),
+		)
 		return cacheFile, nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -98,6 +120,13 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 		return "", err
 	}
 
+	l.logf(
+		"audio cover ready mediaID=%s filename=%s source=generated path=%s duration=%s",
+		id,
+		filename,
+		cacheFile,
+		time.Since(started).Round(time.Millisecond),
+	)
 	return cacheFile, nil
 }
 
