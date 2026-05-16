@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { AlertCircle, CheckCircle2, LoaderCircle, Pencil, Star, Upload } from 'lucide-svelte';
+  import { tick } from 'svelte';
+  import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pencil, Star, Upload, X } from 'lucide-svelte';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
   type FeedMode = 'all' | 'favorites';
@@ -19,11 +20,16 @@
     feedMode: FeedMode;
     onToggleFavoriteMode: () => void;
     onUploadFiles: (files: File[]) => void;
-    onCreateBoard: () => void;
+    onCreateBoard: (name: string) => Promise<void>;
   } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
+  let boardNameInputEl = $state<HTMLInputElement | undefined>(undefined);
   let dragActive = $state(false);
+  let boardFormOpen = $state(false);
+  let boardName = $state('');
+  let boardCreating = $state(false);
+  let boardError = $state('');
 
   function openFilePicker() {
     inputEl?.click();
@@ -68,6 +74,45 @@
 
   function hasDraggedFiles(event: DragEvent) {
     return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  async function openBoardForm() {
+    boardError = '';
+    boardFormOpen = true;
+    await tick();
+    boardNameInputEl?.focus();
+    boardNameInputEl?.select();
+  }
+
+  function closeBoardForm() {
+    if (boardCreating) return;
+    boardFormOpen = false;
+    boardName = '';
+    boardError = '';
+  }
+
+  async function submitBoardForm() {
+    if (boardCreating) return;
+    boardCreating = true;
+    boardError = '';
+    try {
+      await onCreateBoard(boardName.trim());
+      boardFormOpen = false;
+      boardName = '';
+    } catch (err) {
+      boardError = err instanceof Error ? err.message : 'Board creation failed';
+      await tick();
+      boardNameInputEl?.focus();
+    } finally {
+      boardCreating = false;
+    }
+  }
+
+  function handleBoardNameKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeBoardForm();
+    }
   }
 </script>
 
@@ -133,12 +178,53 @@
         type="button"
         aria-label="Create drawing board"
         title="Create drawing board"
-        onclick={onCreateBoard}
+        onclick={openBoardForm}
       >
         <Pencil size={15} />
         <span class="hidden sm:inline">Board</span>
       </button>
   </div>
+  {#if boardFormOpen}
+    <form class="board-name-form" onsubmit={submitBoardForm}>
+      <label class="sr-only" for="board-name-input">Board name</label>
+      <input
+        bind:this={boardNameInputEl}
+        bind:value={boardName}
+        id="board-name-input"
+        class="board-name-input"
+        maxlength="80"
+        placeholder="Board name"
+        disabled={boardCreating}
+        onkeydown={handleBoardNameKeydown}
+      />
+      <button
+        class="glass-button board-name-action"
+        type="submit"
+        aria-label="Create board"
+        title="Create board"
+        disabled={boardCreating}
+      >
+        {#if boardCreating}
+          <LoaderCircle class="animate-spin" size={15} />
+        {:else}
+          <Check size={15} />
+        {/if}
+      </button>
+      <button
+        class="glass-button board-name-action"
+        type="button"
+        aria-label="Cancel board creation"
+        title="Cancel"
+        disabled={boardCreating}
+        onclick={closeBoardForm}
+      >
+        <X size={15} />
+      </button>
+      {#if boardError}
+        <p class="board-name-error">{boardError}</p>
+      {/if}
+    </form>
+  {/if}
 </header>
 
 <style>
@@ -197,6 +283,48 @@
   .board-create-button:hover {
     border-color: rgb(168 85 247 / 0.45);
     color: rgb(192 132 252);
+  }
+
+  .board-name-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.35rem 2.35rem;
+    gap: 0.45rem;
+    margin-top: 0.65rem;
+  }
+
+  .board-name-input {
+    min-width: 0;
+    border-radius: 0.85rem;
+    border: 1px solid var(--color-glass-border-soft);
+    background: rgb(0 0 0 / 0.22);
+    padding: 0.55rem 0.7rem;
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    outline: none;
+  }
+
+  .board-name-input::placeholder {
+    color: rgb(255 255 255 / 0.28);
+  }
+
+  .board-name-input:focus {
+    border-color: var(--color-glass-border-hover);
+    background: rgb(0 0 0 / 0.3);
+  }
+
+  .board-name-action {
+    min-width: 0;
+    width: 2.35rem;
+    padding-inline: 0;
+  }
+
+  .board-name-error {
+    grid-column: 1 / -1;
+    color: var(--color-danger);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
   }
 
 </style>

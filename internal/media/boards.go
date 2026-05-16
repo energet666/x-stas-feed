@@ -130,7 +130,7 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = "Board"
+		name = defaultBoardName(id)
 	}
 
 	meta := boardMeta{Name: name, CreatedAt: now}
@@ -366,6 +366,16 @@ func generateBoardID() string {
 		panic(fmt.Sprintf("generate board id: %v", err))
 	}
 	return hex.EncodeToString(b)
+}
+
+func defaultBoardName(id string) string {
+	if len(id) >= 6 {
+		return "Board " + id[:6]
+	}
+	if id != "" {
+		return "Board " + id
+	}
+	return "Board"
 }
 
 func generateStrokeID() string {

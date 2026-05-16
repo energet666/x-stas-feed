@@ -199,6 +199,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Regular boards are exposed in the feed through `{boardID}.board` placeholder files in the media root. The feed item keeps a normal opaque 64-character media `id` for comments, likes, metadata, favorites, and media lookup, and exposes the drawing board identity separately as `boardId`.
 - The frontend no longer prepends virtual board media from `GET /api/boards` on startup; the feed scanner is the single source for board cards, preventing duplicate board rows and split comment/like state.
 - New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar. The response includes `mediaId`, and the server inserts the placeholder into the runtime media index immediately so the new board can receive comments without a restart.
+- Default board creation is driven by a frontend name form. The backend generates a name from the board ID prefix, e.g. `Board abc123`, only when the submitted name is empty; explicit names, including `Board`, are preserved.
 - **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически и хранится только как `test-content/.boards/master.jsonl`. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. Для нее не создается `.board` placeholder в media root, потому что она не является элементом основной ленты.
 - Regular board previews in feed cards are clickable buttons that open the board in expanded drawing mode, matching the master board preview behavior while keeping drawing input limited to expanded mode.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.
@@ -226,5 +227,6 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The local Go toolchain previously reported `log/slog` missing from stdlib, so the server used standard `log`.
 - Go commands may need sandbox escalation when the Go build cache is outside the workspace.
 - Dependency installation may need sandbox escalation for registry access.
+- Board default display-name fix verified on 2026-05-16 with `go test ./...` and `npm --prefix web run build`.
 - Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.
 - Favorites implementation verified on 2026-05-09 with `go test ./...`, `npm run check` in `web`, and `npm run build` in `web`.

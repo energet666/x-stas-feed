@@ -364,18 +364,14 @@
     }
   }
 
-  async function handleCreateBoard() {
-    try {
-      const board = await createBoard('Board');
-      const boardItem = boardInfoToMediaItem(board);
-      if (!boardItem) throw new Error('Board media item was not returned');
-      resetFeedState();
-      await loadPage();
-      scheduleViewportUpdate();
-      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-    } catch {
-      // Board creation failed silently
-    }
+  async function handleCreateBoard(name: string) {
+    const board = await createBoard(name);
+    const boardItem = boardInfoToMediaItem(board);
+    if (!boardItem) throw new Error('Board media item was not returned');
+    resetFeedState();
+    await loadPage();
+    scheduleViewportUpdate();
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   }
 
   function boardInfoToMediaItem(board: BoardInfo): MediaItem | null {

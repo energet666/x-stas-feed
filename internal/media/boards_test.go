@@ -72,6 +72,43 @@ func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
 	}
 }
 
+func TestBoardStoreCreateUsesGeneratedDefaultNameForEmptyInput(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Name == "Board" {
+		t.Fatalf("expected generated board name, got %q", info.Name)
+	}
+	if info.Name != defaultBoardName(info.ID) {
+		t.Fatalf("expected name to include board id, got %q for id %q", info.Name, info.ID)
+	}
+}
+
+func TestBoardStoreCreatePreservesExplicitBoardName(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Board")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Name != "Board" {
+		t.Fatalf("expected explicit board name to be preserved, got %q", info.Name)
+	}
+}
+
 func TestBoardStoreAddStrokeAllowsSingleFreeformPoint(t *testing.T) {
 	dir := t.TempDir()
 	store := NewBoardStore(dir)
