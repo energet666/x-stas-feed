@@ -88,6 +88,7 @@
   let canvasHeight = $state(800);
   const SIZE_DRAG_STEP_PX = 3;
   const SIZE_DRAG_START_THRESHOLD_PX = 3;
+  const NUMBER_INPUT_STEPPER_HIT_WIDTH = 18;
 
   onMount(() => {
     loadBrushSettings();
@@ -796,6 +797,8 @@
     if (event.button !== 0) return;
 
     const input = event.currentTarget as HTMLInputElement;
+    if (isCustomSizeStepperPress(input, event)) return;
+
     sizeDragPointerId = event.pointerId;
     sizeDragStartY = event.clientY;
     sizeDragStartValue = currentSize;
@@ -803,6 +806,11 @@
     sizeDragActive = false;
     sizeDragSuppressClick = false;
     input.setPointerCapture(event.pointerId);
+  }
+
+  function isCustomSizeStepperPress(input: HTMLInputElement, event: PointerEvent) {
+    const rect = input.getBoundingClientRect();
+    return event.clientX >= rect.right - NUMBER_INPUT_STEPPER_HIT_WIDTH;
   }
 
   function handleCustomSizePointerMove(event: PointerEvent) {
