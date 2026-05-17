@@ -172,7 +172,7 @@ func TestImageCanvasAppliesJPEGEXIFOrientation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "rotated.jpeg")
 
-	img := image.NewRGBA(image.Rect(0, 0, 2, 3))
+	img := image.NewRGBA(image.Rect(0, 0, 3024, 4032))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})
 	var encoded bytes.Buffer
 	if err := jpeg.Encode(&encoded, img, nil); err != nil {
@@ -187,8 +187,27 @@ func TestImageCanvasAppliesJPEGEXIFOrientation(t *testing.T) {
 	}
 
 	canvas := imageCanvas(path)
-	if canvas.Width != 3 || canvas.Height != 2 {
-		t.Fatalf("expected EXIF-rotated canvas 3x2, got %#v", canvas)
+	if canvas.Width != 1131 || canvas.Height != 849 {
+		t.Fatalf("expected EXIF-rotated normalized canvas 1131x849, got %#v", canvas)
+	}
+}
+
+func TestNormalizeImageBoardCanvasPreservesSmallImages(t *testing.T) {
+	canvas := normalizeImageBoardCanvas(1200, 800)
+	if canvas.Width != 1200 || canvas.Height != 800 {
+		t.Fatalf("expected small image canvas to stay unchanged, got %#v", canvas)
+	}
+}
+
+func TestNormalizeImageBoardCanvasCapsLongSide(t *testing.T) {
+	canvas := normalizeImageBoardCanvas(4032, 3024)
+	if canvas.Width != 1131 || canvas.Height != 849 {
+		t.Fatalf("expected normalized landscape canvas 1131x849, got %#v", canvas)
+	}
+
+	canvas = normalizeImageBoardCanvas(3024, 4032)
+	if canvas.Width != 849 || canvas.Height != 1131 {
+		t.Fatalf("expected normalized portrait canvas 849x1131, got %#v", canvas)
 	}
 }
 

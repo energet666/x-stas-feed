@@ -656,9 +656,30 @@ func imageCanvas(path string) BoardCanvas {
 		return defaultBoardCanvas()
 	}
 	if jpegOrientationSwapsAxes(path) {
-		return BoardCanvas{Width: config.Height, Height: config.Width}
+		return normalizeImageBoardCanvas(config.Height, config.Width)
 	}
-	return BoardCanvas{Width: config.Width, Height: config.Height}
+	return normalizeImageBoardCanvas(config.Width, config.Height)
+}
+
+func normalizeImageBoardCanvas(width, height int) BoardCanvas {
+	if width <= 0 || height <= 0 {
+		return defaultBoardCanvas()
+	}
+	defaultArea := float64(defaultBoardCanvasWidth * defaultBoardCanvasHeight)
+	imageArea := float64(width * height)
+	if imageArea <= defaultArea {
+		return BoardCanvas{Width: width, Height: height}
+	}
+	scale := math.Sqrt(defaultArea / imageArea)
+	normalizedWidth := int(math.Round(float64(width) * scale))
+	normalizedHeight := int(math.Round(float64(height) * scale))
+	if normalizedWidth < 1 {
+		normalizedWidth = 1
+	}
+	if normalizedHeight < 1 {
+		normalizedHeight = 1
+	}
+	return BoardCanvas{Width: normalizedWidth, Height: normalizedHeight}
 }
 
 func jpegOrientationSwapsAxes(path string) bool {
