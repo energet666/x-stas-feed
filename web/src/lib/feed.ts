@@ -119,11 +119,6 @@ export type MediaItem = {
   coverUrl?: string;
 };
 
-export type FeedPage = {
-  items: MediaItem[];
-  nextCursor?: string;
-};
-
 export type IndexedFeedItem = {
   index: number;
   firstIndex: number;
@@ -160,29 +155,6 @@ export async function fetchFeedItem(index: number) {
   };
 }
 
-export async function fetchFavoriteFeedPage({
-  ids,
-  cursor,
-  limit
-}: {
-  ids: string[];
-  cursor?: string;
-  limit: number;
-}) {
-  const response = await fetch('/api/feed/favorites', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids, cursor, limit })
-  });
-
-  if (!response.ok) {
-    const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Favorite feed request failed with ${response.status}`);
-  }
-
-  return normalizeFeedPage((await response.json()) as FeedPage);
-}
-
 export async function fetchActivity({ limit }: { limit: number }) {
   const params = new URLSearchParams({ limit: String(limit) });
   const response = await fetch(`/api/activity?${params.toString()}`);
@@ -203,7 +175,9 @@ export async function fetchMediaItem(mediaId: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Media item request failed with ${response.status}`);
+    const error = new Error(message ?? `Media item request failed with ${response.status}`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
 
   return normalizeMediaItem((await response.json()) as MediaItem);
@@ -358,13 +332,6 @@ function uploadErrorsMessage(body: UploadResult | null) {
   const firstError = body?.errors?.[0];
   if (!firstError) return undefined;
   return `${firstError.filename || 'File'}: ${firstError.error}`;
-}
-
-function normalizeFeedPage(page: FeedPage) {
-  return {
-    ...page,
-    items: Array.isArray(page.items) ? page.items.map(normalizeMediaItem) : []
-  };
 }
 
 function normalizeMediaItem(item: MediaItem) {

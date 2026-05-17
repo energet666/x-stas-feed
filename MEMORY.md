@@ -224,6 +224,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - When an activity comment opens a regular board inside the activity media modal, the board preview remains read-only like a feed card preview, but clicking it switches out of the content/comments activity layout into the existing expanded drawing-board editing overlay for that board.
 - The side rails intentionally keep chrome minimal: the feed toolbar shows only `Feed+AI`, the profile panel has no profile header and labels the nickname field `Тебя зовут:`, and the social activity panel has no text header while preserving the mobile close control.
 - The feed debug overlay still expands into the full fixed panel, but its collapsed state is intentionally an icon-only round button in the bottom-right corner so it does not occupy feed space.
+- Favorites mode now uses the same single-item frontend virtual-list loading algorithm as the main feed. The shared loader asks for the next feed index; the favorites adapter maps that virtual index through the browser-owned `feed-ai:favorites` ID array and fetches the item through `GET /api/media/{id}`. Stale/missing favorite IDs are skipped and removed from local favorites while keeping loaded virtual indexes aligned after removals.
 
 ## Agent Workflow Constraints
 

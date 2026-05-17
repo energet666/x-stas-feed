@@ -21,7 +21,6 @@
     createLike,
     fetchActivity,
     fetchBoard,
-    fetchFavoriteFeedPage,
     fetchFeedItem,
     fetchMediaItem,
     uploadMedia,
@@ -31,12 +30,12 @@
     type CommentLikeEvent,
     type CommentEvent,
     type FeedItemCreatedEvent,
+    type IndexedFeedItem,
     type LikeEvent,
     type MediaItem,
     type StrokeEvent
   } from './lib/feed';
 
-  const pageSize = 6;
   const activityLimit = 30;
   const estimatedCardHeight = 760;
   const itemGap = 16;
@@ -60,8 +59,12 @@
     height: number;
   };
 
+  type FeedItemLookup = {
+    result?: IndexedFeedItem;
+    staleFavoriteIDs?: string[];
+  };
+
   let items = $state<MediaItem[]>([]);
-  let nextCursor = $state<string | undefined>(undefined);
   let firstFeedIndex = $state<number | undefined>(undefined);
   let lastFeedIndex = $state<number | undefined>(undefined);
   let topFeedIndex = $state<number | undefined>(undefined);
@@ -117,9 +120,7 @@
 
   const isFavoriteMode = $derived(feedMode === 'favorites');
   const hasMore = $derived(
-    isFavoriteMode
-      ? !initialLoaded || nextCursor !== undefined
-      : !initialLoaded || (bottomFeedIndex !== undefined && firstFeedIndex !== undefined && bottomFeedIndex > firstFeedIndex)
+    !initialLoaded || (bottomFeedIndex !== undefined && firstFeedIndex !== undefined && bottomFeedIndex > firstFeedIndex)
   );
   const isEmpty = $derived(initialLoaded && items.length === 0 && !error);
   const viewportStart = $derived(Math.max(0, scrollY - listTop));
@@ -276,25 +277,24 @@
     const requestVersion = feedRequestVersion;
     const requestMode = feedMode;
     const requestFavoriteIDs = favoriteIDs;
-    const requestCursor = nextCursor;
     const requestIndex = bottomFeedIndex === undefined ? -1 : bottomFeedIndex - 1;
     loading = true;
     error = null;
 
     try {
-      if (requestMode === 'favorites') {
-        const page = await fetchFavoriteFeedPage({ ids: requestFavoriteIDs, cursor: requestCursor, limit: pageSize });
-        if (requestVersion !== feedRequestVersion) return;
-        items = [...items, ...page.items];
-        nextCursor = page.nextCursor;
+      const lookup = await fetchIndexedFeedItem(requestMode, requestIndex, requestFavoriteIDs);
+      if (requestVersion !== feedRequestVersion) return;
+      if (lookup.staleFavoriteIDs?.length) {
+        const staleFavoriteIDSet = new Set(lookup.staleFavoriteIDs);
+        favoriteIDs = favoriteIDs.filter((id) => !staleFavoriteIDSet.has(id));
+        syncFavoriteFeedIndexesFromItems();
+      }
+      if (!lookup.result) {
         initialLoaded = true;
-        scheduleViewportUpdate();
-        scheduleLoadMoreCheck();
         return;
       }
 
-      const result = await fetchFeedItem(requestIndex);
-      if (requestVersion !== feedRequestVersion) return;
+      const result = lookup.result;
       firstFeedIndex = result.firstIndex;
       lastFeedIndex = result.lastIndex;
       topFeedIndex = topFeedIndex === undefined ? result.index : topFeedIndex;
@@ -316,6 +316,60 @@
         loading = false;
       }
     }
+  }
+
+  async function fetchIndexedFeedItem(
+    mode: FeedMode,
+    index: number,
+    requestFavoriteIDs: string[]
+  ): Promise<FeedItemLookup> {
+    if (mode === 'all') {
+      return { result: await fetchFeedItem(index) };
+    }
+
+    return fetchFavoriteIndexedItem(index, requestFavoriteIDs);
+  }
+
+  async function fetchFavoriteIndexedItem(index: number, ids: string[]): Promise<FeedItemLookup> {
+    if (ids.length === 0) return {};
+
+    const resolvedIndex = index === -1 ? ids.length - 1 : index;
+    if (resolvedIndex < 0 || resolvedIndex >= ids.length) return {};
+
+    let localIndex = ids.length - 1 - resolvedIndex;
+    const staleIDs: string[] = [];
+
+    while (localIndex < ids.length) {
+      const id = ids[localIndex];
+
+      try {
+        const item = await fetchMediaItem(id);
+        const compactedLength = ids.length - staleIDs.length;
+        const compactedLocalIndex = localIndex - staleIDs.length;
+        return {
+          result: {
+            index: compactedLength - 1 - compactedLocalIndex,
+            firstIndex: 0,
+            lastIndex: compactedLength - 1,
+            item
+          },
+          staleFavoriteIDs: staleIDs
+        };
+      } catch (err) {
+        if (isHTTPStatusError(err, 404)) {
+          staleIDs.push(id);
+          localIndex += 1;
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    return { staleFavoriteIDs: staleIDs };
+  }
+
+  function isHTTPStatusError(err: unknown, status: number) {
+    return err instanceof Error && (err as Error & { status?: number }).status === status;
   }
 
   async function loadActivity() {
@@ -416,7 +470,6 @@
   function resetFeedState() {
     feedRequestVersion += 1;
     items = [];
-    nextCursor = undefined;
     firstFeedIndex = undefined;
     lastFeedIndex = undefined;
     topFeedIndex = undefined;
@@ -674,7 +727,6 @@
   }
 
   function removeFavorite(id: string) {
-    const removedIndex = favoriteIDs.indexOf(id);
     favoriteIDs = favoriteIDs.filter((favoriteID) => favoriteID !== id);
     if (!isFavoriteMode) return;
 
@@ -685,20 +737,43 @@
     ambientReadyIDs = omitRecordKey(ambientReadyIDs, id);
     pendingLikeCounts = omitRecordKey(pendingLikeCounts, id);
     closeItemState(id);
-    if (nextCursor !== undefined && removedIndex >= 0) {
-      const cursorValue = Number.parseInt(nextCursor, 10);
-      if (Number.isFinite(cursorValue) && removedIndex < cursorValue) {
-        nextCursor = String(Math.max(0, cursorValue - 1));
-      }
-    }
+    syncFavoriteFeedIndexesFromItems();
     if (favoriteIDs.length === 0) {
-      nextCursor = undefined;
       initialLoaded = true;
     }
     scheduleViewportUpdate();
-    if (items.length === 0 && favoriteIDs.length > 0 && nextCursor !== undefined) {
+    if (items.length === 0 && favoriteIDs.length > 0) {
+      initialLoaded = false;
       void loadPage();
     }
+  }
+
+  function syncFavoriteFeedIndexesFromItems() {
+    if (!isFavoriteMode) return;
+    if (favoriteIDs.length === 0) {
+      firstFeedIndex = undefined;
+      lastFeedIndex = undefined;
+      topFeedIndex = undefined;
+      bottomFeedIndex = undefined;
+      return;
+    }
+
+    firstFeedIndex = 0;
+    lastFeedIndex = favoriteIDs.length - 1;
+
+    const visibleIndexes = items
+      .map((item) => favoriteIDs.indexOf(item.id))
+      .filter((index) => index >= 0)
+      .map((index) => favoriteIDs.length - 1 - index);
+
+    if (visibleIndexes.length === 0) {
+      topFeedIndex = undefined;
+      bottomFeedIndex = undefined;
+      return;
+    }
+
+    topFeedIndex = Math.max(...visibleIndexes);
+    bottomFeedIndex = Math.min(...visibleIndexes);
   }
 
   function closeItemState(id: string) {
@@ -1448,7 +1523,6 @@
     {unloadedAfter}
     {visibleStartIndex}
     {visibleEndIndex}
-    {nextCursor}
     {loading}
     {initialLoaded}
     {hasMore}

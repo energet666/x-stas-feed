@@ -9,7 +9,6 @@
     unloadedAfter,
     visibleStartIndex,
     visibleEndIndex,
-    nextCursor,
     loading,
     initialLoaded,
     hasMore,
@@ -42,7 +41,6 @@
     unloadedAfter: number;
     visibleStartIndex: number;
     visibleEndIndex: number;
-    nextCursor?: string;
     loading: boolean;
     initialLoaded: boolean;
     hasMore: boolean;
@@ -164,10 +162,6 @@
       <div>
         <dt>Load older</dt>
         <dd>{formatBool(hasMore)} / {formatBool(loading)}</dd>
-      </div>
-      <div>
-        <dt>Cursor</dt>
-        <dd>{nextCursor ?? 'end'}</dd>
       </div>
       <div>
         <dt>Preload</dt>
