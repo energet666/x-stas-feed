@@ -1613,6 +1613,38 @@
     background: rgba(255, 255, 255, 0.07);
   }
 
+  @media (max-width: 520px) {
+    .drawing-history-toolbar {
+      right: 0.65rem;
+      bottom: 0.65rem;
+      left: 0.65rem;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 0.42rem;
+      padding: 0.42rem;
+    }
+
+    .drawing-history-range {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      min-height: 1.35rem;
+    }
+
+    .drawing-history-count {
+      min-width: 3.35rem;
+      padding-inline: 0.3rem;
+    }
+
+    .drawing-history-author {
+      width: auto;
+      height: 1.45rem;
+      padding-inline: 0.38rem;
+    }
+
+    .drawing-history-author span {
+      display: none;
+    }
+  }
+
   /* Vertical toolbar on the right when expanded */
   .drawing-board-expanded .drawing-toolbar {
     bottom: auto;
