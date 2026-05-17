@@ -261,6 +261,21 @@
     ];
   }
 
+  function isPointerInsideRenderedCanvas(event: PointerEvent) {
+    const metrics = getCanvasMetrics();
+    if (!metrics) return false;
+
+    const x = event.clientX - metrics.rect.left;
+    const y = event.clientY - metrics.rect.top;
+
+    return (
+      x >= metrics.offsetX &&
+      x <= metrics.offsetX + metrics.renderedWidth &&
+      y >= metrics.offsetY &&
+      y <= metrics.offsetY + metrics.renderedHeight
+    );
+  }
+
   function updateBrushCursor(event: PointerEvent) {
     if (!expanded) return;
 
@@ -355,10 +370,16 @@
 
   function handlePointerUp(event: PointerEvent) {
     if (!expanded || historyMode) return;
+    const pointerEndedInsideCanvas = isPointerInsideRenderedCanvas(event);
     updateBrushCursor(event);
     const canvas = getCanvas();
     if (canvas?.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
+    }
+
+    if (currentTool === 'freeform' && isDrawing && !pointerEndedInsideCanvas) {
+      clearActiveStroke();
+      return;
     }
 
     if (currentTool === 'freeform' && isDrawing && currentPoints.length >= 1) {
