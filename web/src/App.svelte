@@ -735,6 +735,11 @@
     commentsPanelItemID = null;
   }
 
+  function openActivityBoardFromMedia(mediaId: string) {
+    if (!selectedActivityMedia || selectedActivityMedia.id !== mediaId || selectedActivityMedia.type !== 'board') return;
+    openActivityBoard(selectedActivityMedia.boardId ?? selectedActivityMedia.id);
+  }
+
   function closeActivityBoard() {
     activityBoardExpandedID = null;
   }
@@ -1377,6 +1382,7 @@
         onClose={closeActivityModal}
         onCommentsChanged={updateItemComments}
         onCommentLikeChanged={updateItemCommentLikeCount}
+        onOpenBoardEdit={openActivityBoardFromMedia}
         onLike={likeItem}
       />
     {/if}

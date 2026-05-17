@@ -15,6 +15,7 @@
     onClose,
     onCommentsChanged,
     onCommentLikeChanged,
+    onOpenBoardEdit,
     onLike
   }: {
     item: MediaItem | null;
@@ -27,6 +28,7 @@
     onClose: () => void;
     onCommentsChanged: (mediaId: string, comments: Comment[]) => void;
     onCommentLikeChanged: (mediaId: string, commentId: string, likeCount: number) => void;
+    onOpenBoardEdit: (mediaId: string) => void;
     onLike: (mediaId: string) => void;
   } = $props();
 
@@ -68,7 +70,7 @@
           onKeep={() => (overlayVisible = true)}
           onHide={() => (overlayVisible = false)}
           onToggleFavorite={() => undefined}
-          onToggleExpanded={() => undefined}
+          onToggleExpanded={onOpenBoardEdit}
           onOpenComments={() => undefined}
           onLike={() => onLike(item.id)}
         />
