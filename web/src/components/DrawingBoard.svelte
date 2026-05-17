@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { Activity, History, Palette, Pencil, X } from 'lucide-svelte';
   import {
     createStroke,
@@ -12,11 +12,13 @@
     boardId,
     expanded = false,
     username = 'Guest',
+    ambientCanvas,
     onClose
   }: {
     boardId: string;
     expanded: boolean;
     username: string;
+    ambientCanvas?: HTMLCanvasElement;
     onClose?: () => void;
   } = $props();
 
@@ -108,9 +110,17 @@
 
   // Redraw main canvas when state changes
   $effect(() => {
-    if (canvasEl || previewCanvasEl) {
+    if (canvasEl || previewCanvasEl || ambientCanvas) {
       requestAnimationFrame(redraw);
     }
+  });
+
+  $effect(() => {
+    if (!ambientCanvas) return;
+    requestAnimationFrame(redraw);
+    tick().then(() => {
+      requestAnimationFrame(redraw);
+    });
   });
 
   async function loadBoard() {
@@ -501,7 +511,25 @@
 
   function redraw() {
     const canvas = expanded ? canvasEl : previewCanvasEl;
-    if (!canvas) return;
+    if (canvas) {
+      drawBoardToCanvas(canvas, { includeActiveStroke: true, includeHistoryMode: expanded });
+    }
+    if (ambientCanvas) {
+      drawBoardToCanvas(ambientCanvas, { includeActiveStroke: false, includeHistoryMode: false });
+    }
+  }
+
+  function drawBoardToCanvas(
+    canvas: HTMLCanvasElement,
+    options: { includeActiveStroke: boolean; includeHistoryMode: boolean }
+  ) {
+    if (canvas.width !== canvasWidth) {
+      canvas.width = canvasWidth;
+    }
+    if (canvas.height !== canvasHeight) {
+      canvas.height = canvasHeight;
+    }
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -517,7 +545,7 @@
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     }
 
-    if (historyMode && expanded) {
+    if (historyMode && options.includeHistoryMode) {
       for (const stroke of strokes.slice(0, historyStrokeCount)) {
         drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
       }
@@ -530,12 +558,12 @@
     }
 
     // 3. Draw active stroke canvas (incremental)
-    if (isDrawing && activeStrokeCanvas) {
+    if (options.includeActiveStroke && isDrawing && activeStrokeCanvas) {
       ctx.drawImage(activeStrokeCanvas, 0, 0);
     }
 
     // 4. Draw line preview (not incremental but very few points)
-    if (currentTool === 'line' && lineStart && mousePos) {
+    if (options.includeActiveStroke && currentTool === 'line' && lineStart && mousePos) {
       drawStroke(ctx, [lineStart, mousePos], currentColor, currentSize, 'line');
     }
   }
@@ -1268,6 +1296,10 @@
     position: fixed;
     inset: 0;
     z-index: 200; /* Ensure it's above FeedCardFrame overlays (z-index 6) */
+  }
+
+  .drawing-board:not(.drawing-board-expanded) {
+    background: transparent;
   }
 
   .drawing-canvas-wrap {

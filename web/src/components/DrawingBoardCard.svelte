@@ -39,6 +39,7 @@
 
   const boardId = $derived(item.boardId ?? item.id);
   const suppressOverlays = $derived(expanded);
+  let ambientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
 
   function openBoardFromPreview(event: MouseEvent) {
     event.stopPropagation();
@@ -50,7 +51,7 @@
   {item}
   {expanded}
   {favorite}
-  ambientActive={false}
+  {ambientActive}
   {overlayVisible}
   {likePending}
   {suppressFeedChrome}
@@ -63,9 +64,17 @@
   {onOpenComments}
   {onLike}
 >
+  {#snippet ambientBackground()}
+    <canvas
+      bind:this={ambientCanvas}
+      class="ambient-media"
+      aria-hidden="true"
+    ></canvas>
+  {/snippet}
+
   {#snippet content()}
     {#if expanded}
-      <DrawingBoard {boardId} {expanded} {username} onClose={onToggleExpanded} />
+      <DrawingBoard {boardId} {expanded} {username} {ambientCanvas} onClose={onToggleExpanded} />
     {:else}
       <button
         class="drawing-board-preview-button"
@@ -74,7 +83,7 @@
         title="Open drawing board"
         onclick={openBoardFromPreview}
       >
-        <DrawingBoard {boardId} {expanded} {username} />
+        <DrawingBoard {boardId} {expanded} {username} {ambientCanvas} />
       </button>
     {/if}
   {/snippet}
