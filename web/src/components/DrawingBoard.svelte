@@ -31,6 +31,7 @@
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
   const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
   const FREEFORM_POINT_DISTANCE = 3;
+  const LINE_MIN_DISTANCE = 1;
   const DEFAULT_FREEFORM_SIMPLIFY_EPSILON = 0.5;
   const MIN_FREEFORM_SIMPLIFY_EPSILON = 0;
   const MAX_FREEFORM_SIMPLIFY_EPSILON = 24;
@@ -334,14 +335,11 @@
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
       }
     } else if (currentTool === 'line') {
-      if (!lineStart) {
-        lineStart = [x, y];
-      } else {
-        const pts: number[][] = [lineStart, [x, y]];
-        lineStart = null;
-        mousePos = null;
-        void submitStroke('line', pts);
-      }
+      isDrawing = true;
+      activeStrokePointerId = event.pointerId;
+      lineStart = [x, y];
+      mousePos = [x, y];
+      redraw();
     }
   }
 
@@ -351,7 +349,7 @@
 
     const [x, y] = canvasCoords(event);
 
-    if (currentTool === 'line' && lineStart) {
+    if (currentTool === 'line' && isDrawing && lineStart) {
       mousePos = [x, y];
       redraw();
       return;
@@ -390,6 +388,29 @@
 
     if (currentTool === 'freeform' && isDrawing && !pointerEndedInsideCanvas) {
       clearActiveStroke();
+      return;
+    }
+
+    if (currentTool === 'line' && lineStart && !pointerEndedInsideCanvas) {
+      clearActiveStroke();
+      return;
+    }
+
+    if (currentTool === 'line' && isDrawing && lineStart) {
+      const [x, y] = canvasCoords(event);
+      const lineDistance = Math.hypot(x - lineStart[0], y - lineStart[1]);
+      if (lineDistance < LINE_MIN_DISTANCE) {
+        clearActiveStroke();
+        return;
+      }
+
+      const pts: number[][] = [lineStart, [x, y]];
+      isDrawing = false;
+      activeStrokePointerId = null;
+      lineStart = null;
+      mousePos = null;
+      void submitStroke('line', pts);
+      redraw();
       return;
     }
 
