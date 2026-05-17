@@ -32,6 +32,7 @@
   const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
   const FREEFORM_POINT_DISTANCE = 3;
   const LINE_MIN_DISTANCE = 1;
+  const CANCEL_HINT_DELAY_MS = 350;
   const DEFAULT_FREEFORM_SIMPLIFY_EPSILON = 0.5;
   const MIN_FREEFORM_SIMPLIFY_EPSILON = 0;
   const MAX_FREEFORM_SIMPLIFY_EPSILON = 24;
@@ -73,6 +74,8 @@
   let brushCursorX = $state(0);
   let brushCursorY = $state(0);
   let brushCursorSize = $state(0);
+  let cancelHintVisible = $state(false);
+  let cancelHintTimer: ReturnType<typeof setTimeout> | null = null;
   let sizeDragPointerId = $state<number | null>(null);
   let sizeDragStartY = $state(0);
   let sizeDragStartValue = $state(0);
@@ -95,6 +98,7 @@
 
     return () => {
       window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
+      hideCancelHint();
     };
   });
 
@@ -306,6 +310,30 @@
     brushCursorSize = Math.max(2, currentSize * displayScale);
   }
 
+  function updateCancelHint(pointerInsideCanvas: boolean) {
+    if (!isDrawing || pointerInsideCanvas) {
+      hideCancelHint();
+      return;
+    }
+
+    if (cancelHintVisible || cancelHintTimer) return;
+
+    cancelHintTimer = setTimeout(() => {
+      cancelHintTimer = null;
+      if (isDrawing) {
+        cancelHintVisible = true;
+      }
+    }, CANCEL_HINT_DELAY_MS);
+  }
+
+  function hideCancelHint() {
+    if (cancelHintTimer) {
+      clearTimeout(cancelHintTimer);
+      cancelHintTimer = null;
+    }
+    cancelHintVisible = false;
+  }
+
   function handlePointerEnter(event: PointerEvent) {
     if (historyMode) return;
     updateBrushCursor(event);
@@ -314,12 +342,14 @@
   function handlePointerLeave() {
     if (!isDrawing) {
       brushCursorVisible = false;
+      hideCancelHint();
     }
   }
 
   function handlePointerDown(event: PointerEvent) {
     if (!expanded || historyMode) return;
     updateBrushCursor(event);
+    hideCancelHint();
     const canvas = getCanvas();
     if (!canvas) return;
     canvas.setPointerCapture(event.pointerId);
@@ -346,16 +376,19 @@
   function handlePointerMove(event: PointerEvent) {
     if (!expanded || historyMode) return;
     updateBrushCursor(event);
+    const pointerInsideCanvas = isPointerInsideRenderedCanvas(event);
 
     const [x, y] = canvasCoords(event);
 
     if (currentTool === 'line' && isDrawing && lineStart) {
       mousePos = [x, y];
+      updateCancelHint(pointerInsideCanvas);
       redraw();
       return;
     }
 
     if (!isDrawing || currentTool !== 'freeform' || !activeStrokeCanvas) return;
+    updateCancelHint(pointerInsideCanvas);
 
     const lastPoint = currentPoints[currentPoints.length - 1];
     const dist = Math.hypot(x - lastPoint[0], y - lastPoint[1]);
@@ -381,6 +414,7 @@
     if (!expanded || historyMode) return;
     const pointerEndedInsideCanvas = isPointerInsideRenderedCanvas(event);
     updateBrushCursor(event);
+    hideCancelHint();
     const canvas = getCanvas();
     if (canvas?.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
@@ -694,6 +728,7 @@
     currentTool = tool;
     lineStart = null;
     mousePos = null;
+    hideCancelHint();
     showColorPicker = false;
     redraw();
   }
@@ -826,6 +861,8 @@
       cleared = true;
     }
 
+    hideCancelHint();
+
     if (currentTool === 'line' && lineStart) {
       lineStart = null;
       mousePos = null;
@@ -859,6 +896,7 @@
     currentPoints = [];
     showColorPicker = false;
     brushCursorVisible = false;
+    hideCancelHint();
     if (activeStrokeCanvas) {
       activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
     }
@@ -1057,7 +1095,14 @@
         onpointerleave={handlePointerLeave}
         style="cursor: {historyMode ? 'default' : 'none'}; touch-action: none;"
       ></canvas>
-      <div class="drawing-canvas-boundary" aria-hidden="true"></div>
+      <div class="drawing-canvas-boundary" aria-hidden="true">
+        <div
+          class="drawing-cancel-hint"
+          class:drawing-cancel-hint-visible={!historyMode && cancelHintVisible}
+        >
+          отпустите для отмены
+        </div>
+      </div>
       {#if !historyMode}
         <div
           class="drawing-brush-cursor"
@@ -1373,6 +1418,31 @@
   }
 
   .drawing-brush-cursor-visible {
+    opacity: 1;
+  }
+
+  .drawing-cancel-hint {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    z-index: 9;
+    max-width: min(190px, calc(100vw - 32px));
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(18, 18, 22, 0.88);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    transition: opacity 120ms ease;
+  }
+
+  .drawing-cancel-hint-visible {
     opacity: 1;
   }
 
