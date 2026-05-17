@@ -717,6 +717,7 @@
   function toggleMasterBoard() {
     masterBoardExpanded = !masterBoardExpanded;
     if (masterBoardExpanded) {
+      removeBoardActivity('master');
       expandedItemID = null;
       commentsPanelItemID = null;
       selectedActivityMedia = null;
@@ -725,6 +726,7 @@
   }
 
   function openActivityBoard(boardId: string) {
+    removeBoardActivity(boardId);
     activityBoardExpandedID = boardId;
     masterBoardExpanded = false;
     activityModalOpen = false;
@@ -733,6 +735,18 @@
     activityMediaError = null;
     expandedItemID = null;
     commentsPanelItemID = null;
+  }
+
+  function removeBoardActivity(boardId: string) {
+    activityItems = activityItems.filter((item) => item.type !== 'board' || item.boardId !== boardId);
+  }
+
+  function editedBoardId() {
+    if (masterBoardExpanded) return 'master';
+    if (activityBoardExpandedID) return activityBoardExpandedID;
+
+    const expandedItem = expandedItemID ? items.find((item) => item.id === expandedItemID) : undefined;
+    return expandedItem?.type === 'board' ? expandedItem.boardId ?? expandedItem.id : null;
   }
 
   function openActivityBoardFromMedia(mediaId: string) {
@@ -745,7 +759,14 @@
   }
 
   function toggleExpandedItem(id: string) {
-    expandedItemID = expandedItemID === id ? null : id;
+    const nextExpandedID = expandedItemID === id ? null : id;
+    expandedItemID = nextExpandedID;
+    if (nextExpandedID) {
+      const item = items.find((candidate) => candidate.id === nextExpandedID);
+      if (item?.type === 'board') {
+        removeBoardActivity(item.boardId ?? item.id);
+      }
+    }
     revealCardOverlay(id);
   }
 
@@ -768,6 +789,8 @@
 
   async function openActivityMedia(activityItem: ActivityItem) {
     if (activityItem.type === 'board') {
+      removeBoardActivity(activityItem.boardId);
+
       if (activityItem.boardId === 'master') {
         masterBoardExpanded = true;
         activityBoardExpandedID = null;
@@ -1029,6 +1052,11 @@
   }
 
   function handleBoardActivity(event: StrokeEvent) {
+    if (event.boardId === editedBoardId()) {
+      removeBoardActivity(event.boardId);
+      return;
+    }
+
     const item = boardMediaItem(event.boardId);
     if (item) {
       upsertBoardActivity(event, item.displayName || item.filename || 'Board', item.id);
