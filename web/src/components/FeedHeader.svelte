@@ -142,10 +142,9 @@
           onclick={onRefreshFeed}
         >
           <RefreshCw size={15} />
-          <span class="hidden sm:inline">
+          <span class="min-w-0 flex-1 truncate text-left">
             {newFeedItemCount === 1 ? '1 new item' : `${newFeedItemCount} new items`}
           </span>
-          <span class="sm:hidden">{newFeedItemCount}</span>
         </button>
       {/if}
       <button
@@ -157,7 +156,7 @@
         onclick={onToggleFavoriteMode}
       >
         <Star size={15} fill={feedMode === 'favorites' ? 'currentColor' : 'none'} />
-        <span class="hidden sm:inline">{feedMode === 'favorites' ? 'All' : 'Favorites'}</span>
+        <span class="min-w-0 flex-1 truncate text-left">{feedMode === 'favorites' ? 'All' : 'Favorites'}</span>
       </button>
       <button
         class="glass-button upload-drop-in gap-2"
@@ -182,7 +181,7 @@
         {:else}
           <Upload size={15} />
         {/if}
-        <span class="hidden max-w-40 truncate sm:inline">
+        <span class="min-w-0 flex-1 truncate text-left">
           {#if uploadStatus === 'uploading' && uploadProgress !== null}
             {uploadProgress}%
           {:else}
@@ -205,7 +204,7 @@
         onclick={openBoardForm}
       >
         <Pencil size={15} />
-        <span class="hidden sm:inline">Board</span>
+        <span class="min-w-0 flex-1 truncate text-left">Board</span>
       </button>
   </div>
   {#if boardFormOpen}
@@ -277,6 +276,10 @@
     width: 100%;
     min-width: 0;
     justify-content: flex-start;
+  }
+
+  .feed-toolbar-actions :global(.glass-button > svg) {
+    flex-shrink: 0;
   }
 
   .upload-drop-in {
