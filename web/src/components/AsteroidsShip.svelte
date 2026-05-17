@@ -69,7 +69,6 @@
   const maxSpeed = 8.5;
   const turnSpeed = 0.105;
   const thrust = 0.18;
-  const reverseThrust = 0.075;
   const drag = 0.992;
   const bulletSpeed = 11;
   const bulletLifetime = 82;
@@ -202,7 +201,6 @@
   function isShipKey(event: KeyboardEvent) {
     return (
       event.key === 'ArrowUp' ||
-      event.key === 'ArrowDown' ||
       event.key === 'ArrowLeft' ||
       event.key === 'ArrowRight' ||
       event.code === 'Space'
@@ -276,10 +274,9 @@
     } else {
       smokeSpawnAccumulator = 0;
     }
-    if (ship.thrusting || keys.has('ArrowDown')) {
-      const force = ship.thrusting ? thrust : -reverseThrust;
-      ship.vx += Math.cos(ship.angle) * force * delta;
-      ship.vy += Math.sin(ship.angle) * force * delta;
+    if (ship.thrusting) {
+      ship.vx += Math.cos(ship.angle) * thrust * delta;
+      ship.vy += Math.sin(ship.angle) * thrust * delta;
     }
 
     const speed = Math.hypot(ship.vx, ship.vy);
