@@ -1020,6 +1020,7 @@
       class="drawing-canvas-wrap"
       role="application"
       aria-label="Drawing board: {boardName}"
+      style="--drawing-canvas-aspect: {canvasWidth / canvasHeight};"
       onkeydown={handleKeyDown}
       tabindex="-1"
     >
@@ -1035,6 +1036,7 @@
         onpointerleave={handlePointerLeave}
         style="cursor: {historyMode ? 'default' : 'none'}; touch-action: none;"
       ></canvas>
+      <div class="drawing-canvas-boundary" aria-hidden="true"></div>
       {#if !historyMode}
         <div
           class="drawing-brush-cursor"
@@ -1318,6 +1320,18 @@
     display: block;
   }
 
+  .drawing-canvas-boundary {
+    position: absolute;
+    width: min(100%, calc(100vh * var(--drawing-canvas-aspect)));
+    max-height: 100%;
+    aspect-ratio: var(--drawing-canvas-aspect);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+      0 0 0 1px rgba(0, 0, 0, 0.34),
+      0 0.9rem 2.4rem rgba(0, 0, 0, 0.22);
+    pointer-events: none;
+  }
+
   .drawing-brush-cursor {
     position: absolute;
     top: 0;
@@ -1345,6 +1359,20 @@
     position: relative;
     width: 100%;
     overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+      0 0 0 1px rgba(0, 0, 0, 0.28),
+      0 0.8rem 2rem rgba(0, 0, 0, 0.18);
+  }
+
+  .drawing-preview::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    pointer-events: none;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.16) inset,
+      0 -1px 0 rgba(255, 255, 255, 0.08) inset;
   }
 
   .drawing-canvas-preview {
