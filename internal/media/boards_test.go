@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestBoardStoreInitCreatesPlaceholderWithBoardCreatedAt(t *testing.T) {
+func TestBoardStoreInitDoesNotCreatePlaceholderFromBoardMetadata(t *testing.T) {
 	dir := t.TempDir()
 	boardID := "abc123"
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -29,12 +29,66 @@ func TestBoardStoreInitCreatesPlaceholderWithBoardCreatedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := os.Stat(filepath.Join(dir, boardID+".board"))
+	if _, err := os.Stat(filepath.Join(dir, boardID+".board")); !os.IsNotExist(err) {
+		t.Fatalf("expected metadata-only board not to create placeholder, err=%v", err)
+	}
+	if _, err := store.Get(boardID); err != ErrBoardNotFound {
+		t.Fatalf("expected metadata-only board not to be loaded, got %v", err)
+	}
+}
+
+func TestBoardStoreInitLoadsBoardWhenPlaceholderExists(t *testing.T) {
+	dir := t.TempDir()
+	boardID := "abc123"
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	writeTestFile(t, dir, boardID+".board", createdAt)
+	if err := os.MkdirAll(filepath.Join(dir, boardsDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	metaLine, err := json.Marshal(boardMeta{Name: "Sketch", CreatedAt: createdAt})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !info.ModTime().UTC().Equal(createdAt) {
-		t.Fatalf("expected placeholder mtime to match board creation time, got %s", info.ModTime().UTC())
+	if err := os.WriteFile(filepath.Join(dir, boardsDirName, boardID+".jsonl"), append(metaLine, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Get(boardID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Name != "Sketch" || info.MediaID != EncodeID(boardID+".board") {
+		t.Fatalf("expected placeholder-backed board to load, got %#v", info)
+	}
+}
+
+func TestBoardStoreInitCreatesMissingMetadataForPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	boardID := "abc123"
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	writeTestFile(t, dir, boardID+".board", createdAt)
+
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Get(boardID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Name != defaultBoardName(boardID) || !info.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected fallback board metadata from placeholder, got %#v", info)
+	}
+	if _, err := os.Stat(filepath.Join(dir, boardsDirName, boardID+".jsonl")); err != nil {
+		t.Fatalf("expected board metadata file to be created: %v", err)
 	}
 }
 

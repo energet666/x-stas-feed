@@ -80,27 +80,38 @@ func (bs *BoardStore) Init() error {
 		return fmt.Errorf("create boards directory: %w", err)
 	}
 
-	entries, err := os.ReadDir(bs.root)
+	entries, err := os.ReadDir(bs.contentDir)
 	if err != nil {
-		return fmt.Errorf("read boards directory: %w", err)
+		return fmt.Errorf("read content directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".board") {
 			continue
 		}
-		boardID := strings.TrimSuffix(entry.Name(), ".jsonl")
+		boardID := strings.TrimSuffix(entry.Name(), ".board")
+		if boardID == "" || boardID == "master" {
+			continue
+		}
 		state, loadErr := bs.loadBoardFile(boardID)
 		if loadErr != nil {
-			continue
+			info, infoErr := entry.Info()
+			if infoErr != nil {
+				continue
+			}
+			state, loadErr = bs.createBoardFileForPlaceholder(boardID, info.ModTime().UTC())
+			if loadErr != nil {
+				continue
+			}
 		}
 		bs.boards[boardID] = state
-		if boardID != "master" {
-			_ = bs.ensureBoardPlaceholder(boardID, state.info.CreatedAt)
-		}
 	}
 
-	// Ensure master board exists
+	if state, err := bs.loadBoardFile("master"); err == nil {
+		bs.boards["master"] = state
+	}
+
+	// Ensure master board exists.
 	if _, ok := bs.boards["master"]; !ok {
 		now := time.Now().UTC()
 		name := "Master Board"
@@ -357,6 +368,27 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 			CreatedAt:   meta.CreatedAt,
 		},
 		strokes: strokes,
+	}, nil
+}
+
+func (bs *BoardStore) createBoardFileForPlaceholder(id string, createdAt time.Time) (*boardState, error) {
+	name := defaultBoardName(id)
+	meta := boardMeta{Name: name, CreatedAt: createdAt}
+	metaLine, err := json.Marshal(meta)
+	if err != nil {
+		return nil, fmt.Errorf("marshal board meta: %w", err)
+	}
+	if err := os.WriteFile(bs.boardFilePath(id), append(metaLine, '\n'), 0o644); err != nil {
+		return nil, fmt.Errorf("create board file: %w", err)
+	}
+	return &boardState{
+		info: BoardInfo{
+			ID:          id,
+			MediaID:     boardMediaID(id),
+			Name:        name,
+			StrokeCount: 0,
+			CreatedAt:   createdAt,
+		},
 	}, nil
 }
 
