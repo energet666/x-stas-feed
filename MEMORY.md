@@ -188,7 +188,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 ## Drawing Board Decisions
 
-- Drawing boards are a separate entity from media items. They are stored as JSONL files under `test-content/.boards/{boardID}.jsonl`. The first line is JSON board metadata (name, createdAt), subsequent lines are stroke records.
+- Drawing boards are the canonical visual card for freehand drawing and uploaded images. They are stored as JSONL files under `test-content/.boards/{boardID}.jsonl`. The first line is JSON board metadata (`name`, `createdAt`, `background`, `canvas`), subsequent lines are stroke records.
 - Board IDs are random 32-character hex strings, stroke IDs are random 24-character hex strings.
 - Each stroke record contains: `id`, `tool` (freeform or line), `points` (array of [x,y] coordinate pairs), `color`, `size`, `author`, `createdAt`.
 - The `BoardStore` initializes on server startup by reading existing `.boards` JSONL files. It holds all boards and strokes in memory and appends to disk on each new stroke.
@@ -204,6 +204,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The frontend no longer prepends virtual board media from `GET /api/boards` on startup; the feed scanner is the single source for board cards, preventing duplicate board rows and split comment/like state.
 - New boards are created via `POST /api/boards` triggered by the "Board" button in the header toolbar. The response includes `mediaId`, and the server inserts the placeholder into the runtime media index immediately so the new board can receive comments without a restart.
 - Default board creation is driven by a frontend name form. The backend generates a name from the board ID prefix, e.g. `Board abc123`, only when the submitted name is empty; explicit names, including `Board`, are preserved.
+- Image uploads create board cards instead of image media cards. The original uploaded bytes are copied into `.boards/{boardID}_bgimg.{ext}` and referenced from board metadata as a server-owned background served only through `GET /api/boards/{id}/background`; the root media index sees only the `{boardID}.board` placeholder. Empty/default boards keep `background.type = "default"` and use the standard grid.
+- Board metadata stores the canvas coordinate space. Image-backed boards use decoded image dimensions when the format can be inspected by Go's image decoders, falling back to the default `1200x800` canvas for unsupported/invalid test bytes. The Svelte board renderer sizes its canvas from this metadata and draws the background image before committed/active strokes.
 - **Мастер-доска:** Специальная доска с фиксированным ID `master`, которая создается сервером автоматически и хранится только как `test-content/.boards/master.jsonl`. Её превью всегда отображается в сайдбаре под профилем пользователя, обеспечивая быстрый доступ к общему пространству для рисования из любой части приложения. Для нее не создается `.board` placeholder в media root, потому что она не является элементом основной ленты.
 - Regular board previews in feed cards are clickable buttons that open the board in expanded drawing mode, matching the master board preview behavior while keeping drawing input limited to expanded mode.
 - The media scanner already ignores dot-prefixed directories, so `.boards` is excluded from the media index automatically.

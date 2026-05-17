@@ -597,6 +597,10 @@ func (l *Library) insertItem(item Item, path string) error {
 }
 
 func (l *Library) InsertBoardPlaceholder(boardID, displayName string) (Item, error) {
+	return l.InsertBoardPlaceholderWithModifiedAt(boardID, displayName, time.Time{})
+}
+
+func (l *Library) InsertBoardPlaceholderWithModifiedAt(boardID, displayName string, modifiedAt time.Time) (Item, error) {
 	if strings.TrimSpace(boardID) == "" || strings.EqualFold(boardID, "master") {
 		return Item{}, errors.New("invalid board id")
 	}
@@ -617,8 +621,13 @@ func (l *Library) InsertBoardPlaceholder(boardID, displayName string) (Item, err
 	if name := strings.TrimSpace(displayName); name != "" {
 		item.DisplayName = name
 	}
+	metadata := Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}
+	if !modifiedAt.IsZero() {
+		metadata.ModifiedAt = modifiedAt.UTC()
+		item.ModifiedAt = metadata.ModifiedAt
+	}
 
-	if err := l.metadata.Set(item.ID, Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}); err != nil {
+	if err := l.metadata.Set(item.ID, metadata); err != nil {
 		return Item{}, err
 	}
 	if err := l.insertItem(item, path); err != nil {

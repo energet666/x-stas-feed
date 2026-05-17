@@ -15,6 +15,11 @@ import (
 
 var safeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
+func IsImageFilename(name string) bool {
+	kind, ok := kindForPath(name)
+	return ok && kind == "image"
+}
+
 func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error) {
 	return l.SaveUploadWithModifiedAt(originalName, reader, time.Time{})
 }

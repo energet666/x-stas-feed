@@ -80,6 +80,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
 	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
 	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
+	s.mux.HandleFunc("GET /api/boards/{id}/background", s.handleBoardBackground)
 	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
 	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
@@ -211,14 +212,24 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			sourceModifiedAt = pendingModifiedAt[0]
 			pendingModifiedAt = pendingModifiedAt[1:]
 		}
-		item, err := s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
+		var item media.Item
+		var uploadErr error
+		if media.IsImageFilename(filename) {
+			var board media.BoardInfo
+			board, uploadErr = s.boards.CreateWithImageBackground(filename, filename, part, sourceModifiedAt)
+			if uploadErr == nil {
+				item, uploadErr = s.library.InsertBoardPlaceholderWithModifiedAt(board.ID, board.Name, sourceModifiedAt)
+			}
+		} else {
+			item, uploadErr = s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
+		}
 		_ = part.Close()
-		if err != nil {
-			if isRequestTooLarge(err) {
+		if uploadErr != nil {
+			if isRequestTooLarge(uploadErr) {
 				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
 				return
 			}
-			response.Errors = append(response.Errors, uploadError{Filename: filename, Error: err.Error()})
+			response.Errors = append(response.Errors, uploadError{Filename: filename, Error: uploadErr.Error()})
 			continue
 		}
 		response.Items = append(response.Items, item)
@@ -524,6 +535,17 @@ func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 		"board":   info,
 		"strokes": strokes,
 	})
+}
+
+func (s *Server) handleBoardBackground(w http.ResponseWriter, r *http.Request) {
+	path, mimeType, err := s.boards.BackgroundPath(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", mediaCacheControl)
+	w.Header().Set("Content-Type", mimeType)
+	http.ServeFile(w, r, path)
 }
 
 func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {

@@ -74,27 +74,16 @@
   let sizeDragAppliedDelta = $state(0);
   let sizeDragActive = $state(false);
   let sizeDragSuppressClick = $state(false);
+  let backgroundImage = $state<HTMLImageElement | undefined>(undefined);
 
-  const canvasWidth = 1200;
-  const canvasHeight = 800;
+  let canvasWidth = $state(1200);
+  let canvasHeight = $state(800);
   const SIZE_DRAG_STEP_PX = 3;
   const SIZE_DRAG_START_THRESHOLD_PX = 3;
 
   onMount(() => {
     loadBrushSettings();
-
-    gridCanvas = document.createElement('canvas');
-    gridCanvas.width = canvasWidth;
-    gridCanvas.height = canvasHeight;
-    drawGrid(gridCanvas.getContext('2d')!);
-
-    committedCanvas = document.createElement('canvas');
-    committedCanvas.width = canvasWidth;
-    committedCanvas.height = canvasHeight;
-
-    activeStrokeCanvas = document.createElement('canvas');
-    activeStrokeCanvas.width = canvasWidth;
-    activeStrokeCanvas.height = canvasHeight;
+    setupCanvasBuffers(canvasWidth, canvasHeight);
 
     window.addEventListener('keydown', handleHistoryWindowKeydown, { capture: true });
     void loadBoard();
@@ -126,12 +115,64 @@
     try {
       const data = await fetchBoard(boardId);
       boardName = data.board.name;
+      const width = data.board.canvas?.width;
+      const height = data.board.canvas?.height;
+      if (
+        typeof width === 'number' &&
+        typeof height === 'number' &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0
+      ) {
+        setupCanvasBuffers(Math.round(width), Math.round(height));
+      }
+      setBackground(data.board.background);
       const loadedIds = new Set(data.strokes.map((stroke) => stroke.id));
       const sseStrokes = strokes.filter((stroke) => !loadedIds.has(stroke.id));
       rebuildCommittedCanvas([...data.strokes, ...sseStrokes]);
     } catch {
       // Board might not exist yet
     }
+  }
+
+  function setupCanvasBuffers(width: number, height: number) {
+    if (canvasWidth === width && canvasHeight === height && gridCanvas && committedCanvas && activeStrokeCanvas) {
+      return;
+    }
+
+    canvasWidth = width;
+    canvasHeight = height;
+
+    gridCanvas = document.createElement('canvas');
+    gridCanvas.width = canvasWidth;
+    gridCanvas.height = canvasHeight;
+    drawGrid(gridCanvas.getContext('2d')!);
+
+    committedCanvas = document.createElement('canvas');
+    committedCanvas.width = canvasWidth;
+    committedCanvas.height = canvasHeight;
+
+    activeStrokeCanvas = document.createElement('canvas');
+    activeStrokeCanvas.width = canvasWidth;
+    activeStrokeCanvas.height = canvasHeight;
+  }
+
+  function setBackground(background: { type?: string; url?: string } | undefined) {
+    if (background?.type !== 'image' || !background.url) {
+      backgroundImage = undefined;
+      redraw();
+      return;
+    }
+
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      if (backgroundImage === img) redraw();
+    };
+    img.src = background.url;
+    backgroundImage = img;
+    redraw();
   }
 
   function rebuildCommittedCanvas(nextStrokes: Stroke[]) {
@@ -436,8 +477,12 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 1. Draw static grid
-    if (gridCanvas) {
+    // 1. Draw static background
+    if (backgroundImage?.complete && backgroundImage.naturalWidth > 0) {
+      ctx.fillStyle = '#0f0f17';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.drawImage(backgroundImage, 0, 0, canvasWidth, canvasHeight);
+    } else if (gridCanvas) {
       ctx.drawImage(gridCanvas, 0, 0);
     } else {
       ctx.fillStyle = '#0f0f17';
@@ -1044,7 +1089,7 @@
       {/if}
     </div>
   {:else}
-    <div class="drawing-preview">
+    <div class="drawing-preview" style="aspect-ratio: {canvasWidth} / {canvasHeight};">
       <canvas
         bind:this={previewCanvasEl}
         width={canvasWidth}
@@ -1116,14 +1161,13 @@
   .drawing-preview {
     position: relative;
     width: 100%;
-    aspect-ratio: 3 / 2;
     overflow: hidden;
   }
 
   .drawing-canvas-preview {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
     pointer-events: none;
   }

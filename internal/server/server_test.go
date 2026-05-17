@@ -965,17 +965,20 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatalf("expected one uploaded item, got %#v", upload)
 	}
 	item := upload.Items[0]
-	if item.Type != "image" || item.Size != int64(len("png-content")) {
+	if item.Type != "board" || item.BoardID == "" {
 		t.Fatalf("unexpected uploaded item: %#v", item)
 	}
 	if item.DisplayName != "Мой летний день.png" {
 		t.Fatalf("expected original display name, got %#v", item)
 	}
-	if strings.Contains(item.Filename, "Мой") || strings.Contains(item.Filename, " ") {
-		t.Fatalf("expected safe technical filename, got %#v", item.Filename)
+	if !strings.HasSuffix(item.Filename, ".board") {
+		t.Fatalf("expected board placeholder filename, got %#v", item.Filename)
 	}
 	if _, err := os.Stat(filepath.Join(dir, item.Filename)); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".boards", item.BoardID+"_bgimg.png")); err != nil {
+		t.Fatalf("expected uploaded image to be stored as board background: %v", err)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
@@ -994,12 +997,29 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatalf("expected uploaded item in feed, got %#v", feedItem)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/media/"+item.ID, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+item.BoardID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected uploaded board response, got status=%d body=%q", res.Code, res.Body.String())
+	}
+	var boardData struct {
+		Board media.BoardInfo `json:"board"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&boardData); err != nil {
+		t.Fatal(err)
+	}
+	if boardData.Board.Background == nil || boardData.Board.Background.Type != "image" || boardData.Board.Background.URL == "" {
+		t.Fatalf("expected board image background, got %#v", boardData.Board)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+item.BoardID+"/background", nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusOK || res.Body.String() != "png-content" {
-		t.Fatalf("expected uploaded media response, got status=%d body=%q", res.Code, res.Body.String())
+		t.Fatalf("expected uploaded board background response, got status=%d body=%q", res.Code, res.Body.String())
 	}
 }
 

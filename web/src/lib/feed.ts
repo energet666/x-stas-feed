@@ -347,8 +347,22 @@ export type BoardInfo = {
   id: string;
   mediaId?: string;
   name: string;
+  background?: BoardBackground;
+  canvas?: BoardCanvas;
   strokeCount: number;
   createdAt: string;
+};
+
+export type BoardBackground = {
+  type: 'default' | 'image';
+  filename?: string;
+  mimeType?: string;
+  url?: string;
+};
+
+export type BoardCanvas = {
+  width: number;
+  height: number;
 };
 
 export type Stroke = {
