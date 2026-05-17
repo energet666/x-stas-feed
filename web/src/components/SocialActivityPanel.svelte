@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LoaderCircle, MessageCircle, PanelRightOpen, PencilLine, X } from 'lucide-svelte';
+  import { Heart, LoaderCircle, MessageCircle, PanelRightOpen, PencilLine, X } from 'lucide-svelte';
   import type { ActivityItem } from '../lib/feed';
 
   let {
@@ -76,6 +76,12 @@
             <span class="activity-row-author">
               <span class="truncate font-semibold text-primary">{item.comment.author || 'Guest'}</span>
               <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
+              {#if item.comment.likeCount > 0}
+                <span class="activity-row-likes" aria-label={`${item.comment.likeCount} likes`}>
+                  <Heart size={13} />
+                  <span>{item.comment.likeCount}</span>
+                </span>
+              {/if}
             </span>
             <span class="activity-row-text">{item.comment.text}</span>
           {:else}
@@ -176,6 +182,23 @@
     gap: 0.4rem;
     font-size: 0.86rem;
     line-height: 1.28;
+  }
+
+  .activity-row-likes {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.18rem;
+    margin-left: auto;
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .activity-row-likes :global(svg) {
+    fill: color-mix(in srgb, var(--color-danger) 22%, transparent);
+    stroke: var(--color-danger);
   }
 
   .activity-row-author-name {
