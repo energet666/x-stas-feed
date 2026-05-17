@@ -231,6 +231,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - The side rails intentionally keep chrome minimal: the feed toolbar shows only `Feed+AI`, the profile panel has no profile header and labels the nickname field `Тебя зовут:`, and the social activity panel has no text header while preserving the mobile close control.
 - The feed debug overlay still expands into the full fixed panel, but its collapsed state is intentionally an icon-only round button in the bottom-right corner so it does not occupy feed space.
 - Favorites mode now uses the same single-item frontend virtual-list loading algorithm as the main feed. The shared loader asks for the next feed index; the favorites adapter maps that virtual index through the browser-owned `feed-ai:favorites` ID array and fetches the item through `GET /api/media/{id}`. Stale/missing favorite IDs are skipped and removed from local favorites while keeping loaded virtual indexes aligned after removals.
+- The feed has a floating rocket icon button that appears after the user scrolls down roughly one viewport and smooth-scrolls the page back to the top. It is intentionally outside feed cards so virtualization and card measurements are unaffected, and sits above the collapsed debug button in the bottom-right corner.
 
 ## Agent Workflow Constraints
 

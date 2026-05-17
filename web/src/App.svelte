@@ -1,6 +1,6 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
-  import { LoaderCircle, Star } from 'lucide-svelte';
+  import { LoaderCircle, Rocket, Star } from 'lucide-svelte';
   import ActivityMediaModal from './components/ActivityMediaModal.svelte';
   import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
@@ -389,6 +389,10 @@
 
   function retry() {
     void loadPage();
+  }
+
+  function scrollFeedToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   }
 
   async function handleUploadFiles(files: File[]) {
@@ -1489,6 +1493,18 @@
         onLike={likeItem}
       />
     {/if}
+
+    {#if scrollY > viewportHeight * 0.85}
+      <button
+        class="feed-top-button"
+        type="button"
+        aria-label="Scroll feed to top"
+        title="Scroll feed to top"
+        onclick={scrollFeedToTop}
+      >
+        <Rocket size={19} />
+      </button>
+    {/if}
   {/if}
 
   {#if masterBoardExpanded}
@@ -1598,5 +1614,38 @@
     inset: 0;
     z-index: 1000;
     background: #0f0f17;
+  }
+
+  .feed-top-button {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(4.5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
+    z-index: 40;
+    display: grid;
+    width: 3rem;
+    height: 3rem;
+    place-items: center;
+    border: 1px solid var(--color-glass-border);
+    border-radius: 999px;
+    background: var(--background-image-glass-strong);
+    box-shadow: var(--shadow-control);
+    color: var(--color-primary);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      transform 140ms ease;
+  }
+
+  .feed-top-button:hover {
+    border-color: var(--color-glass-border-hover);
+    box-shadow: var(--shadow-control-hover);
+    transform: translateY(-2px);
+  }
+
+  .feed-top-button:focus-visible {
+    outline: 2px solid rgb(255 255 255 / 0.82);
+    outline-offset: 3px;
   }
 </style>
