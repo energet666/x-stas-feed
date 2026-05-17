@@ -22,7 +22,7 @@ import (
 
 func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
@@ -38,14 +38,51 @@ func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Index != 0 || response.Item.Filename != "photo.png" {
+	if response.Index != 0 || response.Item.Filename != "photo.txt" {
 		t.Fatalf("unexpected feed item: %#v", response)
+	}
+}
+
+func TestFeedScanConvertsImagesToBoardBackgrounds(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "photo.png")
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var response media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Item.Type != "board" || response.Item.BoardID == "" || response.Item.DisplayName != "photo.png" {
+		t.Fatalf("expected scanned image to become board item, got %#v", response.Item)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "photo.png")); !os.IsNotExist(err) {
+		t.Fatalf("expected original image to be moved out of media root, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".boards", response.Item.BoardID+"_bgimg.png")); err != nil {
+		t.Fatalf("expected image background file: %v", err)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+response.Item.BoardID+"/background", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK || res.Body.String() != "test" {
+		t.Fatalf("expected board background response, got status=%d body=%q", res.Code, res.Body.String())
 	}
 }
 
 func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
 
 	var logs bytes.Buffer
 	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
@@ -65,8 +102,8 @@ func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 
 func TestMediaRequestLogIncludesFilename(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	var logs bytes.Buffer
 	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
@@ -76,19 +113,19 @@ func TestMediaRequestLogIncludesFilename(t *testing.T) {
 	handler.ServeHTTP(res, req)
 
 	output := logs.String()
-	if !strings.Contains(output, "mediaID="+id) || !strings.Contains(output, `filename="photo.png"`) {
+	if !strings.Contains(output, "mediaID="+id) || !strings.Contains(output, `filename="photo.txt"`) {
 		t.Fatalf("expected media request log to include media id and filename, got %q", output)
 	}
 }
 
 func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "a.png")
-	writeServerTestFile(t, dir, "b.png")
-	writeServerTestFile(t, dir, "c.png")
+	writeServerTestFile(t, dir, "a.txt")
+	writeServerTestFile(t, dir, "b.txt")
+	writeServerTestFile(t, dir, "c.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
-	body := bytes.NewBufferString(`{"ids":["` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":10}`)
+	body := bytes.NewBufferString(`{"ids":["` + media.EncodeID("c.txt") + `","` + media.EncodeID("a.txt") + `","` + media.EncodeID("b.txt") + `"],"limit":10}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -106,20 +143,20 @@ func TestFavoriteFeedEndpointReturnsIDsInRequestedOrder(t *testing.T) {
 	if len(page.Items) != 3 {
 		t.Fatalf("expected three favorite items, got %#v", page)
 	}
-	if page.Items[0].Filename != "c.png" || page.Items[1].Filename != "a.png" || page.Items[2].Filename != "b.png" {
+	if page.Items[0].Filename != "c.txt" || page.Items[1].Filename != "a.txt" || page.Items[2].Filename != "b.txt" {
 		t.Fatalf("expected requested favorite order, got %#v", page.Items)
 	}
 }
 
 func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "a.png")
-	writeServerTestFile(t, dir, "b.png")
-	writeServerTestFile(t, dir, "c.png")
+	writeServerTestFile(t, dir, "a.txt")
+	writeServerTestFile(t, dir, "b.txt")
+	writeServerTestFile(t, dir, "c.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	missingID := media.EncodeID("missing.png")
-	body := bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"limit":2}`)
+	body := bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.txt") + `","` + media.EncodeID("a.txt") + `","` + media.EncodeID("b.txt") + `"],"limit":2}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -134,14 +171,14 @@ func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 || page.Items[0].Filename != "c.png" || page.Items[1].Filename != "a.png" {
+	if len(page.Items) != 2 || page.Items[0].Filename != "c.txt" || page.Items[1].Filename != "a.txt" {
 		t.Fatalf("expected first page to skip stale id and preserve order, got %#v", page)
 	}
 	if page.NextCursor != "3" {
 		t.Fatalf("expected next cursor 3, got %q", page.NextCursor)
 	}
 
-	body = bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.png") + `","` + media.EncodeID("a.png") + `","` + media.EncodeID("b.png") + `"],"cursor":"` + page.NextCursor + `","limit":2}`)
+	body = bytes.NewBufferString(`{"ids":["` + missingID + `","` + media.EncodeID("c.txt") + `","` + media.EncodeID("a.txt") + `","` + media.EncodeID("b.txt") + `"],"cursor":"` + page.NextCursor + `","limit":2}`)
 	req = httptest.NewRequest(http.MethodPost, "/api/feed/favorites", body)
 	req.Header.Set("Content-Type", "application/json")
 	res = httptest.NewRecorder()
@@ -155,7 +192,7 @@ func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Filename != "b.png" || page.NextCursor != "" {
+	if len(page.Items) != 1 || page.Items[0].Filename != "b.txt" || page.NextCursor != "" {
 		t.Fatalf("expected final favorite page, got %#v", page)
 	}
 }
@@ -201,10 +238,10 @@ func TestShipScoresEndpointKeepsTopFive(t *testing.T) {
 
 func TestActivityEndpointReturnsLatestCommentsAcrossMedia(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "a.png")
-	writeServerTestFile(t, dir, "b.png")
-	aID := media.EncodeID("a.png")
-	bID := media.EncodeID("b.png")
+	writeServerTestFile(t, dir, "a.txt")
+	writeServerTestFile(t, dir, "b.txt")
+	aID := media.EncodeID("a.txt")
+	bID := media.EncodeID("b.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, request := range []struct {
@@ -245,15 +282,15 @@ func TestActivityEndpointReturnsLatestCommentsAcrossMedia(t *testing.T) {
 	if response.Items[0].Comment.Text != "third" || response.Items[1].Comment.Text != "second" {
 		t.Fatalf("expected newest comments first, got %#v", response.Items)
 	}
-	if response.Items[0].MediaID != aID || response.Items[0].MediaDisplayName != "a.png" || response.Items[0].MediaType != "image" {
+	if response.Items[0].MediaID != aID || response.Items[0].MediaDisplayName != "a.txt" || response.Items[0].MediaType != "file" {
 		t.Fatalf("expected media metadata on activity item, got %#v", response.Items[0])
 	}
 }
 
 func TestActivityEndpointIgnoresStaleCommentFilesAndCapsLimit(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	for i := 0; i < 105; i++ {
@@ -301,8 +338,8 @@ func TestActivityEndpointIgnoresStaleCommentFilesAndCapsLimit(t *testing.T) {
 
 func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, text := range []string{"first", "second", "third"} {
@@ -327,7 +364,7 @@ func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&item); err != nil {
 		t.Fatal(err)
 	}
-	if item.ID != id || item.Filename != "photo.png" || item.CommentCount != 3 {
+	if item.ID != id || item.Filename != "photo.txt" || item.CommentCount != 3 {
 		t.Fatalf("unexpected media item response: %#v", item)
 	}
 	if len(item.Comments) != 2 || item.Comments[0].Text != "second" || item.Comments[1].Text != "third" {
@@ -344,14 +381,14 @@ func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 
 func TestMediaCoverEndpointRejectsInvalidAndNonAudioIDs(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
 	writeServerTestFile(t, dir, "song.mp3")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
 	for _, path := range []string{
 		"/api/media/" + media.EncodeID("../secret.mp3") + "/cover",
-		"/api/media/" + media.EncodeID("photo.png") + "/cover",
+		"/api/media/" + media.EncodeID("photo.txt") + "/cover",
 		"/api/media/" + media.EncodeID("song.mp3") + "/cover",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -365,10 +402,10 @@ func TestMediaCoverEndpointRejectsInvalidAndNonAudioIDs(t *testing.T) {
 
 func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
-	req := httptest.NewRequest(http.MethodGet, "/media/"+media.EncodeID("photo.png"), nil)
+	req := httptest.NewRequest(http.MethodGet, "/media/"+media.EncodeID("photo.txt"), nil)
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -392,8 +429,8 @@ func TestMediaEndpointServesKnownIDAndRejectsEscape(t *testing.T) {
 
 func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for _, text := range []string{"first", "second", "third"} {
@@ -456,8 +493,8 @@ func TestCommentEndpointsCreateListAndUpdateFeedSummary(t *testing.T) {
 
 func TestCreateCommentDefaultsAndNormalizesAuthor(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"hello","author":"  Космический\n  Пончик  "}`))
@@ -497,10 +534,10 @@ func TestCreateCommentDefaultsAndNormalizesAuthor(t *testing.T) {
 
 func TestCreateCommentRejectsEmptyText(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
-	req := httptest.NewRequest(http.MethodPost, "/api/media/"+media.EncodeID("photo.png")+"/comments", bytes.NewBufferString(`{"text":"   "}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/media/"+media.EncodeID("photo.txt")+"/comments", bytes.NewBufferString(`{"text":"   "}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -512,8 +549,8 @@ func TestCreateCommentRejectsEmptyText(t *testing.T) {
 
 func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	for expected := 1; expected <= 2; expected++ {
@@ -557,8 +594,8 @@ func TestLikeEndpointIncrementsMetadataAndFeedSummary(t *testing.T) {
 
 func TestCommentLikeEndpointIncrementsCommentAndFeedSummary(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/comments", bytes.NewBufferString(`{"text":"liked comment"}`))
@@ -617,8 +654,8 @@ func TestCommentLikeEndpointIncrementsCommentAndFeedSummary(t *testing.T) {
 
 func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()
@@ -694,8 +731,8 @@ func TestCommentEventsStreamsCreatedComments(t *testing.T) {
 
 func TestCommentEventsStreamsCreatedLikes(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()
@@ -773,8 +810,8 @@ func TestCommentEventsStreamsCreatedLikes(t *testing.T) {
 
 func TestCommentEventsStreamsCreatedCommentLikes(t *testing.T) {
 	dir := t.TempDir()
-	writeServerTestFile(t, dir, "photo.png")
-	id := media.EncodeID("photo.png")
+	writeServerTestFile(t, dir, "photo.txt")
+	id := media.EncodeID("photo.txt")
 
 	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
 	defer testServer.Close()

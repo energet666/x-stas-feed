@@ -1,7 +1,12 @@
 package media
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"testing"
@@ -163,6 +168,30 @@ func TestBoardStoreCreatePreservesExplicitBoardName(t *testing.T) {
 	}
 }
 
+func TestImageCanvasAppliesJPEGEXIFOrientation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rotated.jpeg")
+
+	img := image.NewRGBA(image.Rect(0, 0, 2, 3))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var encoded bytes.Buffer
+	if err := jpeg.Encode(&encoded, img, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	bytes := encoded.Bytes()
+	withEXIF := append([]byte{0xff, 0xd8}, jpegEXIFSegment(6)...)
+	withEXIF = append(withEXIF, bytes[2:]...)
+	if err := os.WriteFile(path, withEXIF, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	canvas := imageCanvas(path)
+	if canvas.Width != 3 || canvas.Height != 2 {
+		t.Fatalf("expected EXIF-rotated canvas 3x2, got %#v", canvas)
+	}
+}
+
 func TestBoardStoreAddStrokeAllowsSingleFreeformPoint(t *testing.T) {
 	dir := t.TempDir()
 	store := NewBoardStore(dir)
@@ -184,6 +213,24 @@ func TestBoardStoreAddStrokeAllowsSingleFreeformPoint(t *testing.T) {
 	if !samePoints(stroke.Points, expected) {
 		t.Fatalf("expected normalized point %#v, got %#v", expected, stroke.Points)
 	}
+}
+
+func jpegEXIFSegment(orientation uint16) []byte {
+	tiff := make([]byte, 8+2+12+4)
+	copy(tiff[0:2], "II")
+	binary.LittleEndian.PutUint16(tiff[2:4], 42)
+	binary.LittleEndian.PutUint32(tiff[4:8], 8)
+	binary.LittleEndian.PutUint16(tiff[8:10], 1)
+	entry := tiff[10:22]
+	binary.LittleEndian.PutUint16(entry[0:2], 0x0112)
+	binary.LittleEndian.PutUint16(entry[2:4], 3)
+	binary.LittleEndian.PutUint32(entry[4:8], 1)
+	binary.LittleEndian.PutUint16(entry[8:10], orientation)
+
+	payload := append([]byte("Exif\x00\x00"), tiff...)
+	segment := []byte{0xff, 0xe1, 0, 0}
+	binary.BigEndian.PutUint16(segment[2:4], uint16(len(payload)+2))
+	return append(segment, payload...)
 }
 
 func TestBoardStoreAddStrokeRejectsSingleLinePoint(t *testing.T) {

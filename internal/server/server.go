@@ -42,6 +42,7 @@ func New(library *media.Library, contentRoot string, staticDir string, logger *l
 	if err := boardStore.Init(); err != nil {
 		logger.Printf("board store init failed error=%v", err)
 	}
+	library.UseBoardStore(boardStore)
 	s := &Server{
 		mux:       http.NewServeMux(),
 		library:   library,

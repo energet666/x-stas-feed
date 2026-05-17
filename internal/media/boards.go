@@ -3,6 +3,7 @@ package media
 import (
 	"bufio"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -208,6 +209,29 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 // CreateWithImageBackground creates a board whose background is a server-owned
 // copy of the uploaded image stored under .boards.
 func (bs *BoardStore) CreateWithImageBackground(name string, originalName string, reader io.Reader, sourceModifiedAt time.Time) (BoardInfo, error) {
+	return bs.createImageBackgroundBoard(name, originalName, reader, sourceModifiedAt, time.Time{})
+}
+
+// CreateFromImageFile converts an existing image file into a board background
+// and removes the original image after the board is durably created.
+func (bs *BoardStore) CreateFromImageFile(name string, path string, sourceModifiedAt time.Time) (BoardInfo, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return BoardInfo{}, err
+	}
+	defer file.Close()
+
+	info, err := bs.createImageBackgroundBoard(name, filepath.Base(path), file, sourceModifiedAt, sourceModifiedAt)
+	if err != nil {
+		return BoardInfo{}, err
+	}
+	if err := os.Remove(path); err != nil {
+		return BoardInfo{}, err
+	}
+	return info, nil
+}
+
+func (bs *BoardStore) createImageBackgroundBoard(name string, originalName string, reader io.Reader, backgroundModifiedAt time.Time, placeholderModifiedAt time.Time) (BoardInfo, error) {
 	if originalName == "" {
 		return BoardInfo{}, errors.New("filename is required")
 	}
@@ -222,10 +246,15 @@ func (bs *BoardStore) CreateWithImageBackground(name string, originalName string
 
 	id := generateBoardID()
 	now := time.Now().UTC()
-	if sourceModifiedAt.IsZero() {
-		sourceModifiedAt = now
+	if backgroundModifiedAt.IsZero() {
+		backgroundModifiedAt = now
 	} else {
-		sourceModifiedAt = sourceModifiedAt.UTC()
+		backgroundModifiedAt = backgroundModifiedAt.UTC()
+	}
+	if placeholderModifiedAt.IsZero() {
+		placeholderModifiedAt = now
+	} else {
+		placeholderModifiedAt = placeholderModifiedAt.UTC()
 	}
 
 	name = strings.TrimSpace(name)
@@ -257,7 +286,7 @@ func (bs *BoardStore) CreateWithImageBackground(name string, originalName string
 		_ = os.Remove(backgroundPath)
 		return BoardInfo{}, errors.New("uploaded file is empty")
 	}
-	if err := os.Chtimes(backgroundPath, sourceModifiedAt, sourceModifiedAt); err != nil {
+	if err := os.Chtimes(backgroundPath, backgroundModifiedAt, backgroundModifiedAt); err != nil {
 		_ = os.Remove(backgroundPath)
 		return BoardInfo{}, err
 	}
@@ -294,7 +323,7 @@ func (bs *BoardStore) CreateWithImageBackground(name string, originalName string
 	bs.boards[id] = &boardState{info: info, strokes: nil}
 	bs.mu.Unlock()
 
-	_ = bs.ensureBoardPlaceholder(id, now)
+	_ = bs.ensureBoardPlaceholder(id, placeholderModifiedAt)
 	return info, nil
 }
 
@@ -496,6 +525,12 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 	if meta.Background.Type == "image" && meta.Background.URL == "" {
 		meta.Background.URL = "/api/boards/" + id + "/background"
 	}
+	if meta.Background.Type == "image" && meta.Background.Filename != "" && filepath.Base(meta.Background.Filename) == meta.Background.Filename {
+		canvas := imageCanvas(filepath.Join(bs.root, meta.Background.Filename))
+		if canvas.Width > 0 && canvas.Height > 0 {
+			meta.Canvas = canvas
+		}
+	}
 
 	var strokes []Stroke
 	for scanner.Scan() {
@@ -620,5 +655,114 @@ func imageCanvas(path string) BoardCanvas {
 	if err != nil || config.Width <= 0 || config.Height <= 0 {
 		return defaultBoardCanvas()
 	}
+	if jpegOrientationSwapsAxes(path) {
+		return BoardCanvas{Width: config.Height, Height: config.Width}
+	}
 	return BoardCanvas{Width: config.Width, Height: config.Height}
+}
+
+func jpegOrientationSwapsAxes(path string) bool {
+	orientation, ok := jpegEXIFOrientation(path)
+	return ok && orientation >= 5 && orientation <= 8
+}
+
+func jpegEXIFOrientation(path string) (int, bool) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, false
+	}
+	defer file.Close()
+
+	var header [2]byte
+	if _, err := io.ReadFull(file, header[:]); err != nil || header != [2]byte{0xff, 0xd8} {
+		return 0, false
+	}
+
+	for {
+		marker, err := nextJPEGMarker(file)
+		if err != nil {
+			return 0, false
+		}
+		if marker == 0xda || marker == 0xd9 {
+			return 0, false
+		}
+
+		var lengthBytes [2]byte
+		if _, err := io.ReadFull(file, lengthBytes[:]); err != nil {
+			return 0, false
+		}
+		length := int(binary.BigEndian.Uint16(lengthBytes[:]))
+		if length < 2 {
+			return 0, false
+		}
+		payloadLength := length - 2
+		payload := make([]byte, payloadLength)
+		if _, err := io.ReadFull(file, payload); err != nil {
+			return 0, false
+		}
+		if marker == 0xe1 && len(payload) > 6 && string(payload[:6]) == "Exif\x00\x00" {
+			return parseEXIFOrientation(payload[6:])
+		}
+	}
+}
+
+func nextJPEGMarker(r io.Reader) (byte, error) {
+	var b [1]byte
+	for {
+		if _, err := io.ReadFull(r, b[:]); err != nil {
+			return 0, err
+		}
+		if b[0] == 0xff {
+			break
+		}
+	}
+	for {
+		if _, err := io.ReadFull(r, b[:]); err != nil {
+			return 0, err
+		}
+		if b[0] != 0xff {
+			return b[0], nil
+		}
+	}
+}
+
+func parseEXIFOrientation(tiff []byte) (int, bool) {
+	if len(tiff) < 8 {
+		return 0, false
+	}
+
+	var order binary.ByteOrder
+	switch string(tiff[:2]) {
+	case "II":
+		order = binary.LittleEndian
+	case "MM":
+		order = binary.BigEndian
+	default:
+		return 0, false
+	}
+	if order.Uint16(tiff[2:4]) != 42 {
+		return 0, false
+	}
+
+	ifdOffset := int(order.Uint32(tiff[4:8]))
+	if ifdOffset < 0 || ifdOffset+2 > len(tiff) {
+		return 0, false
+	}
+	entryCount := int(order.Uint16(tiff[ifdOffset : ifdOffset+2]))
+	entriesStart := ifdOffset + 2
+	for i := 0; i < entryCount; i++ {
+		entryStart := entriesStart + i*12
+		if entryStart+12 > len(tiff) {
+			return 0, false
+		}
+		entry := tiff[entryStart : entryStart+12]
+		tag := order.Uint16(entry[0:2])
+		fieldType := order.Uint16(entry[2:4])
+		count := order.Uint32(entry[4:8])
+		if tag != 0x0112 || fieldType != 3 || count != 1 {
+			continue
+		}
+		return int(order.Uint16(entry[8:10])), true
+	}
+	return 0, false
 }
