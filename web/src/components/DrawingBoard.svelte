@@ -40,6 +40,7 @@
 
   let canvasEl = $state<HTMLCanvasElement | undefined>(undefined);
   let previewCanvasEl = $state<HTMLCanvasElement | undefined>(undefined);
+  let historyRangeEl = $state<HTMLInputElement | undefined>(undefined);
   
   // Optimization: offscreen canvases
   let gridCanvas: HTMLCanvasElement | undefined;
@@ -95,7 +96,12 @@
     activeStrokeCanvas.width = canvasWidth;
     activeStrokeCanvas.height = canvasHeight;
 
+    window.addEventListener('keydown', handleHistoryWindowKeydown, { capture: true });
     void loadBoard();
+
+    return () => {
+      window.removeEventListener('keydown', handleHistoryWindowKeydown, { capture: true });
+    };
   });
 
   // Global SSE subscription
@@ -688,8 +694,56 @@
   function handleHistoryRangeInput(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
     const value = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : strokes.length;
+    setHistoryStrokeCount(value);
+  }
+
+  function handleHistoryRangePointerDown(event: PointerEvent) {
+    (event.currentTarget as HTMLInputElement).focus({ preventScroll: true });
+  }
+
+  function handleHistoryRangeKeydown(event: KeyboardEvent) {
+    applyHistoryKey(event);
+  }
+
+  function handleHistoryWindowKeydown(event: KeyboardEvent) {
+    if (!expanded || !historyMode) return;
+    if (isEditableKeyboardTarget(event.target)) return;
+    applyHistoryKey(event);
+  }
+
+  function applyHistoryKey(event: KeyboardEvent) {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+      setHistoryStrokeCount(historyStrokeCount - 1);
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+      setHistoryStrokeCount(historyStrokeCount + 1);
+    } else if (event.key === 'Home') {
+      setHistoryStrokeCount(0);
+    } else if (event.key === 'End') {
+      setHistoryStrokeCount(strokes.length);
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    historyRangeEl?.focus({ preventScroll: true });
+  }
+
+  function setHistoryStrokeCount(value: number) {
     historyStrokeCount = Math.min(strokes.length, Math.max(0, Math.round(value)));
     redraw();
+  }
+
+  function isEditableKeyboardTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest('input:not([type="range"]), textarea, select, [contenteditable="true"]'));
+  }
+
+  function historyLastAuthor() {
+    if (historyStrokeCount <= 0) return '—';
+    const author = strokes[historyStrokeCount - 1]?.author?.trim();
+    return author || 'Guest';
   }
 
   function loadBrushSettings() {
@@ -795,6 +849,7 @@
       {#if historyMode}
         <div class="drawing-history-toolbar">
           <input
+            bind:this={historyRangeEl}
             class="drawing-history-range"
             type="range"
             min="0"
@@ -803,13 +858,23 @@
             value={historyStrokeCount}
             aria-label="Visible drawing history strokes"
             title="Visible drawing history strokes"
+            onpointerdown={handleHistoryRangePointerDown}
             oninput={handleHistoryRangeInput}
+            onkeydown={handleHistoryRangeKeydown}
           />
           <div
             class="drawing-history-count"
             aria-label={`Showing ${historyStrokeCount} of ${strokes.length} strokes`}
           >
             {historyStrokeCount}/{strokes.length}
+          </div>
+          <div
+            class="drawing-history-author"
+            aria-label={`Last visible stroke author: ${historyLastAuthor()}`}
+            title={`Last visible stroke author: ${historyLastAuthor()}`}
+          >
+            <span>Автор</span>
+            <strong>{historyLastAuthor()}</strong>
           </div>
           <button
             class="drawing-tool-btn drawing-history-exit"
@@ -1126,7 +1191,7 @@
     left: 1rem;
     z-index: 10;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto 12rem auto;
     align-items: center;
     gap: 0.55rem;
     padding: 0.38rem 0.5rem;
@@ -1156,6 +1221,37 @@
     font-variant-numeric: tabular-nums;
     line-height: 1;
     text-align: center;
+  }
+
+  .drawing-history-author {
+    display: flex;
+    min-width: 0;
+    width: 12rem;
+    height: 1.55rem;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.45rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.38rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 0.68rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .drawing-history-author span {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.46);
+  }
+
+  .drawing-history-author strong {
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+    text-overflow: ellipsis;
   }
 
   .drawing-history-exit {

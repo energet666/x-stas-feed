@@ -48,6 +48,7 @@
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
   const gameExitedEvent = 'feed-ai:game-exited';
+  const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
 
   type CardBackgroundMode = 'simple' | 'ambient';
   type FeedMode = 'all' | 'favorites';
@@ -193,6 +194,7 @@
     updateViewport();
     window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
     window.addEventListener('resize', scheduleViewportUpdate);
+    window.addEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
     window.addEventListener(gameStartedEvent, activateGameMode);
     window.addEventListener(gameExitedEvent, deactivateGameMode);
     subscribeToCommentEvents();
@@ -214,6 +216,7 @@
       unsubscribeBoardActivity?.();
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
+      window.removeEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
       window.removeEventListener(gameStartedEvent, activateGameMode);
       window.removeEventListener(gameExitedEvent, deactivateGameMode);
     };
@@ -1168,14 +1171,22 @@
     return Array.from(event.dataTransfer?.types ?? []).includes('Files');
   }
 
-  function clearActiveVideoFromPageBackground(event: PointerEvent) {
+  function updateBackgroundKeyboardFocus(event: PointerEvent) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.closest('article, header, aside, .debug-overlay, button, input, textarea, select, a, [role="button"]')) {
-      return;
-    }
+    const backgroundFocused = !target.closest(
+      'article, header, aside, .glass-panel, .drawing-board, .debug-overlay, button, input, textarea, select, a, [role="button"], [role="application"], [role="dialog"]'
+    );
 
-    window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
+    window.dispatchEvent(
+      new CustomEvent(backgroundKeyboardFocusEvent, {
+        detail: { focused: backgroundFocused }
+      })
+    );
+
+    if (backgroundFocused) {
+      window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
+    }
   }
 
   function activateGameMode() {
@@ -1210,7 +1221,7 @@
   ondrop={handleWindowDrop}
 />
 
-<main class="app-shell min-h-screen" onpointerdown={clearActiveVideoFromPageBackground}>
+<main class="app-shell min-h-screen">
   <BackgroundParticles />
   <AsteroidsShip username={commentUsername} />
   {#if !gameActive}

@@ -85,6 +85,7 @@
   const headerSafeHeight = 96;
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
+  const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
   const gameStartedEvent = 'feed-ai:game-started';
   const gameExitedEvent = 'feed-ai:game-exited';
   const shipPostIntervalMs = 16;
@@ -115,6 +116,7 @@
   let nextAsteroidID = 1;
   let nextExplosionID = 1;
   let videoActive = false;
+  let backgroundKeyboardFocused = false;
   let shipControlled = $state(false);
   let sessionID = '';
   let lastShipPostAt = 0;
@@ -151,21 +153,27 @@
       return;
     }
     if (roundStatus === 'finished') {
-      if (event.code === 'Enter' && !videoActive && !isTextEntryTarget(event.target)) {
+      if (event.code === 'Enter' && backgroundKeyboardFocused && !videoActive && !isTextEntryTarget(event.target)) {
         restartRound();
         event.preventDefault();
       }
-      if (isShipKey(event)) {
+      if (backgroundKeyboardFocused && isShipKey(event)) {
         event.preventDefault();
       }
       return;
     }
-    if (roundStatus === 'playing' && event.code === 'Enter' && !videoActive && !isTextEntryTarget(event.target)) {
+    if (
+      roundStatus === 'playing' &&
+      event.code === 'Enter' &&
+      backgroundKeyboardFocused &&
+      !videoActive &&
+      !isTextEntryTarget(event.target)
+    ) {
       finishRound(false);
       event.preventDefault();
       return;
     }
-    if (videoActive && isShipKey(event)) {
+    if ((videoActive || !backgroundKeyboardFocused) && isShipKey(event)) {
       keys.delete(keyID(event));
       ship.thrusting = false;
       return;
@@ -183,12 +191,12 @@
   }
 
   function handleKeyup(event: KeyboardEvent) {
-    if (roundStatus === 'finished' && isShipKey(event)) {
+    if (roundStatus === 'finished' && backgroundKeyboardFocused && isShipKey(event)) {
       keys.delete(keyID(event));
       event.preventDefault();
       return;
     }
-    if (videoActive && isShipKey(event)) {
+    if ((videoActive || !backgroundKeyboardFocused) && isShipKey(event)) {
       keys.delete(keyID(event));
       ship.thrusting = false;
       return;
@@ -1046,6 +1054,13 @@
     const markVideoInactive = () => {
       videoActive = false;
     };
+    const markBackgroundKeyboardFocus = (event: Event) => {
+      backgroundKeyboardFocused = Boolean((event as CustomEvent<{ focused?: boolean }>).detail?.focused);
+      if (!backgroundKeyboardFocused) {
+        keys.clear();
+        ship.thrusting = false;
+      }
+    };
 
     sessionID = readShipSessionID();
     resize();
@@ -1055,6 +1070,7 @@
     window.addEventListener('keyup', handleKeyup);
     window.addEventListener(activeVideoEvent, markVideoActive);
     window.addEventListener(clearActiveVideoEvent, markVideoInactive);
+    window.addEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
     animationFrameID = requestAnimationFrame(animate);
 
     return () => {
@@ -1064,6 +1080,7 @@
       window.removeEventListener('keyup', handleKeyup);
       window.removeEventListener(activeVideoEvent, markVideoActive);
       window.removeEventListener(clearActiveVideoEvent, markVideoInactive);
+      window.removeEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
       shipSocket?.close();
       void audioContext?.close();
       clearTimeout(asteroidRespawnTimer);
