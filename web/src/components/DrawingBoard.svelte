@@ -53,6 +53,7 @@
   let currentColor = $state('#ffffff');
   let currentSize = $state(4);
   let isDrawing = $state(false);
+  let activeStrokePointerId = $state<number | null>(null);
   let currentPoints = $state<number[][]>([]);
   let lineStart = $state<number[] | null>(null);
   let mousePos = $state<number[] | null>(null);
@@ -85,11 +86,11 @@
     loadBrushSettings();
     setupCanvasBuffers(canvasWidth, canvasHeight);
 
-    window.addEventListener('keydown', handleHistoryWindowKeydown, { capture: true });
+    window.addEventListener('keydown', handleWindowKeydown, { capture: true });
     void loadBoard();
 
     return () => {
-      window.removeEventListener('keydown', handleHistoryWindowKeydown, { capture: true });
+      window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
     };
   });
 
@@ -300,6 +301,7 @@
 
     if (currentTool === 'freeform') {
       isDrawing = true;
+      activeStrokePointerId = event.pointerId;
       currentPoints = [[x, y]];
       if (activeStrokeCanvas) {
         const ctx = activeStrokeCanvas.getContext('2d')!;
@@ -355,10 +357,13 @@
     if (!expanded || historyMode) return;
     updateBrushCursor(event);
     const canvas = getCanvas();
-    if (canvas) canvas.releasePointerCapture(event.pointerId);
+    if (canvas?.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
 
     if (currentTool === 'freeform' && isDrawing && currentPoints.length >= 1) {
       isDrawing = false;
+      activeStrokePointerId = null;
       const simplifiedPoints = simplifyFreeformPoints(currentPoints);
       lastRawPointCount = currentPoints.length;
       lastSimplifiedPointCount = simplifiedPoints.length;
@@ -369,6 +374,7 @@
       }
     } else {
       isDrawing = false;
+      activeStrokePointerId = null;
       currentPoints = [];
       if (activeStrokeCanvas) {
         activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -715,12 +721,45 @@
     );
   }
 
+  function clearActiveStroke() {
+    let cleared = false;
+
+    if (isDrawing || currentPoints.length > 0) {
+      isDrawing = false;
+      currentPoints = [];
+      cleared = true;
+    }
+
+    if (currentTool === 'line' && lineStart) {
+      lineStart = null;
+      mousePos = null;
+      cleared = true;
+    }
+
+    if (activeStrokeCanvas) {
+      activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
+    }
+
+    const canvas = getCanvas();
+    if (canvas && activeStrokePointerId !== null && canvas.hasPointerCapture(activeStrokePointerId)) {
+      canvas.releasePointerCapture(activeStrokePointerId);
+    }
+    activeStrokePointerId = null;
+
+    if (cleared) {
+      redraw();
+    }
+
+    return cleared;
+  }
+
   function enterHistoryMode() {
     historyMode = true;
     historyStrokeCount = strokes.length;
     lineStart = null;
     mousePos = null;
     isDrawing = false;
+    activeStrokePointerId = null;
     currentPoints = [];
     showColorPicker = false;
     brushCursorVisible = false;
@@ -750,8 +789,17 @@
     applyHistoryKey(event);
   }
 
-  function handleHistoryWindowKeydown(event: KeyboardEvent) {
-    if (!expanded || !historyMode) return;
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (!expanded) return;
+
+    if (event.key === 'Escape' && clearActiveStroke()) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (!historyMode) return;
     if (isEditableKeyboardTarget(event.target)) return;
     applyHistoryKey(event);
   }
@@ -830,10 +878,8 @@
       return;
     }
 
-    if (event.key === 'Escape' && lineStart) {
-      lineStart = null;
-      mousePos = null;
-      redraw();
+    if (event.key === 'Escape' && clearActiveStroke()) {
+      event.preventDefault();
       event.stopPropagation();
     }
   }
