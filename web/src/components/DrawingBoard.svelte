@@ -22,10 +22,9 @@
 
   type Tool = 'freeform' | 'line';
 
-  const COLORS = [
-    '#ffffff', '#ff4757', '#ff6b81', '#ffa502', '#ffdd59',
-    '#2ed573', '#1e90ff', '#5352ed', '#a855f7', '#ff6348'
-  ];
+  const FIXED_COLORS = ['#ffffff', '#000000', '#60a5fa', '#f87171', '#4ade80', '#facc15'];
+  const DEFAULT_CUSTOM_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#5352ed', '#a855f7', '#ff6348'];
+  const CUSTOM_COLOR_SLOT_COUNT = 6;
 
   const BRUSH_SIZES = [2, 4, 8, 14, 22];
   const DEBUG_SEGMENT_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#2ed573', '#1e90ff', '#a855f7'];
@@ -37,6 +36,7 @@
   const MAX_BRUSH_SIZE = 200;
   const brushColorStorageKey = 'feed-ai:drawing-brush-color';
   const brushSizeStorageKey = 'feed-ai:drawing-brush-size';
+  const customColorsStorageKey = 'feed-ai:drawing-custom-colors';
 
   let canvasEl = $state<HTMLCanvasElement | undefined>(undefined);
   let previewCanvasEl = $state<HTMLCanvasElement | undefined>(undefined);
@@ -51,6 +51,7 @@
   let strokeIds = new Set<string>();
   let currentTool = $state<Tool>('freeform');
   let currentColor = $state('#ffffff');
+  let customColors = $state([...DEFAULT_CUSTOM_COLORS]);
   let currentSize = $state(4);
   let isDrawing = $state(false);
   let activeStrokePointerId = $state<number | null>(null);
@@ -655,8 +656,33 @@
   }
 
   function setCustomColor(color: string) {
-    currentColor = color;
-    saveBrushColor(color);
+    const normalizedColor = normalizeHexColor(color);
+    if (!normalizedColor) return;
+
+    currentColor = normalizedColor;
+    saveBrushColor(normalizedColor);
+  }
+
+  function selectCustomColor(color: string) {
+    const normalizedColor = normalizeHexColor(color);
+    if (!normalizedColor) return;
+
+    addCustomColor(normalizedColor);
+    selectColor(normalizedColor);
+  }
+
+  function addCustomColor(color: string) {
+    const normalizedColor = normalizeHexColor(color);
+    if (
+      !normalizedColor ||
+      FIXED_COLORS.includes(normalizedColor) ||
+      customColors.includes(normalizedColor)
+    ) {
+      return;
+    }
+
+    customColors = [...customColors.slice(1), normalizedColor].slice(-CUSTOM_COLOR_SLOT_COUNT);
+    saveCustomColors(customColors);
   }
 
   function selectSize(size: number) {
@@ -863,17 +889,57 @@
   function loadBrushSettings() {
     try {
       const storedColor = window.localStorage.getItem(brushColorStorageKey);
-      if (storedColor && /^#[0-9a-f]{6}$/i.test(storedColor)) {
-        currentColor = storedColor;
+      const normalizedStoredColor = storedColor ? normalizeHexColor(storedColor) : null;
+      if (normalizedStoredColor) {
+        currentColor = normalizedStoredColor;
       }
 
       const storedSize = Number.parseInt(window.localStorage.getItem(brushSizeStorageKey) ?? '', 10);
       if (Number.isFinite(storedSize)) {
         currentSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, storedSize));
       }
+
+      const storedCustomColors = parseStoredCustomColors(
+        window.localStorage.getItem(customColorsStorageKey)
+      );
+      if (storedCustomColors.length > 0) {
+        customColors = [
+          ...storedCustomColors,
+          ...DEFAULT_CUSTOM_COLORS.filter((color) => !storedCustomColors.includes(color))
+        ].slice(0, CUSTOM_COLOR_SLOT_COUNT);
+      }
     } catch {
       // Ignore storage failures; drawing controls should keep working in memory.
     }
+  }
+
+  function parseStoredCustomColors(value: string | null) {
+    if (!value) return [];
+
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+
+      const colors: string[] = [];
+      for (const entry of parsed) {
+        if (typeof entry !== 'string') continue;
+
+        const color = normalizeHexColor(entry);
+        if (!color || FIXED_COLORS.includes(color) || colors.includes(color)) continue;
+
+        colors.push(color);
+        if (colors.length >= CUSTOM_COLOR_SLOT_COUNT) break;
+      }
+
+      return colors;
+    } catch {
+      return [];
+    }
+  }
+
+  function normalizeHexColor(color: string) {
+    const normalizedColor = color.trim().toLowerCase();
+    return /^#[0-9a-f]{6}$/.test(normalizedColor) ? normalizedColor : null;
   }
 
   function saveBrushColor(color: string) {
@@ -889,6 +955,14 @@
       window.localStorage.setItem(brushSizeStorageKey, String(size));
     } catch {
       // Ignore storage failures; the selected size still applies in memory.
+    }
+  }
+
+  function saveCustomColors(colors: string[]) {
+    try {
+      window.localStorage.setItem(customColorsStorageKey, JSON.stringify(colors));
+    } catch {
+      // Ignore storage failures; the custom palette still applies in memory.
     }
   }
 
@@ -1114,7 +1188,17 @@
           </button>
           {#if showColorPicker}
             <div class="drawing-color-grid">
-              {#each COLORS as color}
+              {#each FIXED_COLORS as color}
+                <button
+                  class="drawing-color-swatch"
+                  class:drawing-color-swatch-active={currentColor === color}
+                  style="background: {color};"
+                  title={color}
+                  onclick={() => selectColor(color)}
+                ></button>
+              {/each}
+              <div class="drawing-color-divider" aria-hidden="true"></div>
+              {#each customColors as color}
                 <button
                   class="drawing-color-swatch"
                   class:drawing-color-swatch-active={currentColor === color}
@@ -1131,12 +1215,12 @@
                 ></span>
                 <input
                   type="color"
-                class="drawing-color-custom"
-                value={currentColor}
-                oninput={(e) => setCustomColor((e.currentTarget as HTMLInputElement).value)}
-                onchange={(e) => selectColor((e.currentTarget as HTMLInputElement).value)}
-              />
-            </label>
+                  class="drawing-color-custom"
+                  value={currentColor}
+                  oninput={(e) => setCustomColor((e.currentTarget as HTMLInputElement).value)}
+                  onchange={(e) => selectCustomColor((e.currentTarget as HTMLInputElement).value)}
+                />
+              </label>
             </div>
           {/if}
         </div>
@@ -1590,11 +1674,21 @@
     grid-template-columns: repeat(2, 1.75rem);
   }
 
+  .drawing-color-divider {
+    grid-column: 1 / -1;
+    height: 1px;
+    margin: 0.1rem 0;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
   .drawing-color-swatch {
     width: 1.75rem;
     height: 1.75rem;
     border-radius: 50%;
-    border: 2px solid transparent;
+    border: 2px solid rgba(255, 255, 255, 0.34);
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.28),
+      0 1px 3px rgba(0, 0, 0, 0.28);
     cursor: pointer;
     transition: all 150ms ease;
   }
@@ -1605,7 +1699,10 @@
 
   .drawing-color-swatch-active {
     border-color: #fff;
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.32),
+      0 0 0 2px rgba(0, 0, 0, 0.34),
+      0 2px 6px rgba(0, 0, 0, 0.32);
   }
 
   .drawing-color-custom-wrap {
