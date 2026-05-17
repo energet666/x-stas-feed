@@ -243,6 +243,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 ## Known Environment Notes
 
+- The white flash on hard refresh was addressed by adding a tiny inline dark background and `theme-color` in `web/index.html`, so the browser paints black before the Svelte/Tailwind bundle loads.
 - The local Go toolchain previously reported `log/slog` missing from stdlib, so the server used standard `log`.
 - Go commands may need sandbox escalation when the Go build cache is outside the workspace.
 - Dependency installation may need sandbox escalation for registry access.
