@@ -113,7 +113,7 @@
   title="Open master drawing board"
   onclick={onExpandMasterBoard}
 >
-  <DrawingBoard boardId="master" expanded={false} {username} />
+  <DrawingBoard boardId="master" expanded={false} {username} previewFill={true} />
 </button>
 
 <style>

@@ -122,8 +122,9 @@ video {
   }
 
   .glass-card {
-    border-color: transparent;
+    border-color: rgb(255 255 255 / 0.12);
     background: transparent;
+    box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -137,17 +138,7 @@ video {
   }
 
   .glass-card::after {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    border-radius: inherit;
-    box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.12) inset,
-      0 -1px 0 rgb(255 255 255 / 0.18) inset,
-      1px 0 0 rgb(255 255 255 / 0.085) inset,
-      -1px 0 0 rgb(255 255 255 / 0.085) inset;
-    content: '';
-    pointer-events: none;
+    content: none;
   }
 
   .glass-card>*,

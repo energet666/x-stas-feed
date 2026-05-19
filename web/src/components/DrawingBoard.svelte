@@ -13,12 +13,14 @@
     expanded = false,
     username = 'Guest',
     ambientCanvas,
+    previewFill = false,
     onClose
   }: {
     boardId: string;
     expanded: boolean;
     username: string;
     ambientCanvas?: HTMLCanvasElement;
+    previewFill?: boolean;
     onClose?: () => void;
   } = $props();
 
@@ -1080,7 +1082,11 @@
   }
 </script>
 
-<div class="drawing-board" class:drawing-board-expanded={expanded}>
+<div
+  class="drawing-board"
+  class:drawing-board-expanded={expanded}
+  class:drawing-board-preview-fill={previewFill}
+>
   {#if expanded}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions - the focused drawing surface needs keyboard shortcuts while the canvas handles pointer input. -->
     <div
@@ -1344,7 +1350,7 @@
       {/if}
     </div>
   {:else}
-    <div class="drawing-preview" style="aspect-ratio: {canvasWidth} / {canvasHeight};">
+    <div class="drawing-preview">
       <canvas
         bind:this={previewCanvasEl}
         width={canvasWidth}
@@ -1378,6 +1384,10 @@
     background: transparent;
   }
 
+  .drawing-board-preview-fill {
+    background: #0f0f17;
+  }
+
   .drawing-canvas-wrap {
     position: relative;
     width: 100%;
@@ -1399,8 +1409,9 @@
     width: min(100%, calc(100vh * var(--drawing-canvas-aspect)));
     max-height: 100%;
     aspect-ratio: var(--drawing-canvas-aspect);
+    outline: 1px solid rgba(255, 255, 255, 0.12);
+    outline-offset: 0;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.16) inset,
       0 0 0 1px rgba(0, 0, 0, 0.34),
       0 0.9rem 2.4rem rgba(0, 0, 0, 0.22);
     pointer-events: none;
@@ -1456,30 +1467,34 @@
 
   .drawing-preview {
     position: relative;
+    display: flex;
     width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
     overflow: hidden;
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-      0 0 0 1px rgba(0, 0, 0, 0.28),
-      0 0.8rem 2rem rgba(0, 0, 0, 0.18);
+    box-shadow: none;
   }
 
   .drawing-preview::after {
-    position: absolute;
-    inset: 0;
-    content: '';
-    pointer-events: none;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.16) inset,
-      0 -1px 0 rgba(255, 255, 255, 0.08) inset;
+    content: none;
   }
 
   .drawing-canvas-preview {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+  }
+
+  .drawing-board-preview-fill .drawing-canvas-preview {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    display: block;
-    pointer-events: none;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
   }
 
   .drawing-toolbar {
