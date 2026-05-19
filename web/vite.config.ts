@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
 	const apiTarget = env.VITE_API_TARGET || "http://localhost:8080";
 
 	return {
-		plugins: [svelte(), tailwindcss()],
+		plugins: [svelte(), tailwindcss({ optimize: false })],
 		server: {
 			host: "0.0.0.0",
 			port: 5173,
