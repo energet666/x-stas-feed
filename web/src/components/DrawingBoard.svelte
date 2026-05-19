@@ -301,6 +301,11 @@
     const metrics = getCanvasMetrics();
     if (!metrics) return;
 
+    if (!isPointerInsideRenderedCanvas(event)) {
+      brushCursorVisible = false;
+      return;
+    }
+
     const wrap = (event.currentTarget as HTMLElement).parentElement;
     if (!wrap) return;
 
@@ -1107,7 +1112,7 @@
         onpointerup={handlePointerUp}
         onpointerenter={handlePointerEnter}
         onpointerleave={handlePointerLeave}
-        style="cursor: {historyMode ? 'default' : 'none'}; touch-action: none;"
+        style="cursor: {!historyMode && brushCursorVisible ? 'none' : 'default'}; touch-action: none;"
       ></canvas>
       <div class="drawing-canvas-boundary" aria-hidden="true">
         <div
