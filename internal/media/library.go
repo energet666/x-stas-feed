@@ -76,7 +76,6 @@ type Library struct {
 
 type Item struct {
 	ID              string     `json:"id"`
-	BoardID         string     `json:"boardId,omitempty"`
 	Filename        string     `json:"filename"`
 	DisplayName     string     `json:"displayName"`
 	Type            string     `json:"type"`
@@ -389,7 +388,6 @@ func (l *Library) Scan() ([]Item, error) {
 	var supportedFiles int
 	var unsupportedFiles int
 	var skippedDirs int
-	var convertedImages int
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -422,15 +420,6 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
-		if l.boards != nil && IsBoardBackgroundImageFilename(rel) {
-			converted, err := l.convertScannedImageToBoard(item, path, info)
-			if err != nil {
-				return err
-			}
-			items = append(items, converted)
-			convertedImages++
-			return nil
-		}
 		metadataExists, metadataExistsErr := l.metadata.Exists(item.ID)
 		if metadataExistsErr != nil {
 			l.logf("metadata stat failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, metadataExistsErr)
@@ -472,80 +461,18 @@ func (l *Library) Scan() ([]Item, error) {
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
-		l.logf("media scan completed root=%q duration=%s scannedFiles=0 supportedMedia=0 unsupportedFiles=0 skippedInternalDirs=0 convertedImages=0 items=0 missingRoot=true", root, time.Since(started).Round(time.Millisecond))
+		l.logf("media scan completed root=%q duration=%s scannedFiles=0 supportedMedia=0 unsupportedFiles=0 skippedInternalDirs=0 items=0 missingRoot=true", root, time.Since(started).Round(time.Millisecond))
 		return []Item{}, nil
 	}
 	if err != nil {
-		l.logf("media scan failed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d convertedImages=%d error=%v", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, convertedImages, err)
+		l.logf("media scan failed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d error=%v", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, err)
 		return nil, err
 	}
 
 	sortItems(items)
-	l.logf("media scan completed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d convertedImages=%d items=%d", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, convertedImages, len(items))
+	l.logf("media scan completed root=%q duration=%s scannedFiles=%d supportedMedia=%d unsupportedFiles=%d skippedInternalDirs=%d items=%d", root, time.Since(started).Round(time.Millisecond), scannedFiles, supportedFiles, unsupportedFiles, skippedDirs, len(items))
 
 	return items, nil
-}
-
-func (l *Library) convertScannedImageToBoard(imageItem Item, path string, info fs.FileInfo) (Item, error) {
-	metadata, metadataErr := l.metadata.Get(imageItem.ID)
-	displayName := imageItem.DisplayName
-	likeCount := imageItem.LikeCount
-	visibleModifiedAt := imageItem.ModifiedAt
-	if metadataErr == nil {
-		if metadata.DisplayName != "" {
-			displayName = metadata.DisplayName
-		}
-		if !metadata.ModifiedAt.IsZero() {
-			visibleModifiedAt = metadata.ModifiedAt
-		}
-		likeCount = metadata.LikeCount
-	} else {
-		l.logf("metadata load failed mediaID=%s filename=%q error=%v", imageItem.ID, imageItem.Filename, metadataErr)
-	}
-
-	board, err := l.boards.CreateFromImageFile(displayName, path, info.ModTime().UTC())
-	if err != nil {
-		return Item{}, err
-	}
-	placeholderPath := filepath.Join(l.root, board.ID+".board")
-	placeholderInfo, err := os.Stat(placeholderPath)
-	if err != nil {
-		return Item{}, err
-	}
-
-	boardItem := itemFromFile(board.ID+".board", placeholderPath, "board", placeholderInfo)
-	boardItem.DisplayName = displayName
-	boardItem.ModifiedAt = visibleModifiedAt
-	boardItem.LikeCount = likeCount
-
-	if err := l.metadata.Set(boardItem.ID, Metadata{
-		DisplayName: boardItem.DisplayName,
-		ModifiedAt:  boardItem.ModifiedAt,
-		LikeCount:   boardItem.LikeCount,
-	}); err != nil {
-		return Item{}, err
-	}
-	l.migrateCommentsFile(imageItem.ID, boardItem.ID)
-	l.logf("image converted to board background mediaID=%s filename=%q boardID=%s boardMediaID=%s background=%q", imageItem.ID, imageItem.Filename, board.ID, boardItem.ID, board.Background.Filename)
-	return boardItem, nil
-}
-
-func (l *Library) migrateCommentsFile(fromMediaID, toMediaID string) {
-	fromPath := l.comments.pathForID(fromMediaID)
-	if _, err := os.Stat(fromPath); err != nil {
-		return
-	}
-	toPath := l.comments.pathForID(toMediaID)
-	if _, err := os.Stat(toPath); err == nil {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(toPath), 0o755); err != nil {
-		l.logf("comment migration mkdir failed fromMediaID=%s toMediaID=%s error=%v", fromMediaID, toMediaID, err)
-		return
-	}
-	if err := os.Rename(fromPath, toPath); err != nil {
-		l.logf("comment migration failed fromMediaID=%s toMediaID=%s error=%v", fromMediaID, toMediaID, err)
-	}
 }
 
 func (l *Library) ensureIndex() error {
@@ -1045,19 +972,16 @@ func videoMetadataMatches(video VideoMetadata, info os.FileInfo) bool {
 func itemFromFile(rel, path, kind string, info os.FileInfo) Item {
 	id := EncodeID(rel)
 	displayName := filepath.Base(path)
-	boardID := ""
 
 	if kind == "board" {
-		boardID = strings.TrimSuffix(filepath.Base(path), ".board")
-		displayName = boardID
-		if boardID == "master" {
+		displayName = strings.TrimSuffix(filepath.Base(path), ".board")
+		if displayName == "master" {
 			displayName = "Master Board"
 		}
 	}
 
 	return Item{
 		ID:             id,
-		BoardID:        boardID,
 		Filename:       filepath.Base(path),
 		DisplayName:    displayName,
 		Type:           kind,

@@ -45,6 +45,7 @@ type Stroke struct {
 type BoardInfo struct {
 	ID          string           `json:"id"`
 	MediaID     string           `json:"mediaId,omitempty"`
+	Filename    string           `json:"filename,omitempty"`
 	Name        string           `json:"name"`
 	Background  *BoardBackground `json:"background,omitempty"`
 	Canvas      BoardCanvas      `json:"canvas"`
@@ -84,8 +85,9 @@ type BoardStore struct {
 }
 
 type boardState struct {
-	info    BoardInfo
-	strokes []Stroke
+	info     BoardInfo
+	strokes  []Stroke
+	filePath string
 }
 
 // NewBoardStore creates a board store rooted at the content directory.
@@ -115,25 +117,27 @@ func (bs *BoardStore) Init() error {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".board") {
 			continue
 		}
-		boardID := strings.TrimSuffix(entry.Name(), ".board")
-		if boardID == "" || boardID == "master" {
+		boardName := strings.TrimSuffix(entry.Name(), ".board")
+		if boardName == "" || boardName == "master" {
 			continue
 		}
-		state, loadErr := bs.loadBoardFile(boardID)
+		filename := entry.Name()
+		mediaID := EncodeID(filename)
+		state, loadErr := bs.loadBoardFile(mediaID, filename)
 		if loadErr != nil {
 			info, infoErr := entry.Info()
 			if infoErr != nil {
 				continue
 			}
-			state, loadErr = bs.createBoardFileForPlaceholder(boardID, info.ModTime().UTC())
+			state, loadErr = bs.createBoardFileForPlaceholder(mediaID, filename, info.ModTime().UTC())
 			if loadErr != nil {
 				continue
 			}
 		}
-		bs.boards[boardID] = state
+		bs.boards[mediaID] = state
 	}
 
-	if state, err := bs.loadBoardFile("master"); err == nil {
+	if state, err := bs.loadBoardFile("master", "master"); err == nil {
 		bs.boards["master"] = state
 	}
 
@@ -147,8 +151,10 @@ func (bs *BoardStore) Init() error {
 		filePath := bs.boardFilePath("master")
 		if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err == nil {
 			bs.boards["master"] = &boardState{
+				filePath: filePath,
 				info: BoardInfo{
 					ID:          "master",
+					Filename:    "master",
 					Name:        name,
 					Background:  defaultBoardBackground(),
 					Canvas:      defaultBoardCanvas(),
@@ -164,32 +170,59 @@ func (bs *BoardStore) Init() error {
 
 // Create creates a new board and returns its info.
 func (bs *BoardStore) Create(name string) (BoardInfo, error) {
-	id := generateBoardID()
 	now := time.Now().UTC()
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = defaultBoardName(id)
+		name = "board"
 	}
+	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
+		return BoardInfo{}, errors.New("board name must not include a path")
+	}
+	if err := os.MkdirAll(bs.contentDir, 0o755); err != nil {
+		return BoardInfo{}, fmt.Errorf("create content directory: %w", err)
+	}
+	root, err := filepath.Abs(bs.contentDir)
+	if err != nil {
+		return BoardInfo{}, err
+	}
+	filename, placeholderFile, err := createUniqueFile(root, name+".board")
+	if err != nil {
+		return BoardInfo{}, fmt.Errorf("create board placeholder: %w", err)
+	}
+	if err := placeholderFile.Close(); err != nil {
+		_ = os.Remove(filepath.Join(root, filename))
+		return BoardInfo{}, fmt.Errorf("close board placeholder: %w", err)
+	}
+	if err := os.Chtimes(filepath.Join(root, filename), now, now); err != nil {
+		_ = os.Remove(filepath.Join(root, filename))
+		return BoardInfo{}, err
+	}
+	name = strings.TrimSuffix(filename, ".board")
+	mediaID := EncodeID(filename)
 
 	meta := boardMeta{Name: name, CreatedAt: now, Background: defaultBoardBackground(), Canvas: defaultBoardCanvas()}
 	metaLine, err := json.Marshal(meta)
 	if err != nil {
+		_ = os.Remove(filepath.Join(root, filename))
 		return BoardInfo{}, fmt.Errorf("marshal board meta: %w", err)
 	}
 
 	if err := os.MkdirAll(bs.root, 0o755); err != nil {
+		_ = os.Remove(filepath.Join(root, filename))
 		return BoardInfo{}, fmt.Errorf("create boards directory: %w", err)
 	}
 
-	filePath := bs.boardFilePath(id)
+	filePath := bs.boardFilePath(filename)
 	if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err != nil {
+		_ = os.Remove(filepath.Join(root, filename))
 		return BoardInfo{}, fmt.Errorf("create board file: %w", err)
 	}
 
 	info := BoardInfo{
-		ID:          id,
-		MediaID:     EncodeID(id + ".board"),
+		ID:          mediaID,
+		MediaID:     mediaID,
+		Filename:    filename,
 		Name:        name,
 		Background:  defaultBoardBackground(),
 		Canvas:      defaultBoardCanvas(),
@@ -198,141 +231,136 @@ func (bs *BoardStore) Create(name string) (BoardInfo, error) {
 	}
 
 	bs.mu.Lock()
-	bs.boards[id] = &boardState{info: info, strokes: nil}
+	bs.boards[mediaID] = &boardState{info: info, strokes: nil, filePath: filePath}
 	bs.mu.Unlock()
 
-	_ = bs.ensureBoardPlaceholder(id, now)
-
 	return info, nil
 }
 
-// CreateWithImageBackground creates a board whose background is a server-owned
-// copy of the uploaded image stored under .boards.
-func (bs *BoardStore) CreateWithImageBackground(name string, originalName string, reader io.Reader, sourceModifiedAt time.Time) (BoardInfo, error) {
-	return bs.createImageBackgroundBoard(name, originalName, reader, sourceModifiedAt, time.Time{})
-}
-
-// CreateFromImageFile converts an existing image file into a board background
-// and removes the original image after the board is durably created.
-func (bs *BoardStore) CreateFromImageFile(name string, path string, sourceModifiedAt time.Time) (BoardInfo, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return BoardInfo{}, err
+// EnsureMediaBoard returns the drawing history board associated with a media
+// item, creating its JSONL history file when it does not exist yet.
+func (bs *BoardStore) EnsureMediaBoard(mediaID string, name string, filename string, backgroundURL string, mimeType string, mediaPath string, createdAt time.Time) (BoardInfo, error) {
+	if mediaID != "master" {
+		if err := validateMediaID(mediaID); err != nil {
+			return BoardInfo{}, err
+		}
 	}
-	defer file.Close()
-
-	info, err := bs.createImageBackgroundBoard(name, filepath.Base(path), file, sourceModifiedAt, sourceModifiedAt)
-	if err != nil {
-		return BoardInfo{}, err
-	}
-	if err := os.Remove(path); err != nil {
-		return BoardInfo{}, err
-	}
-	return info, nil
-}
-
-func (bs *BoardStore) createImageBackgroundBoard(name string, originalName string, reader io.Reader, backgroundModifiedAt time.Time, placeholderModifiedAt time.Time) (BoardInfo, error) {
-	if originalName == "" {
+	if strings.TrimSpace(filename) == "" {
 		return BoardInfo{}, errors.New("filename is required")
 	}
-	if filepath.Base(originalName) != originalName || strings.ContainsAny(originalName, `/\`) {
+	if filename != filepath.Base(filename) || strings.ContainsAny(filename, `/\`) {
 		return BoardInfo{}, errors.New("filename must not include a path")
-	}
-	extension := strings.ToLower(filepath.Ext(originalName))
-	kind, ok := kindForPath(originalName)
-	if !ok || kind != "image" {
-		return BoardInfo{}, fmt.Errorf("unsupported image type %q", extension)
-	}
-
-	id := generateBoardID()
-	now := time.Now().UTC()
-	if backgroundModifiedAt.IsZero() {
-		backgroundModifiedAt = now
-	} else {
-		backgroundModifiedAt = backgroundModifiedAt.UTC()
-	}
-	if placeholderModifiedAt.IsZero() {
-		placeholderModifiedAt = now
-	} else {
-		placeholderModifiedAt = placeholderModifiedAt.UTC()
 	}
 
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = originalName
+		name = filename
+	}
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	} else {
+		createdAt = createdAt.UTC()
+	}
+	background := &BoardBackground{
+		Filename: filename,
+		MimeType: mimeType,
+		URL:      backgroundURL,
+	}
+	canvas := defaultBoardCanvas()
+	if backgroundURL != "" {
+		background.Type = "image"
+		canvas = imageCanvas(mediaPath)
+		if canvas.Width <= 0 || canvas.Height <= 0 {
+			canvas = defaultBoardCanvas()
+		}
+	} else {
+		background.Type = "default"
+	}
+	filePath := bs.boardFilePath(filename)
+
+	bs.mu.RLock()
+	if state, ok := bs.boards[mediaID]; ok {
+		strokeCount := len(state.strokes)
+		bs.mu.RUnlock()
+		bs.mu.Lock()
+		state.info.ID = mediaID
+		state.info.MediaID = mediaID
+		state.info.Filename = filename
+		state.info.Name = name
+		state.info.Background = background
+		state.info.Canvas = canvas
+		state.info.StrokeCount = strokeCount
+		state.filePath = filePath
+		info := state.info
+		bs.mu.Unlock()
+		return info, nil
+	}
+	bs.mu.RUnlock()
+
+	if state, err := bs.loadBoardFile(mediaID, filename); err == nil {
+		bs.mu.Lock()
+		state.info.ID = mediaID
+		state.info.MediaID = mediaID
+		state.info.Filename = filename
+		state.info.Name = name
+		state.info.Background = background
+		state.info.Canvas = canvas
+		state.filePath = filePath
+		bs.boards[mediaID] = state
+		info := state.info
+		bs.mu.Unlock()
+		return info, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return BoardInfo{}, err
 	}
 
 	if err := os.MkdirAll(bs.root, 0o755); err != nil {
 		return BoardInfo{}, fmt.Errorf("create boards directory: %w", err)
 	}
-
-	backgroundFilename := id + "_bgimg" + extension
-	backgroundPath := filepath.Join(bs.root, backgroundFilename)
-	backgroundFile, err := os.OpenFile(backgroundPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return BoardInfo{}, fmt.Errorf("create board background file: %w", err)
-	}
-	size, copyErr := io.Copy(backgroundFile, reader)
-	closeErr := backgroundFile.Close()
-	if copyErr != nil {
-		_ = os.Remove(backgroundPath)
-		return BoardInfo{}, copyErr
-	}
-	if closeErr != nil {
-		_ = os.Remove(backgroundPath)
-		return BoardInfo{}, closeErr
-	}
-	if size == 0 {
-		_ = os.Remove(backgroundPath)
-		return BoardInfo{}, errors.New("uploaded file is empty")
-	}
-	if err := os.Chtimes(backgroundPath, backgroundModifiedAt, backgroundModifiedAt); err != nil {
-		_ = os.Remove(backgroundPath)
-		return BoardInfo{}, err
-	}
-
-	canvas := imageCanvas(backgroundPath)
-	background := &BoardBackground{
-		Type:     "image",
-		Filename: backgroundFilename,
-		MimeType: mimeType(backgroundPath),
-		URL:      "/api/boards/" + id + "/background",
-	}
-	meta := boardMeta{Name: name, CreatedAt: now, Background: background, Canvas: canvas}
+	meta := boardMeta{Name: name, CreatedAt: createdAt, Background: background, Canvas: canvas}
 	metaLine, err := json.Marshal(meta)
 	if err != nil {
-		_ = os.Remove(backgroundPath)
 		return BoardInfo{}, fmt.Errorf("marshal board meta: %w", err)
 	}
-	if err := os.WriteFile(bs.boardFilePath(id), append(metaLine, '\n'), 0o644); err != nil {
-		_ = os.Remove(backgroundPath)
-		return BoardInfo{}, fmt.Errorf("create board file: %w", err)
+	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return bs.EnsureMediaBoard(mediaID, name, filename, backgroundURL, mimeType, mediaPath, createdAt)
+		}
+		return BoardInfo{}, fmt.Errorf("create media board file: %w", err)
+	}
+	if _, err := f.Write(append(metaLine, '\n')); err != nil {
+		_ = f.Close()
+		_ = os.Remove(filePath)
+		return BoardInfo{}, fmt.Errorf("write media board file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(filePath)
+		return BoardInfo{}, fmt.Errorf("close media board file: %w", err)
 	}
 
 	info := BoardInfo{
-		ID:          id,
-		MediaID:     EncodeID(id + ".board"),
+		ID:          mediaID,
+		MediaID:     mediaID,
+		Filename:    filename,
 		Name:        name,
 		Background:  background,
 		Canvas:      canvas,
 		StrokeCount: 0,
-		CreatedAt:   now,
+		CreatedAt:   createdAt,
 	}
-
 	bs.mu.Lock()
-	bs.boards[id] = &boardState{info: info, strokes: nil}
+	bs.boards[mediaID] = &boardState{info: info, strokes: nil, filePath: filePath}
 	bs.mu.Unlock()
-
-	_ = bs.ensureBoardPlaceholder(id, placeholderModifiedAt)
 	return info, nil
 }
 
-// Get returns the board info for the given ID.
-func (bs *BoardStore) Get(id string) (BoardInfo, error) {
+// Get returns the board info for the given media ID.
+func (bs *BoardStore) Get(mediaID string) (BoardInfo, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
 
-	state, ok := bs.boards[id]
+	state, ok := bs.boards[mediaID]
 	if !ok {
 		return BoardInfo{}, ErrBoardNotFound
 	}
@@ -358,11 +386,11 @@ func (bs *BoardStore) ListBoards() []BoardInfo {
 }
 
 // Strokes returns all strokes for a board.
-func (bs *BoardStore) Strokes(id string) ([]Stroke, error) {
+func (bs *BoardStore) Strokes(mediaID string) ([]Stroke, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
 
-	state, ok := bs.boards[id]
+	state, ok := bs.boards[mediaID]
 	if !ok {
 		return nil, ErrBoardNotFound
 	}
@@ -373,9 +401,9 @@ func (bs *BoardStore) Strokes(id string) ([]Stroke, error) {
 }
 
 // BackgroundPath returns a safe server-owned background file for a board.
-func (bs *BoardStore) BackgroundPath(id string) (string, string, error) {
+func (bs *BoardStore) BackgroundPath(mediaID string) (string, string, error) {
 	bs.mu.RLock()
-	state, ok := bs.boards[id]
+	state, ok := bs.boards[mediaID]
 	bs.mu.RUnlock()
 	if !ok {
 		return "", "", ErrBoardNotFound
@@ -397,7 +425,7 @@ func (bs *BoardStore) BackgroundPath(id string) (string, string, error) {
 }
 
 // AddStroke appends a stroke to the board file and updates the in-memory state.
-func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, color string, size float64, author string) (Stroke, error) {
+func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64, color string, size float64, author string) (Stroke, error) {
 	tool = strings.TrimSpace(tool)
 	if tool != "freeform" && tool != "line" {
 		return Stroke{}, errors.New("invalid tool: must be freeform or line")
@@ -425,7 +453,7 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	}
 
 	bs.mu.RLock()
-	_, ok := bs.boards[id]
+	state, ok := bs.boards[mediaID]
 	bs.mu.RUnlock()
 	if !ok {
 		return Stroke{}, ErrBoardNotFound
@@ -446,8 +474,7 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 		return Stroke{}, fmt.Errorf("marshal stroke: %w", err)
 	}
 
-	filePath := bs.boardFilePath(id)
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(state.filePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return Stroke{}, fmt.Errorf("open board file: %w", err)
 	}
@@ -458,7 +485,7 @@ func (bs *BoardStore) AddStroke(id string, tool string, points [][]float64, colo
 	}
 
 	bs.mu.Lock()
-	state := bs.boards[id]
+	state = bs.boards[mediaID]
 	state.strokes = append(state.strokes, stroke)
 	state.info.StrokeCount = len(state.strokes)
 	bs.mu.Unlock()
@@ -492,12 +519,12 @@ func normalizeBoardCoordinate(value float64) (float64, error) {
 	return math.Round(value*boardPointPrecision) / boardPointPrecision, nil
 }
 
-func (bs *BoardStore) boardFilePath(id string) string {
-	return filepath.Join(bs.root, id+".jsonl")
+func (bs *BoardStore) boardFilePath(filename string) string {
+	return filepath.Join(bs.root, filename+".jsonl")
 }
 
-func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
-	filePath := bs.boardFilePath(id)
+func (bs *BoardStore) loadBoardFile(mediaID string, filename string) (*boardState, error) {
+	filePath := bs.boardFilePath(filename)
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -523,10 +550,10 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 		meta.Canvas = defaultBoardCanvas()
 	}
 	if meta.Background.Type == "image" && meta.Background.URL == "" {
-		meta.Background.URL = "/api/boards/" + id + "/background"
+		meta.Background.URL = "/api/boards/" + mediaID + "/background"
 	}
 	if meta.Background.Type == "image" && meta.Background.Filename != "" && filepath.Base(meta.Background.Filename) == meta.Background.Filename {
-		canvas := imageCanvas(filepath.Join(bs.root, meta.Background.Filename))
+		canvas := imageCanvas(filepath.Join(bs.contentDir, meta.Background.Filename))
 		if canvas.Width > 0 && canvas.Height > 0 {
 			meta.Canvas = canvas
 		}
@@ -550,9 +577,11 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 	}
 
 	return &boardState{
+		filePath: filePath,
 		info: BoardInfo{
-			ID:          id,
-			MediaID:     boardMediaID(id),
+			ID:          mediaID,
+			MediaID:     boardMediaID(mediaID),
+			Filename:    filename,
 			Name:        meta.Name,
 			Background:  meta.Background,
 			Canvas:      meta.Canvas,
@@ -563,20 +592,23 @@ func (bs *BoardStore) loadBoardFile(id string) (*boardState, error) {
 	}, nil
 }
 
-func (bs *BoardStore) createBoardFileForPlaceholder(id string, createdAt time.Time) (*boardState, error) {
-	name := defaultBoardName(id)
+func (bs *BoardStore) createBoardFileForPlaceholder(mediaID string, filename string, createdAt time.Time) (*boardState, error) {
+	name := defaultBoardName(strings.TrimSuffix(filename, ".board"))
 	meta := boardMeta{Name: name, CreatedAt: createdAt, Background: defaultBoardBackground(), Canvas: defaultBoardCanvas()}
 	metaLine, err := json.Marshal(meta)
 	if err != nil {
 		return nil, fmt.Errorf("marshal board meta: %w", err)
 	}
-	if err := os.WriteFile(bs.boardFilePath(id), append(metaLine, '\n'), 0o644); err != nil {
+	filePath := bs.boardFilePath(filename)
+	if err := os.WriteFile(filePath, append(metaLine, '\n'), 0o644); err != nil {
 		return nil, fmt.Errorf("create board file: %w", err)
 	}
 	return &boardState{
+		filePath: filePath,
 		info: BoardInfo{
-			ID:          id,
-			MediaID:     boardMediaID(id),
+			ID:          mediaID,
+			MediaID:     boardMediaID(mediaID),
+			Filename:    filename,
 			Name:        name,
 			Background:  defaultBoardBackground(),
 			Canvas:      defaultBoardCanvas(),
@@ -584,14 +616,6 @@ func (bs *BoardStore) createBoardFileForPlaceholder(id string, createdAt time.Ti
 			CreatedAt:   createdAt,
 		},
 	}, nil
-}
-
-func generateBoardID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic(fmt.Sprintf("generate board id: %v", err))
-	}
-	return hex.EncodeToString(b)
 }
 
 func defaultBoardName(id string) string {
@@ -612,28 +636,11 @@ func generateStrokeID() string {
 	return hex.EncodeToString(b)
 }
 
-func boardMediaID(id string) string {
-	if id == "master" {
+func boardMediaID(mediaID string) string {
+	if mediaID == "master" {
 		return ""
 	}
-	return EncodeID(id + ".board")
-}
-
-func (bs *BoardStore) ensureBoardPlaceholder(id string, modifiedAt time.Time) error {
-	placeholderPath := filepath.Join(bs.contentDir, id+".board")
-	if _, err := os.Stat(placeholderPath); err == nil {
-		if !modifiedAt.IsZero() {
-			_ = os.Chtimes(placeholderPath, modifiedAt, modifiedAt)
-		}
-		return nil
-	}
-	if err := os.WriteFile(placeholderPath, []byte{}, 0o644); err != nil {
-		return err
-	}
-	if !modifiedAt.IsZero() {
-		_ = os.Chtimes(placeholderPath, modifiedAt, modifiedAt)
-	}
-	return nil
+	return mediaID
 }
 
 func defaultBoardBackground() *BoardBackground {

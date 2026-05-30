@@ -49,7 +49,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 		return Item{}, err
 	}
 
-	filename, file, err := l.createUploadFile(root, originalName)
+	filename, file, err := createUniqueFile(root, originalName)
 	if err != nil {
 		return Item{}, err
 	}
@@ -102,31 +102,4 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 	}
 	l.logf("upload saved originalName=%q mediaID=%s filename=%q type=%s size=%d duration=%s", originalName, item.ID, item.Filename, item.Type, item.Size, time.Since(started).Round(time.Millisecond))
 	return item, nil
-}
-
-func (l *Library) createUploadFile(root, originalName string) (string, *os.File, error) {
-	extension := filepath.Ext(originalName)
-	base := strings.TrimSuffix(originalName, extension)
-	for attempt := 0; attempt < 10_000; attempt++ {
-		filename := originalName
-		if attempt > 0 {
-			filename = fmt.Sprintf("%s (%d)%s", base, attempt, extension)
-		}
-		path := filepath.Join(root, filename)
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			return "", nil, err
-		}
-		if absPath != root && !strings.HasPrefix(absPath, root+string(os.PathSeparator)) {
-			return "", nil, errors.New("upload path escapes root")
-		}
-
-		file, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if errors.Is(err, os.ErrExist) {
-			continue
-		}
-		return filename, file, err
-	}
-
-	return "", nil, errors.New("could not allocate upload filename")
 }

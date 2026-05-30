@@ -32,8 +32,7 @@ export type CommentActivityItem = {
 
 export type BoardActivityItem = {
   type: 'board';
-  boardId: string;
-  mediaId?: string;
+  mediaId: string;
   boardName: string;
   strokeCount: number;
   authors: string[];
@@ -103,7 +102,6 @@ export type AudioTags = {
 
 export type MediaItem = {
   id: string;
-  boardId?: string;
   filename: string;
   displayName: string;
   type: MediaKind;
@@ -346,6 +344,7 @@ function normalizeMediaItem(item: MediaItem) {
 export type BoardInfo = {
   id: string;
   mediaId?: string;
+  filename?: string;
   name: string;
   background?: BoardBackground;
   canvas?: BoardCanvas;
@@ -376,7 +375,7 @@ export type Stroke = {
 };
 
 export type StrokeEvent = {
-  boardId: string;
+  mediaId: string;
   stroke: Stroke;
 };
 
@@ -400,8 +399,8 @@ export async function createBoard(name: string) {
   return (await response.json()) as BoardInfo;
 }
 
-export async function fetchBoard(boardId: string) {
-  const response = await fetch(`/api/boards/${encodeURIComponent(boardId)}`);
+export async function fetchBoard(mediaId: string) {
+  const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
     throw new Error(message ?? `Board request failed with ${response.status}`);
@@ -424,7 +423,7 @@ export async function fetchBoards() {
 }
 
 export async function createStroke(
-  boardId: string,
+  mediaId: string,
   tool: string,
   points: number[][],
   color: string,
@@ -432,7 +431,7 @@ export async function createStroke(
   author: string
 ) {
   const response = await fetch(
-    `/api/boards/${encodeURIComponent(boardId)}/strokes`,
+    `/api/boards/${encodeURIComponent(mediaId)}/strokes`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

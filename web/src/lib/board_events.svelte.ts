@@ -1,7 +1,7 @@
 import type { Stroke } from './feed';
 
 export interface StrokeEvent {
-  boardId: string;
+  mediaId: string;
   stroke: Stroke;
 }
 

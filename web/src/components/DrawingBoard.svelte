@@ -9,14 +9,14 @@
   import { boardEvents } from '../lib/board_events.svelte';
 
   let {
-    boardId,
+    mediaId,
     expanded = false,
     username = 'Guest',
     ambientCanvas,
     previewFill = false,
     onClose
   }: {
-    boardId: string;
+    mediaId: string;
     expanded: boolean;
     username: string;
     ambientCanvas?: HTMLCanvasElement;
@@ -108,10 +108,10 @@
 
   // Global SSE subscription
   $effect(() => {
-    if (!boardId) return;
+    if (!mediaId) return;
     
     return boardEvents.subscribe((event) => {
-      if (event.boardId === boardId) {
+      if (event.mediaId === mediaId) {
         appendCommittedStroke(event.stroke);
       }
     });
@@ -134,7 +134,7 @@
 
   async function loadBoard() {
     try {
-      const data = await fetchBoard(boardId);
+      const data = await fetchBoard(mediaId);
       boardName = data.board.name;
       const width = data.board.canvas?.width;
       const height = data.board.canvas?.height;
@@ -549,7 +549,7 @@
 
   async function submitStroke(tool: string, points: number[][]) {
     try {
-      await createStroke(boardId, tool, points, currentColor, currentSize, username);
+      await createStroke(mediaId, tool, points, currentColor, currentSize, username);
     } catch {
       // Failed to submit stroke
     }

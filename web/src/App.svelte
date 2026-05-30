@@ -59,6 +59,13 @@
     height: number;
   };
 
+  function isDrawableMediaItem(item: MediaItem | null | undefined): item is MediaItem {
+    return !!item && (
+      item.type === 'board' ||
+      (item.type === 'image' && item.mimeType !== 'image/gif' && !item.filename.toLowerCase().endsWith('.gif'))
+    );
+  }
+
   type FeedItemLookup = {
     result?: IndexedFeedItem;
     staleFavoriteIDs?: string[];
@@ -442,8 +449,7 @@
     if (!board.mediaId) return null;
     return {
       id: board.mediaId,
-      boardId: board.id,
-      filename: board.name,
+      filename: board.filename || board.name,
       displayName: board.name,
       type: 'board',
       url: '',
@@ -804,9 +810,9 @@
     }
   }
 
-  function openActivityBoard(boardId: string) {
-    removeBoardActivity(boardId);
-    activityBoardExpandedID = boardId;
+  function openActivityBoard(mediaId: string) {
+    removeBoardActivity(mediaId);
+    activityBoardExpandedID = mediaId;
     masterBoardExpanded = false;
     activityModalOpen = false;
     selectedActivityMedia = null;
@@ -816,8 +822,8 @@
     commentsPanelItemID = null;
   }
 
-  function removeBoardActivity(boardId: string) {
-    activityItems = activityItems.filter((item) => item.type !== 'board' || item.boardId !== boardId);
+  function removeBoardActivity(mediaId: string) {
+    activityItems = activityItems.filter((item) => item.type !== 'board' || item.mediaId !== mediaId);
   }
 
   function editedBoardId() {
@@ -825,12 +831,12 @@
     if (activityBoardExpandedID) return activityBoardExpandedID;
 
     const expandedItem = expandedItemID ? items.find((item) => item.id === expandedItemID) : undefined;
-    return expandedItem?.type === 'board' ? expandedItem.boardId ?? expandedItem.id : null;
+    return isDrawableMediaItem(expandedItem) ? expandedItem.id : null;
   }
 
   function openActivityBoardFromMedia(mediaId: string) {
-    if (!selectedActivityMedia || selectedActivityMedia.id !== mediaId || selectedActivityMedia.type !== 'board') return;
-    openActivityBoard(selectedActivityMedia.boardId ?? selectedActivityMedia.id);
+    if (!selectedActivityMedia || selectedActivityMedia.id !== mediaId || !isDrawableMediaItem(selectedActivityMedia)) return;
+    openActivityBoard(selectedActivityMedia.id);
   }
 
   function closeActivityBoard() {
@@ -842,8 +848,8 @@
     expandedItemID = nextExpandedID;
     if (nextExpandedID) {
       const item = items.find((candidate) => candidate.id === nextExpandedID);
-      if (item?.type === 'board') {
-        removeBoardActivity(item.boardId ?? item.id);
+      if (isDrawableMediaItem(item)) {
+        removeBoardActivity(item.id);
       }
     }
     revealCardOverlay(id);
@@ -868,9 +874,9 @@
 
   async function openActivityMedia(activityItem: ActivityItem) {
     if (activityItem.type === 'board') {
-      removeBoardActivity(activityItem.boardId);
+      removeBoardActivity(activityItem.mediaId);
 
-      if (activityItem.boardId === 'master') {
+      if (activityItem.mediaId === 'master') {
         masterBoardExpanded = true;
         activityBoardExpandedID = null;
         activityModalOpen = false;
@@ -880,7 +886,7 @@
         return;
       }
 
-      openActivityBoard(activityItem.boardId);
+      openActivityBoard(activityItem.mediaId);
       return;
     }
 
@@ -1061,7 +1067,7 @@
   }
 
   function activityItemKey(item: ActivityItem) {
-    return item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.boardId}`;
+    return item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.mediaId}`;
   }
 
   function activityItemTime(item: ActivityItem) {
@@ -1106,16 +1112,15 @@
     }
   }
 
-  function upsertBoardActivity(event: StrokeEvent, boardName: string, mediaId?: string) {
-    const existing = activityItems.find((item) => item.type === 'board' && item.boardId === event.boardId);
+  function upsertBoardActivity(event: StrokeEvent, boardName: string) {
+    const existing = activityItems.find((item) => item.type === 'board' && item.mediaId === event.mediaId);
     const author = event.stroke.author || 'Guest';
     const authors = existing?.type === 'board'
       ? [...existing.authors.filter((existingAuthor) => existingAuthor !== author), author]
       : [author];
     const updatedItem: ActivityItem = {
       type: 'board',
-      boardId: event.boardId,
-      mediaId,
+      mediaId: event.mediaId,
       boardName,
       strokeCount: existing?.type === 'board' ? existing.strokeCount + 1 : 1,
       authors,
@@ -1126,39 +1131,38 @@
     prependActivityItem(updatedItem);
   }
 
-  function boardMediaItem(boardId: string) {
-    return items.find((item) => item.type === 'board' && item.boardId === boardId);
+  function boardMediaItem(mediaId: string) {
+    return items.find((item) => isDrawableMediaItem(item) && item.id === mediaId);
   }
 
   function handleBoardActivity(event: StrokeEvent) {
-    if (event.boardId === editedBoardId()) {
-      removeBoardActivity(event.boardId);
+    if (event.mediaId === editedBoardId()) {
+      removeBoardActivity(event.mediaId);
       return;
     }
 
-    const item = boardMediaItem(event.boardId);
+    const item = boardMediaItem(event.mediaId);
     if (item) {
-      upsertBoardActivity(event, item.displayName || item.filename || 'Board', item.id);
+      upsertBoardActivity(event, item.displayName || item.filename || 'Board');
       return;
     }
 
-    if (event.boardId === 'master') {
+    if (event.mediaId === 'master') {
       upsertBoardActivity(event, 'Master Board');
       return;
     }
 
     upsertBoardActivity(event, 'Board');
-    if (pendingBoardActivityFetches.has(event.boardId)) return;
-    pendingBoardActivityFetches.add(event.boardId);
+    if (pendingBoardActivityFetches.has(event.mediaId)) return;
+    pendingBoardActivityFetches.add(event.mediaId);
 
-    void fetchBoard(event.boardId)
+    void fetchBoard(event.mediaId)
       .then((data) => {
         activityItems = activityItems.map((activityItem) =>
-          activityItem.type === 'board' && activityItem.boardId === event.boardId
+          activityItem.type === 'board' && activityItem.mediaId === event.mediaId
             ? {
                 ...activityItem,
-                boardName: data.board.name || activityItem.boardName,
-                mediaId: data.board.mediaId || activityItem.mediaId
+                boardName: data.board.name || activityItem.boardName
               }
             : activityItem
         );
@@ -1167,7 +1171,7 @@
         // Stale board events can outlive a board fetch.
       })
       .finally(() => {
-        pendingBoardActivityFetches.delete(event.boardId);
+        pendingBoardActivityFetches.delete(event.mediaId);
       });
   }
 
@@ -1510,7 +1514,7 @@
   {#if masterBoardExpanded}
     <div class="master-board-expanded-overlay">
       <DrawingBoard
-        boardId="master"
+        mediaId="master"
         expanded={true}
         username={commentUsername}
         onClose={toggleMasterBoard}
@@ -1521,7 +1525,7 @@
   {#if activityBoardExpandedID}
     <div class="master-board-expanded-overlay">
       <DrawingBoard
-        boardId={activityBoardExpandedID}
+        mediaId={activityBoardExpandedID}
         expanded={true}
         username={commentUsername}
         onClose={closeActivityBoard}

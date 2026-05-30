@@ -7,7 +7,7 @@ import (
 )
 
 type strokeEvent struct {
-	BoardID string       `json:"boardId"`
+	MediaID string       `json:"mediaId"`
 	Stroke  media.Stroke `json:"stroke"`
 }
 
@@ -35,10 +35,10 @@ func (h *boardHub) unsubscribeAll(ch chan feedEvent) {
 	close(ch)
 }
 
-func (h *boardHub) publishStroke(boardID string, stroke media.Stroke) {
+func (h *boardHub) publishStroke(mediaID string, stroke media.Stroke) {
 	event := feedEvent{
 		Name: "stroke",
-		Data: strokeEvent{BoardID: boardID, Stroke: stroke},
+		Data: strokeEvent{MediaID: mediaID, Stroke: stroke},
 	}
 
 	h.mu.Lock()

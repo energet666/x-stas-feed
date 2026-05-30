@@ -66,7 +66,7 @@
         <p class="text-sm font-semibold text-muted">No activity yet</p>
       </div>
     {:else}
-      {#each items as item (item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.boardId}`)}
+      {#each items as item (item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.mediaId}`)}
         <button class="activity-row" type="button" title={formatActivityTime(item.type === 'comment' ? item.comment.createdAt : item.updatedAt)} onclick={() => selectActivity(item)}>
           {#if item.type === 'comment'}
             <span class="activity-row-media">

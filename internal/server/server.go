@@ -215,15 +215,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		}
 		var item media.Item
 		var uploadErr error
-		if media.IsBoardBackgroundImageFilename(filename) {
-			var board media.BoardInfo
-			board, uploadErr = s.boards.CreateWithImageBackground(filename, filename, part, sourceModifiedAt)
-			if uploadErr == nil {
-				item, uploadErr = s.library.InsertBoardPlaceholderWithModifiedAt(board.ID, board.Name, sourceModifiedAt)
-			}
-		} else {
-			item, uploadErr = s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
-		}
+		item, uploadErr = s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
 		_ = part.Close()
 		if uploadErr != nil {
 			if isRequestTooLarge(uploadErr) {
@@ -500,7 +492,7 @@ func (s *Server) handleCreateBoard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create board")
 		return
 	}
-	if _, err := s.library.InsertBoardPlaceholder(info.ID, info.Name); err != nil {
+	if _, err := s.library.InsertBoardPlaceholder(strings.TrimSuffix(info.Filename, ".board"), info.Name); err != nil {
 		s.logger.Printf("board placeholder index failed id=%s name=%q error=%v", info.ID, info.Name, err)
 		writeError(w, http.StatusInternalServerError, "failed to index board")
 		return
@@ -520,7 +512,7 @@ func (s *Server) handleListBoards(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	info, err := s.boards.Get(id)
+	info, err := s.boardInfoForID(id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -539,7 +531,21 @@ func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBoardBackground(w http.ResponseWriter, r *http.Request) {
-	path, mimeType, err := s.boards.BackgroundPath(r.PathValue("id"))
+	id := r.PathValue("id")
+	item, itemErr := s.library.ItemForID(id)
+	if itemErr == nil && item.Type == "image" && media.IsBoardBackgroundImageFilename(item.Filename) {
+		path, mimeType, err := s.library.PathForID(id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", mediaCacheControl)
+		w.Header().Set("Content-Type", mimeType)
+		http.ServeFile(w, r, path)
+		return
+	}
+
+	path, mimeType, err := s.boards.BackgroundPath(id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -564,6 +570,11 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := s.boardInfoForID(id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
 	stroke, err := s.boards.AddStroke(id, request.Tool, request.Points, request.Color, request.Size, request.Author)
 	if err != nil {
 		if errors.Is(err, media.ErrBoardNotFound) {
@@ -576,6 +587,36 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 
 	s.boardHub.publishStroke(id, stroke)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) boardInfoForID(id string) (media.BoardInfo, error) {
+	info, err := s.boards.Get(id)
+	if err == nil {
+		return info, nil
+	}
+	if !errors.Is(err, media.ErrBoardNotFound) {
+		return media.BoardInfo{}, err
+	}
+
+	item, itemErr := s.library.ItemForID(id)
+	if itemErr != nil {
+		return media.BoardInfo{}, itemErr
+	}
+	if item.Type != "image" && item.Type != "board" {
+		return media.BoardInfo{}, media.ErrBoardNotFound
+	}
+	if item.Type == "image" && !media.IsBoardBackgroundImageFilename(item.Filename) {
+		return media.BoardInfo{}, media.ErrBoardNotFound
+	}
+	path, mimeType, pathErr := s.library.PathForID(id)
+	if pathErr != nil {
+		return media.BoardInfo{}, pathErr
+	}
+	backgroundURL := ""
+	if item.Type == "image" {
+		backgroundURL = item.URL
+	}
+	return s.boards.EnsureMediaBoard(id, item.DisplayName, item.Filename, backgroundURL, mimeType, path, item.ModifiedAt)
 }
 
 func (s *Server) handleAllBoardEvents(w http.ResponseWriter, r *http.Request) {

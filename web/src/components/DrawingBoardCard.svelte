@@ -37,7 +37,7 @@
     onLike: () => void;
   } = $props();
 
-  const boardId = $derived(item.boardId ?? item.id);
+  const mediaId = $derived(item.id);
   const suppressOverlays = $derived(expanded);
   let ambientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
 
@@ -74,7 +74,7 @@
 
   {#snippet content()}
     {#if expanded}
-      <DrawingBoard {boardId} {expanded} {username} {ambientCanvas} onClose={onToggleExpanded} />
+      <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} onClose={onToggleExpanded} />
     {:else}
       <button
         class="drawing-board-preview-button"
@@ -83,7 +83,7 @@
         title="Open drawing board"
         onclick={openBoardFromPreview}
       >
-        <DrawingBoard {boardId} {expanded} {username} {ambientCanvas} />
+        <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} />
       </button>
     {/if}
   {/snippet}

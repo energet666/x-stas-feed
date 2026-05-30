@@ -90,7 +90,7 @@ func TestScanUsesFixedLengthOpaqueMediaIDs(t *testing.T) {
 	}
 }
 
-func TestScanUsesOpaqueMediaIDAndSeparateBoardIDForBoards(t *testing.T) {
+func TestScanUsesOpaqueMediaIDForBoards(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	writeTestFile(t, dir, "abc123.board", modTime)
@@ -104,9 +104,6 @@ func TestScanUsesOpaqueMediaIDAndSeparateBoardIDForBoards(t *testing.T) {
 	}
 	if items[0].ID != EncodeID("abc123.board") {
 		t.Fatalf("expected opaque media id, got %q", items[0].ID)
-	}
-	if items[0].BoardID != "abc123" {
-		t.Fatalf("expected separate board id, got %#v", items[0])
 	}
 }
 

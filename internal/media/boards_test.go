@@ -45,6 +45,7 @@ func TestBoardStoreInitDoesNotCreatePlaceholderFromBoardMetadata(t *testing.T) {
 func TestBoardStoreInitLoadsBoardWhenPlaceholderExists(t *testing.T) {
 	dir := t.TempDir()
 	boardID := "abc123"
+	mediaID := EncodeID(boardID + ".board")
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	writeTestFile(t, dir, boardID+".board", createdAt)
@@ -55,7 +56,7 @@ func TestBoardStoreInitLoadsBoardWhenPlaceholderExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, boardsDirName, boardID+".jsonl"), append(metaLine, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, boardsDirName, boardID+".board.jsonl"), append(metaLine, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,11 +65,11 @@ func TestBoardStoreInitLoadsBoardWhenPlaceholderExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := store.Get(boardID)
+	info, err := store.Get(mediaID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Name != "Sketch" || info.MediaID != EncodeID(boardID+".board") {
+	if info.Name != "Sketch" || info.ID != mediaID || info.MediaID != mediaID {
 		t.Fatalf("expected placeholder-backed board to load, got %#v", info)
 	}
 }
@@ -76,6 +77,7 @@ func TestBoardStoreInitLoadsBoardWhenPlaceholderExists(t *testing.T) {
 func TestBoardStoreInitCreatesMissingMetadataForPlaceholder(t *testing.T) {
 	dir := t.TempDir()
 	boardID := "abc123"
+	mediaID := EncodeID(boardID + ".board")
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	writeTestFile(t, dir, boardID+".board", createdAt)
@@ -85,14 +87,14 @@ func TestBoardStoreInitCreatesMissingMetadataForPlaceholder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := store.Get(boardID)
+	info, err := store.Get(mediaID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Name != defaultBoardName(boardID) || !info.CreatedAt.Equal(createdAt) {
 		t.Fatalf("expected fallback board metadata from placeholder, got %#v", info)
 	}
-	if _, err := os.Stat(filepath.Join(dir, boardsDirName, boardID+".jsonl")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, boardsDirName, boardID+".board.jsonl")); err != nil {
 		t.Fatalf("expected board metadata file to be created: %v", err)
 	}
 }
@@ -131,7 +133,7 @@ func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
 	}
 }
 
-func TestBoardStoreCreateUsesGeneratedDefaultNameForEmptyInput(t *testing.T) {
+func TestBoardStoreCreateUsesBoardFilenameForEmptyInput(t *testing.T) {
 	dir := t.TempDir()
 	store := NewBoardStore(dir)
 	if err := store.Init(); err != nil {
@@ -143,11 +145,14 @@ func TestBoardStoreCreateUsesGeneratedDefaultNameForEmptyInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if info.Name == "Board" {
-		t.Fatalf("expected generated board name, got %q", info.Name)
+	if info.Name != "board" || info.Filename != "board.board" {
+		t.Fatalf("expected default board filename and name, got %#v", info)
 	}
-	if info.Name != defaultBoardName(info.ID) {
-		t.Fatalf("expected name to include board id, got %q for id %q", info.Name, info.ID)
+	if _, err := os.Stat(filepath.Join(dir, "board.board")); err != nil {
+		t.Fatalf("expected board placeholder: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, boardsDirName, "board.board.jsonl")); err != nil {
+		t.Fatalf("expected board history file: %v", err)
 	}
 }
 
@@ -165,6 +170,39 @@ func TestBoardStoreCreatePreservesExplicitBoardName(t *testing.T) {
 
 	if info.Name != "Board" {
 		t.Fatalf("expected explicit board name to be preserved, got %q", info.Name)
+	}
+	if info.Filename != "Board.board" {
+		t.Fatalf("expected explicit board filename, got %#v", info)
+	}
+}
+
+func TestBoardStoreCreateAddsSuffixForDuplicateName(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.Filename != "Sketch.board" || first.Name != "Sketch" {
+		t.Fatalf("expected first board to use explicit name, got %#v", first)
+	}
+	if second.Filename != "Sketch (1).board" || second.Name != "Sketch (1)" {
+		t.Fatalf("expected duplicate board to use suffix, got %#v", second)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Sketch (1).board")); err != nil {
+		t.Fatalf("expected suffixed board placeholder: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, boardsDirName, "Sketch (1).board.jsonl")); err != nil {
+		t.Fatalf("expected suffixed board history file: %v", err)
 	}
 }
 

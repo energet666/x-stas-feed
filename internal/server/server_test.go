@@ -43,7 +43,7 @@ func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	}
 }
 
-func TestFeedScanConvertsImagesToBoardBackgrounds(t *testing.T) {
+func TestFeedScanKeepsImagesInMediaRootWithBoardHistory(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
 
@@ -61,22 +61,49 @@ func TestFeedScanConvertsImagesToBoardBackgrounds(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Item.Type != "board" || response.Item.BoardID == "" || response.Item.DisplayName != "photo.png" {
-		t.Fatalf("expected scanned image to become board item, got %#v", response.Item)
+	if response.Item.Type != "image" || response.Item.DisplayName != "photo.png" {
+		t.Fatalf("expected scanned image media item, got %#v", response.Item)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "photo.png")); !os.IsNotExist(err) {
-		t.Fatalf("expected original image to be moved out of media root, err=%v", err)
+	if _, err := os.Stat(filepath.Join(dir, "photo.png")); err != nil {
+		t.Fatalf("expected original image to remain in media root: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".boards", response.Item.BoardID+"_bgimg.png")); err != nil {
-		t.Fatalf("expected image background file: %v", err)
+	if matches, err := filepath.Glob(filepath.Join(dir, "*.board")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board placeholder for image, matches=%v err=%v", matches, err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, ".boards", "*_bgimg.png")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no copied image background, matches=%v err=%v", matches, err)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+response.Item.BoardID+"/background", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+response.Item.ID, nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
-	if res.Code != http.StatusOK || res.Body.String() != "test" {
-		t.Fatalf("expected board background response, got status=%d body=%q", res.Code, res.Body.String())
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected image board response, got status=%d body=%q", res.Code, res.Body.String())
+	}
+	var boardData struct {
+		Board media.BoardInfo `json:"board"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&boardData); err != nil {
+		t.Fatal(err)
+	}
+	if boardData.Board.ID != response.Item.ID || boardData.Board.MediaID != response.Item.ID {
+		t.Fatalf("expected image media id to own board history, got %#v", boardData.Board)
+	}
+	if boardData.Board.Background == nil || boardData.Board.Background.URL != response.Item.URL {
+		t.Fatalf("expected root media URL as board background, got %#v", boardData.Board)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".boards", "photo.png.jsonl")); err != nil {
+		t.Fatalf("expected board history file for image media: %v", err)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+response.Item.ID+"/strokes", bytes.NewBufferString(`{"tool":"freeform","points":[[1,2]],"color":"#fff","size":4,"author":"Tester"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected image board stroke status 204, got %d body=%s", res.Code, res.Body.String())
 	}
 }
 
@@ -98,7 +125,7 @@ func TestFeedScanKeepsGIFAsImageMedia(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Item.Type != "image" || response.Item.BoardID != "" || response.Item.Filename != "animated.gif" {
+	if response.Item.Type != "image" || response.Item.Filename != "animated.gif" {
 		t.Fatalf("expected scanned gif to remain image media, got %#v", response.Item)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "animated.gif")); err != nil {
@@ -1034,20 +1061,20 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatalf("expected one uploaded item, got %#v", upload)
 	}
 	item := upload.Items[0]
-	if item.Type != "board" || item.BoardID == "" {
+	if item.Type != "image" {
 		t.Fatalf("unexpected uploaded item: %#v", item)
 	}
 	if item.DisplayName != "Мой летний день.png" {
 		t.Fatalf("expected original display name, got %#v", item)
 	}
-	if !strings.HasSuffix(item.Filename, ".board") {
-		t.Fatalf("expected board placeholder filename, got %#v", item.Filename)
-	}
 	if _, err := os.Stat(filepath.Join(dir, item.Filename)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".boards", item.BoardID+"_bgimg.png")); err != nil {
-		t.Fatalf("expected uploaded image to be stored as board background: %v", err)
+	if matches, err := filepath.Glob(filepath.Join(dir, "*.board")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board placeholder for uploaded image, matches=%v err=%v", matches, err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, ".boards", "*_bgimg.png")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no copied board background for uploaded image, matches=%v err=%v", matches, err)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
@@ -1066,7 +1093,7 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 		t.Fatalf("expected uploaded item in feed, got %#v", feedItem)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+item.BoardID, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+item.ID, nil)
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
@@ -1082,13 +1109,11 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 	if boardData.Board.Background == nil || boardData.Board.Background.Type != "image" || boardData.Board.Background.URL == "" {
 		t.Fatalf("expected board image background, got %#v", boardData.Board)
 	}
-
-	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+item.BoardID+"/background", nil)
-	res = httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK || res.Body.String() != "png-content" {
-		t.Fatalf("expected uploaded board background response, got status=%d body=%q", res.Code, res.Body.String())
+	if boardData.Board.ID != item.ID || boardData.Board.MediaID != item.ID || boardData.Board.Background.URL != item.URL {
+		t.Fatalf("expected uploaded image media to own board history, got %#v", boardData.Board)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".boards", item.Filename+".jsonl")); err != nil {
+		t.Fatalf("expected uploaded image board history file: %v", err)
 	}
 }
 
@@ -1112,7 +1137,7 @@ func TestUploadEndpointKeepsGIFAsImageMedia(t *testing.T) {
 		t.Fatalf("expected one uploaded item, got %#v", upload)
 	}
 	item := upload.Items[0]
-	if item.Type != "image" || item.BoardID != "" || !strings.HasSuffix(item.Filename, ".gif") {
+	if item.Type != "image" || !strings.HasSuffix(item.Filename, ".gif") {
 		t.Fatalf("expected uploaded gif image item, got %#v", item)
 	}
 	if _, err := os.Stat(filepath.Join(dir, item.Filename)); err != nil {
@@ -1276,8 +1301,11 @@ func TestCreateBoardIndexesOpaqueMediaItemForComments(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
 		t.Fatal(err)
 	}
-	if board.ID == "" || board.MediaID == "" || board.MediaID == board.ID {
-		t.Fatalf("expected distinct board and media ids, got %#v", board)
+	if board.ID == "" || board.MediaID == "" || board.MediaID != board.ID {
+		t.Fatalf("expected board id to be the media id, got %#v", board)
+	}
+	if board.Filename != "Sketch.board" || board.Name != "Sketch" {
+		t.Fatalf("expected board filename from submitted name, got %#v", board)
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/media/"+board.MediaID+"/comments", bytes.NewBufferString(`{"text":"works","author":"Tester"}`))
@@ -1297,7 +1325,7 @@ func TestCreateBoardIndexesOpaqueMediaItemForComments(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
 		t.Fatal(err)
 	}
-	if feedItem.Item.ID != board.MediaID || feedItem.Item.BoardID != board.ID || feedItem.Item.CommentCount != 1 {
+	if feedItem.Item.ID != board.MediaID || feedItem.Item.CommentCount != 1 {
 		t.Fatalf("expected indexed board media item with comment summary, got %#v", feedItem)
 	}
 }

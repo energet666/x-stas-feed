@@ -48,12 +48,18 @@
     onKeep(item.id);
   }
 
+  const isDrawableImage = $derived(
+    item.type === 'image' &&
+      item.mimeType !== 'image/gif' &&
+      !item.filename.toLowerCase().endsWith('.gif')
+  );
+
   function hideOverlay() {
     onHide(item.id);
   }
 </script>
 
-{#if item.type === 'board'}
+{#if item.type === 'board' || isDrawableImage}
   <DrawingBoardCard
     {item}
     {expanded}
