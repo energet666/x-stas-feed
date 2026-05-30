@@ -51,7 +51,7 @@ func TestScanUsesStoredDisplayName(t *testing.T) {
 	writeTestFile(t, dir, "photo.png", modTime)
 
 	library := NewLibrary(dir)
-	if err := library.metadata.Set(EncodeID("photo.png"), Metadata{DisplayName: "Летний день 2026.png"}); err != nil {
+	if err := library.metadata.Set("photo.png", Metadata{DisplayName: "Летний день 2026.png"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,7 +85,7 @@ func TestScanUsesFixedLengthOpaqueMediaIDs(t *testing.T) {
 		t.Fatalf("expected opaque media id not to contain filename, got %q", items[0].ID)
 	}
 
-	if _, err := os.Stat(library.metadata.pathForID(items[0].ID)); err != nil {
+	if _, err := os.Stat(library.metadata.pathForFilename(items[0].Filename)); err != nil {
 		t.Fatalf("expected metadata file to be created for long unicode filename: %v", err)
 	}
 }
@@ -113,7 +113,7 @@ func TestScanCreatesMissingMetadataForFiles(t *testing.T) {
 	writeTestFile(t, dir, "photo.png", modTime)
 
 	library := NewLibrary(dir)
-	if exists, err := library.metadata.Exists(EncodeID("photo.png")); err != nil || exists {
+	if exists, err := library.metadata.Exists("photo.png"); err != nil || exists {
 		t.Fatalf("expected metadata to be missing before scan, exists=%t err=%v", exists, err)
 	}
 
@@ -125,7 +125,7 @@ func TestScanCreatesMissingMetadataForFiles(t *testing.T) {
 		t.Fatalf("expected scanned photo with fallback display name, got %#v", items)
 	}
 
-	metadata, err := library.metadata.Get(EncodeID("photo.png"))
+	metadata, err := library.metadata.Get("photo.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +140,7 @@ func TestScanDoesNotOverwriteExistingMetadata(t *testing.T) {
 	writeTestFile(t, dir, "photo.png", modTime)
 
 	library := NewLibrary(dir)
-	id := EncodeID("photo.png")
-	if err := library.metadata.Set(id, Metadata{DisplayName: "Stored Name.png", LikeCount: 7}); err != nil {
+	if err := library.metadata.Set("photo.png", Metadata{DisplayName: "Stored Name.png", LikeCount: 7}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,7 +148,7 @@ func TestScanDoesNotOverwriteExistingMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	metadata, err := library.metadata.Get(id)
+	metadata, err := library.metadata.Get("photo.png")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +189,7 @@ func TestScanUsesValidStoredAudioMetadata(t *testing.T) {
 	}
 
 	library := NewLibrary(dir)
-	if err := library.metadata.Set(EncodeID("song.mp3"), Metadata{
+	if err := library.metadata.Set("song.mp3", Metadata{
 		Audio: &AudioMetadata{
 			DurationSeconds:       123.456,
 			Tags:                  AudioTags{Title: "Cached Title", Artist: "Cached Artist"},
@@ -227,7 +226,7 @@ func TestScanIgnoresStaleStoredAudioMetadata(t *testing.T) {
 	writeTestFile(t, dir, "song.mp3", modTime)
 
 	library := NewLibrary(dir)
-	if err := library.metadata.Set(EncodeID("song.mp3"), Metadata{
+	if err := library.metadata.Set("song.mp3", Metadata{
 		Audio: &AudioMetadata{
 			DurationSeconds:       123.456,
 			Tags:                  AudioTags{Title: "Stale Title"},
@@ -260,7 +259,7 @@ func TestScanUsesValidStoredVideoMetadata(t *testing.T) {
 	}
 
 	library := NewLibrary(dir)
-	if err := library.metadata.Set(EncodeID("clip.mp4"), Metadata{
+	if err := library.metadata.Set("clip.mp4", Metadata{
 		Video: &VideoMetadata{
 			DurationSeconds:       98.765,
 			SourceSize:            info.Size(),
@@ -288,7 +287,7 @@ func TestScanIgnoresStaleStoredVideoMetadata(t *testing.T) {
 	writeTestFile(t, dir, "clip.mp4", modTime)
 
 	library := NewLibrary(dir)
-	if err := library.metadata.Set(EncodeID("clip.mp4"), Metadata{
+	if err := library.metadata.Set("clip.mp4", Metadata{
 		Video: &VideoMetadata{
 			DurationSeconds:       98.765,
 			SourceSize:            1,
@@ -710,7 +709,7 @@ func TestIndexedItemIgnoresBrokenCommentSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	library := NewLibrary(dir)
-	if err := os.WriteFile(library.comments.pathForID(EncodeID("photo.png")), []byte("{broken json\n"), 0o644); err != nil {
+	if err := os.WriteFile(library.comments.pathForFilename("photo.png"), []byte("{broken json\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -736,7 +735,7 @@ func TestEmptyCommentFileReturnsEmptyCommentList(t *testing.T) {
 		t.Fatal(err)
 	}
 	library := NewLibrary(dir)
-	if err := os.WriteFile(library.comments.pathForID(EncodeID("photo.png")), []byte("\n\n"), 0o644); err != nil {
+	if err := os.WriteFile(library.comments.pathForFilename("photo.png"), []byte("\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

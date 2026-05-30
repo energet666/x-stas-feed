@@ -275,13 +275,13 @@ func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	}
 
 	l.mu.RLock()
-	_, ok := l.itemsByID[id]
+	item, ok := l.itemsByID[id]
 	l.mu.RUnlock()
 	if !ok {
 		return Comment{}, os.ErrNotExist
 	}
 
-	comment, err := l.comments.Add(id, text, author)
+	comment, err := l.comments.Add(item.Filename, text, author)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -289,7 +289,7 @@ func (l *Library) AddComment(id, text, author string) (Comment, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	item, ok := l.itemsByID[id]
+	item, ok = l.itemsByID[id]
 	if !ok {
 		return Comment{}, os.ErrNotExist
 	}
@@ -310,13 +310,13 @@ func (l *Library) AddCommentLike(id, commentID string) (Comment, error) {
 	}
 
 	l.mu.RLock()
-	_, ok := l.itemsByID[id]
+	item, ok := l.itemsByID[id]
 	l.mu.RUnlock()
 	if !ok {
 		return Comment{}, os.ErrNotExist
 	}
 
-	comment, err := l.comments.AddLike(id, commentID)
+	comment, err := l.comments.AddLike(item.Filename, commentID)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -350,13 +350,13 @@ func (l *Library) AddLike(id string) (int, error) {
 	}
 
 	l.mu.RLock()
-	_, ok := l.itemsByID[id]
+	item, ok := l.itemsByID[id]
 	l.mu.RUnlock()
 	if !ok {
 		return 0, os.ErrNotExist
 	}
 
-	metadata, err := l.metadata.AddLike(id)
+	metadata, err := l.metadata.AddLike(item.Filename)
 	if err != nil {
 		return 0, err
 	}
@@ -364,7 +364,7 @@ func (l *Library) AddLike(id string) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	item, ok := l.itemsByID[id]
+	item, ok = l.itemsByID[id]
 	if !ok {
 		return 0, os.ErrNotExist
 	}
@@ -420,11 +420,11 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
-		metadataExists, metadataExistsErr := l.metadata.Exists(item.ID)
+		metadataExists, metadataExistsErr := l.metadata.Exists(item.Filename)
 		if metadataExistsErr != nil {
 			l.logf("metadata stat failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, metadataExistsErr)
 		}
-		metadata, metadataErr := l.metadata.Get(item.ID)
+		metadata, metadataErr := l.metadata.Get(item.Filename)
 		if metadataErr == nil {
 			if metadata.DisplayName != "" {
 				item.DisplayName = metadata.DisplayName
@@ -452,7 +452,7 @@ func (l *Library) Scan() ([]Item, error) {
 			metadataChanged = true
 		}
 		if metadataChanged {
-			if err := l.metadata.Set(item.ID, metadata); err != nil {
+			if err := l.metadata.Set(item.Filename, metadata); err != nil {
 				l.logf("metadata cache write failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
 			}
 		}
@@ -522,7 +522,7 @@ func (l *Library) ensureIndex() error {
 			l.logf("runtime index initialization failed root=%q duration=%s mediaID=%s filename=%q error=missing source path", l.root, time.Since(started).Round(time.Millisecond), item.ID, item.Filename)
 			return errors.New("missing source path for media item")
 		}
-		commentFileExists, commentFileStatErr := l.comments.hasFile(item.ID)
+		commentFileExists, commentFileStatErr := l.comments.hasFile(item.Filename)
 		if commentFileStatErr == nil && commentFileExists {
 			commentFilesFound++
 		} else if commentFileStatErr == nil {
@@ -531,7 +531,7 @@ func (l *Library) ensureIndex() error {
 			commentsFailed++
 			l.logf("comment cache stat failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, commentFileStatErr)
 		}
-		comments, err := l.comments.List(item.ID)
+		comments, err := l.comments.List(item.Filename)
 		if err == nil {
 			commentCount += len(comments)
 			l.commentsByMediaID[item.ID] = cloneComments(comments)
@@ -631,7 +631,7 @@ func (l *Library) InsertBoardPlaceholderWithModifiedAt(boardID, displayName stri
 		item.ModifiedAt = metadata.ModifiedAt
 	}
 
-	if err := l.metadata.Set(item.ID, metadata); err != nil {
+	if err := l.metadata.Set(item.Filename, metadata); err != nil {
 		return Item{}, err
 	}
 	if err := l.insertItem(item, path); err != nil {
@@ -884,7 +884,7 @@ func (l *Library) applyAudioMetadata(item *Item, path string, info os.FileInfo, 
 		ProbedAt:              time.Now().UTC(),
 	}
 	if probed.HasCover {
-		if coverFile, err := l.extractAudioCover(item.ID, path, info.Size(), info.ModTime().UnixNano()); err == nil {
+		if coverFile, err := l.extractAudioCover(item.ID, path, item.Filename, info.ModTime()); err == nil {
 			audio.HasCover = true
 			audio.CoverFile = coverFile
 		} else {

@@ -107,12 +107,11 @@ func TestReadPosterSmartTimeRejectsInvalidCache(t *testing.T) {
 	}
 }
 
-func TestPosterSmartTimeCacheNameIncludesSourceSignature(t *testing.T) {
-	first := posterSmartTimeCacheName("media", 10, 20)
-	second := posterSmartTimeCacheName("media", 11, 20)
+func TestPosterSmartTimeCacheNameUsesFilename(t *testing.T) {
+	first := posterSmartTimeCacheName("clip.mp4")
 
-	if first == second {
-		t.Fatal("expected source signature to affect smart poster time cache name")
+	if first != "clip.mp4.smart-v1.poster-time" {
+		t.Fatalf("expected filename-based smart poster time cache name, got %q", first)
 	}
 	if !strings.HasSuffix(first, ".poster-time") {
 		t.Fatalf("expected poster time cache extension, got %q", first)

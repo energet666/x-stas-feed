@@ -1,8 +1,6 @@
 package media
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -34,9 +32,13 @@ func (l *Library) CoverForID(id string) (string, error) {
 	if item.Type != "audio" || !item.HasCover {
 		return "", os.ErrNotExist
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
 	if item.CoverFile != "" && filepath.Base(item.CoverFile) == item.CoverFile {
 		coverPath := filepath.Join(l.root, coverDirName, item.CoverFile)
-		if info, err := os.Stat(coverPath); err == nil && !info.IsDir() {
+		if cacheFresh(coverPath, info.ModTime()) {
 			l.logf(
 				"audio cover ready mediaID=%s filename=%q source=cache path=%q duration=%s",
 				id,
@@ -48,34 +50,31 @@ func (l *Library) CoverForID(id string) (string, error) {
 		}
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-
-	coverFile, err := l.extractAudioCover(id, path, info.Size(), info.ModTime().UnixNano())
+	coverFile, err := l.extractAudioCover(id, path, item.Filename, info.ModTime())
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(l.root, coverDirName, coverFile), nil
 }
 
-func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) (string, error) {
+func (l *Library) extractAudioCover(id, path string, filename string, sourceModTime time.Time) (string, error) {
 	started := time.Now()
 	ffmpeg, err := ffmpegPath()
 	if err != nil {
 		return "", errors.New("ffmpeg is required to extract audio covers")
 	}
-	filename := filepath.Base(path)
+	if filename == "" {
+		filename = filepath.Base(path)
+	}
 
 	cacheDir := filepath.Join(l.root, coverDirName)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}
 
-	cacheFile := coverCacheName(id, size, modTime)
+	cacheFile := coverCacheName(filename)
 	cachePath := filepath.Join(cacheDir, cacheFile)
-	if _, err := os.Stat(cachePath); err == nil {
+	if cacheFresh(cachePath, sourceModTime) {
 		l.logf(
 			"audio cover ready mediaID=%s filename=%q source=cache path=%q duration=%s",
 			id,
@@ -84,7 +83,7 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 			time.Since(started).Round(time.Millisecond),
 		)
 		return cacheFile, nil
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+	} else if _, err := os.Stat(cachePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 
@@ -130,7 +129,6 @@ func (l *Library) extractAudioCover(id, path string, size int64, modTime int64) 
 	return cacheFile, nil
 }
 
-func coverCacheName(id string, size int64, modTime int64) string {
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d", id, size, modTime)))
-	return hex.EncodeToString(sum[:]) + ".jpg"
+func coverCacheName(filename string) string {
+	return filename + ".jpg"
 }

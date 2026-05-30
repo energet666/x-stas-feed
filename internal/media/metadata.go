@@ -45,11 +45,11 @@ func NewMetadataStore(mediaRoot string) *MetadataStore {
 	return &MetadataStore{root: filepath.Join(mediaRoot, metadataDirName)}
 }
 
-func (s *MetadataStore) Exists(mediaID string) (bool, error) {
+func (s *MetadataStore) Exists(filename string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	info, err := os.Stat(s.pathForID(mediaID))
+	info, err := os.Stat(s.pathForFilename(filename))
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -59,11 +59,11 @@ func (s *MetadataStore) Exists(mediaID string) (bool, error) {
 	return !info.IsDir(), nil
 }
 
-func (s *MetadataStore) Get(mediaID string) (Metadata, error) {
+func (s *MetadataStore) Get(filename string) (Metadata, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	file, err := os.Open(s.pathForID(mediaID))
+	file, err := os.Open(s.pathForFilename(filename))
 	if errors.Is(err, os.ErrNotExist) {
 		return Metadata{}, nil
 	}
@@ -79,32 +79,32 @@ func (s *MetadataStore) Get(mediaID string) (Metadata, error) {
 	return normalizeMetadata(metadata), nil
 }
 
-func (s *MetadataStore) Set(mediaID string, metadata Metadata) error {
+func (s *MetadataStore) Set(filename string, metadata Metadata) error {
 	metadata = normalizeMetadata(metadata)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.writeLocked(mediaID, metadata)
+	return s.writeLocked(filename, metadata)
 }
 
-func (s *MetadataStore) AddLike(mediaID string) (Metadata, error) {
+func (s *MetadataStore) AddLike(filename string) (Metadata, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	metadata, err := s.readLocked(mediaID)
+	metadata, err := s.readLocked(filename)
 	if err != nil {
 		return Metadata{}, err
 	}
 	metadata.LikeCount++
-	if err := s.writeLocked(mediaID, metadata); err != nil {
+	if err := s.writeLocked(filename, metadata); err != nil {
 		return Metadata{}, err
 	}
 	return metadata, nil
 }
 
-func (s *MetadataStore) readLocked(mediaID string) (Metadata, error) {
-	file, err := os.Open(s.pathForID(mediaID))
+func (s *MetadataStore) readLocked(filename string) (Metadata, error) {
+	file, err := os.Open(s.pathForFilename(filename))
 	if errors.Is(err, os.ErrNotExist) {
 		return Metadata{}, nil
 	}
@@ -120,7 +120,7 @@ func (s *MetadataStore) readLocked(mediaID string) (Metadata, error) {
 	return normalizeMetadata(metadata), nil
 }
 
-func (s *MetadataStore) writeLocked(mediaID string, metadata Metadata) error {
+func (s *MetadataStore) writeLocked(filename string, metadata Metadata) error {
 	metadata = normalizeMetadata(metadata)
 
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
@@ -145,7 +145,7 @@ func (s *MetadataStore) writeLocked(mediaID string, metadata Metadata) error {
 		return closeErr
 	}
 
-	return os.Rename(tmpPath, s.pathForID(mediaID))
+	return os.Rename(tmpPath, s.pathForFilename(filename))
 }
 
 func normalizeMetadata(metadata Metadata) Metadata {
@@ -155,6 +155,6 @@ func normalizeMetadata(metadata Metadata) Metadata {
 	return metadata
 }
 
-func (s *MetadataStore) pathForID(mediaID string) string {
-	return filepath.Join(s.root, mediaID+".json")
+func (s *MetadataStore) pathForFilename(filename string) string {
+	return filepath.Join(s.root, filename+".json")
 }

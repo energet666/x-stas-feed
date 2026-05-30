@@ -3,7 +3,6 @@ package media
 import (
 	"bufio"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -40,14 +39,14 @@ func NewCommentStore(mediaRoot string) *CommentStore {
 	return &CommentStore{root: filepath.Join(mediaRoot, commentsDirName)}
 }
 
-func (s *CommentStore) List(mediaID string) ([]Comment, error) {
+func (s *CommentStore) List(filename string) ([]Comment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.readLocked(mediaID)
+	return s.readLocked(filename)
 }
 
-func (s *CommentStore) Add(mediaID, text, author string) (Comment, error) {
+func (s *CommentStore) Add(filename, text, author string) (Comment, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return Comment{}, errors.New("comment text is required")
@@ -70,7 +69,7 @@ func (s *CommentStore) Add(mediaID, text, author string) (Comment, error) {
 		return Comment{}, err
 	}
 
-	file, err := os.OpenFile(s.pathForID(mediaID), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(s.pathForFilename(filename), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -83,7 +82,7 @@ func (s *CommentStore) Add(mediaID, text, author string) (Comment, error) {
 	return comment, nil
 }
 
-func (s *CommentStore) AddLike(mediaID, commentID string) (Comment, error) {
+func (s *CommentStore) AddLike(filename, commentID string) (Comment, error) {
 	if strings.TrimSpace(commentID) == "" {
 		return Comment{}, ErrCommentNotFound
 	}
@@ -91,7 +90,7 @@ func (s *CommentStore) AddLike(mediaID, commentID string) (Comment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	comments, err := s.readLocked(mediaID)
+	comments, err := s.readLocked(filename)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -108,14 +107,14 @@ func (s *CommentStore) AddLike(mediaID, commentID string) (Comment, error) {
 		return Comment{}, ErrCommentNotFound
 	}
 
-	if err := s.writeAllLocked(mediaID, comments); err != nil {
+	if err := s.writeAllLocked(filename, comments); err != nil {
 		return Comment{}, err
 	}
 	return comments[updatedIndex], nil
 }
 
-func (s *CommentStore) Summary(mediaID string, limit int) ([]Comment, int, error) {
-	comments, err := s.List(mediaID)
+func (s *CommentStore) Summary(filename string, limit int) ([]Comment, int, error) {
+	comments, err := s.List(filename)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -125,10 +124,10 @@ func (s *CommentStore) Summary(mediaID string, limit int) ([]Comment, int, error
 	return comments[len(comments)-limit:], len(comments), nil
 }
 
-func (s *CommentStore) readLocked(mediaID string) ([]Comment, error) {
+func (s *CommentStore) readLocked(filename string) ([]Comment, error) {
 	var comments []Comment
 	seen := make(map[string]int)
-	fileComments, err := readCommentFile(s.pathForID(mediaID))
+	fileComments, err := readCommentFile(s.pathForFilename(filename))
 	if errors.Is(err, os.ErrNotExist) {
 		return []Comment{}, nil
 	}
@@ -188,7 +187,7 @@ func readCommentFile(path string) ([]Comment, error) {
 	return comments, nil
 }
 
-func (s *CommentStore) writeAllLocked(mediaID string, comments []Comment) error {
+func (s *CommentStore) writeAllLocked(filename string, comments []Comment) error {
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
 		return err
 	}
@@ -217,7 +216,7 @@ func (s *CommentStore) writeAllLocked(mediaID string, comments []Comment) error 
 		return err
 	}
 
-	return os.Rename(tmpPath, s.pathForID(mediaID))
+	return os.Rename(tmpPath, s.pathForFilename(filename))
 }
 
 func normalizeAuthor(author string) string {
@@ -233,13 +232,12 @@ func normalizeAuthor(author string) string {
 	return author
 }
 
-func (s *CommentStore) pathForID(mediaID string) string {
-	sum := sha256.Sum256([]byte(mediaID))
-	return filepath.Join(s.root, hex.EncodeToString(sum[:])+".jsonl")
+func (s *CommentStore) pathForFilename(filename string) string {
+	return filepath.Join(s.root, filename+".jsonl")
 }
 
-func (s *CommentStore) hasFile(mediaID string) (bool, error) {
-	if _, err := os.Stat(s.pathForID(mediaID)); err == nil {
+func (s *CommentStore) hasFile(filename string) (bool, error) {
+	if _, err := os.Stat(s.pathForFilename(filename)); err == nil {
 		return true, nil
 	} else if errors.Is(err, os.ErrNotExist) {
 		return false, nil

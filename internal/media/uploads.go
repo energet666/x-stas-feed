@@ -94,7 +94,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 		metadata.ModifiedAt = sourceModifiedAt.UTC()
 		item.ModifiedAt = metadata.ModifiedAt
 	}
-	if err := l.metadata.Set(item.ID, metadata); err != nil {
+	if err := l.metadata.Set(item.Filename, metadata); err != nil {
 		return Item{}, err
 	}
 	if err := l.insertItem(item, path); err != nil {
