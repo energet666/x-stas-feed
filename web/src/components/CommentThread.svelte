@@ -229,7 +229,7 @@
   {:else}
     <div class="space-y-3">
       {#each comments as comment (comment.id)}
-        <article class="rounded-overlay border border-border-glass-soft bg-action-bg px-3 py-2">
+        <article class="comment-item">
           <div class="comment-meta-row">
             <div class="comment-author-time">
               <span class="comment-author">{comment.author || 'Guest'}</span>
@@ -268,7 +268,7 @@
   {/if}
 
   {#if error}
-    <div class="mt-4 rounded-overlay border border-border-glass-soft bg-action-bg px-3 py-2 text-sm font-semibold text-danger">
+    <div class="comment-error-message text-sm font-semibold text-danger">
       {error}
     </div>
   {/if}
@@ -317,8 +317,24 @@
   }
 
   .comment-thread-form {
+    flex: 0 0 auto;
     border-top: 1px solid var(--color-border-glass-soft);
+    background: linear-gradient(180deg, rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.18));
     padding: 0.75rem;
+  }
+
+  .comment-item,
+  .comment-error-message {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: var(--radius-overlay);
+    background: rgb(255 255 255 / 0.045);
+    padding: 0.5rem 0.75rem;
+  }
+
+  .comment-error-message {
+    margin-top: 1rem;
+    border-color: color-mix(in srgb, var(--color-text-danger) 30%, transparent);
+    background: color-mix(in srgb, var(--color-text-danger) 8%, transparent);
   }
 
   .comment-composer {
@@ -330,22 +346,26 @@
   }
 
   .comment-input {
+    box-sizing: border-box;
+    display: block;
     min-height: 2.75rem;
     max-height: 8rem;
     width: 100%;
     resize: vertical;
-    border: 1px solid var(--color-border-glass-soft);
+    border: 1px solid rgb(255 255 255 / 0.14);
     border-radius: 1.25rem;
-    background: var(--color-action-bg);
+    background: rgb(255 255 255 / 0.075);
     padding: 0.7rem 0.9rem;
     color: var(--color-text-primary);
+    caret-color: var(--color-text-primary);
     font-size: 0.875rem;
     line-height: 1.35;
     outline: none;
   }
 
   .comment-input:focus {
-    border-color: var(--color-border-glass-hover);
+    border-color: rgb(255 255 255 / 0.28);
+    background: rgb(255 255 255 / 0.1);
   }
 
   .comment-composer-actions {
