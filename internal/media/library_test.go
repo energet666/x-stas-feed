@@ -418,6 +418,47 @@ func TestSaveUploadUpdatesRuntimeIndexWithoutRescan(t *testing.T) {
 	}
 }
 
+func TestSaveUploadUsesOriginalFilenameWhenAvailable(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	uploaded, err := library.SaveUpload("New Photo.png", strings.NewReader("uploaded image bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Filename != "New Photo.png" {
+		t.Fatalf("expected original filename, got %#v", uploaded)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "New Photo.png")); err != nil {
+		t.Fatalf("expected uploaded file to use original filename: %v", err)
+	}
+}
+
+func TestSaveUploadAddsNumericSuffixForDuplicateFilename(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	first, err := library.SaveUpload("clip.MP4", strings.NewReader("first video"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := library.SaveUpload("clip.MP4", strings.NewReader("second video"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, err := library.SaveUpload("clip.MP4", strings.NewReader("third video"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.Filename != "clip.MP4" || second.Filename != "clip (1).MP4" || third.Filename != "clip (2).MP4" {
+		t.Fatalf("expected sequential unique filenames, got %q, %q, %q", first.Filename, second.Filename, third.Filename)
+	}
+	if first.DisplayName != first.Filename || second.DisplayName != second.Filename || third.DisplayName != third.Filename {
+		t.Fatalf("expected display names to match unique filenames, got %#v, %#v, %#v", first, second, third)
+	}
+}
+
 func TestSaveUploadAcceptsGenericFiles(t *testing.T) {
 	dir := t.TempDir()
 	library := NewLibrary(dir)

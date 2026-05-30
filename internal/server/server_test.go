@@ -1145,8 +1145,11 @@ func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 	if len(upload.Items) != 2 {
 		t.Fatalf("expected two uploaded items, got %#v", upload)
 	}
-	if upload.Items[0].Filename == upload.Items[1].Filename {
-		t.Fatalf("expected unique generated filenames, got %#v", upload.Items)
+	if upload.Items[0].Filename != "clip.mp4" || upload.Items[1].Filename != "clip (1).mp4" {
+		t.Fatalf("expected original filename plus numeric suffix, got %#v", upload.Items)
+	}
+	if upload.Items[0].DisplayName != "clip.mp4" || upload.Items[1].DisplayName != "clip (1).mp4" {
+		t.Fatalf("expected display names to use unique filenames, got %#v", upload.Items)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)

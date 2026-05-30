@@ -1,19 +1,14 @@
 package media
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
-
-var safeFilenameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 func IsImageFilename(name string) bool {
 	kind, ok := kindForPath(name)
@@ -54,7 +49,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 		return Item{}, err
 	}
 
-	filename, file, err := l.createUploadFile(root, originalName, extension)
+	filename, file, err := l.createUploadFile(root, originalName)
 	if err != nil {
 		return Item{}, err
 	}
@@ -85,7 +80,7 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 		return Item{}, err
 	}
 	item := itemFromFile(filename, path, kind, info)
-	item.DisplayName = originalName
+	item.DisplayName = filename
 	metadata := Metadata{DisplayName: item.DisplayName, LikeCount: item.LikeCount}
 	if updatedMetadata, ok := l.applyAudioMetadata(&item, path, info, metadata); ok {
 		metadata.Audio = updatedMetadata.Audio
@@ -109,15 +104,14 @@ func (l *Library) SaveUploadWithModifiedAt(originalName string, reader io.Reader
 	return item, nil
 }
 
-func (l *Library) createUploadFile(root, originalName, extension string) (string, *os.File, error) {
-	base := strings.TrimSuffix(originalName, filepath.Ext(originalName))
-	base = sanitizeUploadBase(base)
-	if base == "" {
-		base = "media"
-	}
-
-	for attempt := 0; attempt < 16; attempt++ {
-		filename := fmt.Sprintf("%s-%s-%s%s", base, time.Now().UTC().Format("20060102T150405.000000000"), randomUploadSuffix(), extension)
+func (l *Library) createUploadFile(root, originalName string) (string, *os.File, error) {
+	extension := filepath.Ext(originalName)
+	base := strings.TrimSuffix(originalName, extension)
+	for attempt := 0; attempt < 10_000; attempt++ {
+		filename := originalName
+		if attempt > 0 {
+			filename = fmt.Sprintf("%s (%d)%s", base, attempt, extension)
+		}
 		path := filepath.Join(root, filename)
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -135,23 +129,4 @@ func (l *Library) createUploadFile(root, originalName, extension string) (string
 	}
 
 	return "", nil, errors.New("could not allocate upload filename")
-}
-
-func sanitizeUploadBase(base string) string {
-	base = strings.TrimSpace(base)
-	base = strings.Trim(base, ".")
-	base = safeFilenameChars.ReplaceAllString(base, "-")
-	base = strings.Trim(base, "-_.")
-	if len(base) > 80 {
-		base = strings.Trim(base[:80], "-_.")
-	}
-	return base
-}
-
-func randomUploadSuffix() string {
-	var bytes [4]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return "fallback"
-	}
-	return hex.EncodeToString(bytes[:])
 }
