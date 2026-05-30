@@ -80,6 +80,38 @@ func TestFeedScanConvertsImagesToBoardBackgrounds(t *testing.T) {
 	}
 }
 
+func TestFeedScanKeepsGIFAsImageMedia(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "animated.gif")
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var response media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Item.Type != "image" || response.Item.BoardID != "" || response.Item.Filename != "animated.gif" {
+		t.Fatalf("expected scanned gif to remain image media, got %#v", response.Item)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "animated.gif")); err != nil {
+		t.Fatalf("expected original gif to remain in media root: %v", err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, "*.board")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board placeholder for gif, matches=%v err=%v", matches, err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, ".boards", "*_bgimg.gif")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board background for gif, matches=%v err=%v", matches, err)
+	}
+}
+
 func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.txt")
@@ -1057,6 +1089,40 @@ func TestUploadEndpointSavesMediaAndRefreshesFeed(t *testing.T) {
 
 	if res.Code != http.StatusOK || res.Body.String() != "png-content" {
 		t.Fatalf("expected uploaded board background response, got status=%d body=%q", res.Code, res.Body.String())
+	}
+}
+
+func TestUploadEndpointKeepsGIFAsImageMedia(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := newUploadRequest(t, "animation.gif", []byte("gif-content"))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var upload uploadResponse
+	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+		t.Fatal(err)
+	}
+	if len(upload.Items) != 1 {
+		t.Fatalf("expected one uploaded item, got %#v", upload)
+	}
+	item := upload.Items[0]
+	if item.Type != "image" || item.BoardID != "" || !strings.HasSuffix(item.Filename, ".gif") {
+		t.Fatalf("expected uploaded gif image item, got %#v", item)
+	}
+	if _, err := os.Stat(filepath.Join(dir, item.Filename)); err != nil {
+		t.Fatalf("expected uploaded gif file: %v", err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, "*.board")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board placeholder for uploaded gif, matches=%v err=%v", matches, err)
+	}
+	if matches, err := filepath.Glob(filepath.Join(dir, ".boards", "*_bgimg.gif")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no board background for uploaded gif, matches=%v err=%v", matches, err)
 	}
 }
 

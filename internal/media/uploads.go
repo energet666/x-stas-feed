@@ -20,6 +20,10 @@ func IsImageFilename(name string) bool {
 	return ok && kind == "image"
 }
 
+func IsBoardBackgroundImageFilename(name string) bool {
+	return IsImageFilename(name) && strings.ToLower(filepath.Ext(name)) != ".gif"
+}
+
 func (l *Library) SaveUpload(originalName string, reader io.Reader) (Item, error) {
 	return l.SaveUploadWithModifiedAt(originalName, reader, time.Time{})
 }

@@ -215,7 +215,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		}
 		var item media.Item
 		var uploadErr error
-		if media.IsImageFilename(filename) {
+		if media.IsBoardBackgroundImageFilename(filename) {
 			var board media.BoardInfo
 			board, uploadErr = s.boards.CreateWithImageBackground(filename, filename, part, sourceModifiedAt)
 			if uploadErr == nil {

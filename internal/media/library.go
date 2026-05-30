@@ -422,7 +422,7 @@ func (l *Library) Scan() ([]Item, error) {
 		rel = filepath.ToSlash(rel)
 
 		item := itemFromFile(rel, path, kind, info)
-		if kind == "image" && l.boards != nil {
+		if l.boards != nil && IsBoardBackgroundImageFilename(rel) {
 			converted, err := l.convertScannedImageToBoard(item, path, info)
 			if err != nil {
 				return err
