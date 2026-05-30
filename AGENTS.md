@@ -24,7 +24,7 @@ Build a modern Instagram-like infinite media feed for photos and videos. Test me
 
 - Use Svelte 5 with runes. Avoid legacy Svelte practices.
 - Use Vite.
-- Use Tailwind CSS 4.x and daisyUI 5.x.
+- Use Tailwind CSS 4.x. Follow the in-house design system documented in `DESIGN.md`; do not add daisyUI.
 - Use lucide icons via the Svelte package.
 - Target the main modern browsers.
 - The UI should be a modern one-column Instagram-like feed with infinite loading.

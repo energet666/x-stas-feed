@@ -24,12 +24,12 @@
 
 {#if item}
   <aside class="comments-panel" aria-label={`Comments for ${item.displayName}`}>
-    <header class="flex items-center justify-between gap-3 border-b border-glass-border-soft px-4 py-3">
+    <header class="flex items-center justify-between gap-3 border-b border-border-glass-soft px-4 py-3">
       <div class="min-w-0">
         <p class="text-xs font-semibold uppercase text-subtle">Comments</p>
         <h2 class="truncate text-base font-semibold text-primary">{item.displayName}</h2>
       </div>
-      <button class="glass-icon-button" type="button" aria-label="Close comments" onclick={onClose}>
+      <button class="ui-icon-button" type="button" aria-label="Close comments" onclick={onClose}>
         <X size={18} />
       </button>
     </header>
@@ -54,13 +54,13 @@
     width: 100%;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: inherit;
     background:
       linear-gradient(180deg, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.48)),
       var(--background-image-glass-strong);
     box-shadow: var(--shadow-popover);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     backdrop-filter: blur(26px) saturate(170%);
     -webkit-backdrop-filter: blur(26px) saturate(170%);
   }

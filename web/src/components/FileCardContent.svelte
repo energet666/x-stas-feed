@@ -128,7 +128,7 @@
     display: grid;
     width: min(100%, 26rem);
     gap: 1rem;
-    color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   .file-card-icon-shell {
@@ -136,7 +136,7 @@
     width: 5.5rem;
     height: 5.5rem;
     place-items: center;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: 1.25rem;
     background: rgb(255 255 255 / 0.08);
     box-shadow: var(--shadow-overlay);
@@ -186,7 +186,7 @@
   }
 
   dt {
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -197,7 +197,7 @@
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.9rem;
     font-weight: 650;
   }
@@ -215,11 +215,11 @@
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: 999px;
     padding: 0.65rem 0.85rem;
     background: rgb(255 255 255 / 0.1);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.9rem;
     font-weight: 800;
     text-decoration: none;
@@ -230,7 +230,7 @@
   }
 
   .file-card-action:hover {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
     background: rgb(255 255 255 / 0.16);
     transform: translateY(-1px);
   }

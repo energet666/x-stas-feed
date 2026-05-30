@@ -103,7 +103,7 @@
     justify-content: center;
     gap: 0.3rem;
     border-radius: 999px;
-    color: color-mix(in srgb, var(--color-primary) 88%, #f43f5e 12%);
+    color: color-mix(in srgb, var(--color-text-primary) 88%, #f43f5e 12%);
     font-size: 0.78rem;
     font-weight: 900;
     line-height: 1;
@@ -152,7 +152,7 @@
     width: 100%;
     align-items: center;
     gap: 0.6rem;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     text-align: left;
   }
 
@@ -161,7 +161,7 @@
     min-width: 2.75rem;
     align-items: center;
     gap: 0.3rem;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.75rem;
     font-weight: 800;
     line-height: 1;
@@ -171,7 +171,7 @@
     display: -webkit-box;
     min-width: 0;
     overflow: hidden;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     font-size: 0.78rem;
     font-weight: 600;
     line-height: 1.35;
@@ -184,7 +184,7 @@
 
   .feed-card-comments-preview:hover .feed-card-comments-count,
   .feed-card-comments-preview:hover .feed-card-comments-text {
-    color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   @media (width < 520px) {

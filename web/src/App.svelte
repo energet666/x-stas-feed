@@ -1287,7 +1287,7 @@
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const backgroundFocused = !target.closest(
-      'article, header, aside, .glass-panel, .drawing-board, .debug-overlay, button, input, textarea, select, a, [role="button"], [role="application"], [role="dialog"]'
+      'article, header, aside, .ui-panel, .drawing-board, .debug-overlay, button, input, textarea, select, a, [role="button"], [role="application"], [role="dialog"]'
     );
 
     window.dispatchEvent(
@@ -1339,7 +1339,7 @@
   {#if !gameActive}
     {#if pageDragActive}
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
-        <div class="glass-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
+        <div class="ui-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
           <LoaderCircle class="text-primary" size={30} />
           <p class="text-sm font-bold text-primary">Drop files to upload</p>
         </div>
@@ -1380,15 +1380,15 @@
         {/if}
 
         {#if isEmpty && isFavoriteMode}
-          <div class="glass-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
-            <div class="grid size-12 place-items-center rounded-full border border-glass-border-soft bg-button-bg text-primary">
+          <div class="ui-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
+            <div class="grid size-12 place-items-center rounded-full border border-border-glass-soft bg-action-bg text-primary">
               <Star size={22} />
             </div>
             <div class="space-y-1">
               <h2 class="text-base font-bold text-primary">No favorites to show</h2>
               <p class="max-w-xs text-sm font-semibold text-muted">Star media cards to keep them here.</p>
             </div>
-            <button class="glass-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
+            <button class="ui-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
           </div>
         {/if}
 
@@ -1400,7 +1400,7 @@
           {@const item = row.item}
           <article
             data-media-id={item.id}
-            class="glass-card mb-4 overflow-hidden"
+            class="ui-media-card mb-4 overflow-hidden"
             class:media-card-expanded={expandedItemID === item.id}
             use:measureCard={item.id}
             use:prepareAmbient={item.id}
@@ -1625,11 +1625,11 @@
     width: 3rem;
     height: 3rem;
     place-items: center;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: 999px;
     background: var(--background-image-glass-strong);
     box-shadow: var(--shadow-control);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     transition:
@@ -1639,7 +1639,7 @@
   }
 
   .feed-top-button:hover {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
     box-shadow: var(--shadow-control-hover);
     transform: translateY(-2px);
   }

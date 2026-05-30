@@ -72,7 +72,7 @@
   const formatBool = (value: boolean) => (value ? 'yes' : 'no');
 </script>
 
-<aside class="debug-overlay side-glass-panel" class:debug-overlay-collapsed={collapsed}>
+<aside class="debug-overlay ui-panel-side" class:debug-overlay-collapsed={collapsed}>
   <button
     class="debug-toggle"
     class:debug-toggle-collapsed={collapsed}

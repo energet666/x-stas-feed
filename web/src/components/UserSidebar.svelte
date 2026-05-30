@@ -84,7 +84,7 @@
   }
 </script>
 
-<aside class="user-sidebar glass-panel side-glass-panel" aria-label="Profile settings">
+<aside class="user-sidebar ui-panel ui-panel-side" aria-label="Profile settings">
   <div class="user-sidebar-body">
     <label class="mb-2 block text-xs font-semibold text-subtle" for="username-input">Тебя зовут:</label>
     <div class="flex gap-2">
@@ -98,7 +98,7 @@
         bind:value={username}
         placeholder={fallbackUsername}
       />
-      <button class="glass-icon-button" type="button" aria-label="Generate random nickname" onclick={randomizeUsername}>
+      <button class="ui-icon-button" type="button" aria-label="Generate random nickname" onclick={randomizeUsername}>
         <Dice5 size={18} />
       </button>
     </div>
@@ -130,22 +130,22 @@
     min-width: 0;
     width: 100%;
     height: 2.25rem;
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
-    background: var(--color-button-bg);
+    background: var(--color-action-bg);
     padding: 0 0.85rem;
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.875rem;
     font-weight: 700;
     outline: none;
   }
 
   .username-input::placeholder {
-    color: var(--color-subtle);
+    color: var(--color-text-subtle);
   }
 
   .username-input:focus {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
   }
 
   .master-board-preview-container {
@@ -154,7 +154,7 @@
     width: 100%;
     aspect-ratio: 3 / 2;
     border-radius: var(--radius-overlay);
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     overflow: hidden;
     cursor: pointer;
     padding: 0;
@@ -163,7 +163,7 @@
   }
 
   .master-board-preview-container:hover {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }

@@ -183,7 +183,7 @@
 
   .media-playback-button,
   :global(.media-playback-button) {
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     transition:
       background 140ms ease,
       color 140ms ease,
@@ -192,14 +192,14 @@
 
   .media-playback-button:hover,
   :global(.media-playback-button:hover) {
-    background: var(--color-button-hover);
-    color: var(--color-primary);
+    background: var(--color-action-hover);
+    color: var(--color-text-primary);
     transform: scale(1.04);
   }
 
   .media-playback-time {
     width: 2.35rem;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }
@@ -243,7 +243,7 @@
     height: 0.72rem;
     appearance: none;
     border-radius: 999px;
-    background: var(--color-primary);
+    background: var(--color-text-primary);
     box-shadow: var(--shadow-thumb);
   }
 
@@ -252,7 +252,7 @@
     height: 0.72rem;
     border: 0;
     border-radius: 999px;
-    background: var(--color-primary);
+    background: var(--color-text-primary);
     box-shadow: var(--shadow-thumb);
   }
 

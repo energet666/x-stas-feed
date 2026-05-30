@@ -25,7 +25,7 @@
   </div>
   <div class="flex shrink-0 items-center gap-2">
     <button
-      class="glass-icon-button favorite-button"
+      class="ui-icon-button favorite-button"
       class:favorite-button-active={favorite}
       type="button"
       aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -38,7 +38,7 @@
       <Star size={16} fill={favorite ? 'currentColor' : 'none'} />
     </button>
     <button
-      class="glass-icon-button"
+      class="ui-icon-button"
       type="button"
       aria-label={expanded ? 'Close fullscreen media' : 'Open media fullscreen'}
       title={expanded ? 'Close fullscreen media' : 'Open media fullscreen'}

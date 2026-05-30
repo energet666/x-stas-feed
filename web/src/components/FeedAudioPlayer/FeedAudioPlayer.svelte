@@ -404,7 +404,7 @@
     gap: clamp(1.4rem, 3.5vw, 2.2rem);
     padding: clamp(4.4rem, 12vw, 6rem) clamp(1.25rem, 5vw, 3rem) clamp(7.5rem, 14vw, 8.5rem);
     background: rgb(12 16 22);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   .audio-card-surface::before {
@@ -533,11 +533,11 @@
   }
 
   .audio-artist {
-    color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   .audio-album {
-    color: var(--color-muted);
+    color: var(--color-text-muted);
   }
 
   .audio-error {

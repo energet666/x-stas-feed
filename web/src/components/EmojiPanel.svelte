@@ -146,7 +146,7 @@
     height: min(20rem, 44vh);
     min-height: 16rem;
     max-width: calc(100vw - 2rem);
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: 1rem;
     background: color-mix(in srgb, var(--color-glass-fallback) 94%, transparent);
     box-shadow: 0 18px 45px rgb(0 0 0 / 0.22);

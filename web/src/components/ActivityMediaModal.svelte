@@ -42,7 +42,7 @@
       <p class="text-xs font-semibold uppercase text-subtle">{item?.type === 'board' ? 'Board activity' : 'Activity comment'}</p>
       <h2 class="truncate text-base font-bold text-primary">{item?.displayName ?? 'Loading media'}</h2>
     </div>
-    <button class="glass-icon-button" type="button" aria-label="Close media" onclick={onClose}>
+    <button class="ui-icon-button" type="button" aria-label="Close media" onclick={onClose}>
       <X size={18} />
     </button>
   </header>
@@ -57,7 +57,7 @@
     </div>
   {:else if item}
     <div class="activity-modal-body">
-      <article class="activity-modal-card glass-card overflow-hidden">
+      <article class="activity-modal-card ui-media-card overflow-hidden">
         <MediaCard
           {item}
           expanded={false}
@@ -107,12 +107,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--color-glass-border);
-    border-radius: var(--radius-card);
+    border: 1px solid var(--color-border-glass);
+    border-radius: var(--radius-media-card);
     background:
       linear-gradient(180deg, rgb(0 0 0 / 0.66), rgb(0 0 0 / 0.5)),
       var(--background-image-glass-strong);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     backdrop-filter: blur(26px) saturate(170%);
     -webkit-backdrop-filter: blur(26px) saturate(170%);
   }
@@ -122,7 +122,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    border-bottom: 1px solid var(--color-glass-border-soft);
+    border-bottom: 1px solid var(--color-border-glass-soft);
     padding: 0.85rem 1rem;
   }
 
@@ -140,14 +140,14 @@
     flex: 1;
     grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
     gap: 1px;
-    background: var(--color-glass-border-soft);
+    background: var(--color-border-glass-soft);
   }
 
   .activity-modal-card {
     min-height: 0;
     border: 0;
     border-radius: 0;
-    background: var(--color-media);
+    background: var(--color-surface-media);
   }
 
   .activity-modal-card :global(.media-frame) {

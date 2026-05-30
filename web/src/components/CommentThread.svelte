@@ -229,7 +229,7 @@
   {:else}
     <div class="space-y-3">
       {#each comments as comment (comment.id)}
-        <article class="rounded-overlay border border-glass-border-soft bg-button-bg px-3 py-2">
+        <article class="rounded-overlay border border-border-glass-soft bg-action-bg px-3 py-2">
           <div class="comment-meta-row">
             <div class="comment-author-time">
               <span class="comment-author">{comment.author || 'Guest'}</span>
@@ -268,7 +268,7 @@
   {/if}
 
   {#if error}
-    <div class="mt-4 rounded-overlay border border-glass-border-soft bg-button-bg px-3 py-2 text-sm font-semibold text-danger">
+    <div class="mt-4 rounded-overlay border border-border-glass-soft bg-action-bg px-3 py-2 text-sm font-semibold text-danger">
       {error}
     </div>
   {/if}
@@ -317,7 +317,7 @@
   }
 
   .comment-thread-form {
-    border-top: 1px solid var(--color-glass-border-soft);
+    border-top: 1px solid var(--color-border-glass-soft);
     padding: 0.75rem;
   }
 
@@ -334,18 +334,18 @@
     max-height: 8rem;
     width: 100%;
     resize: vertical;
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: 1.25rem;
-    background: var(--color-button-bg);
+    background: var(--color-action-bg);
     padding: 0.7rem 0.9rem;
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.875rem;
     line-height: 1.35;
     outline: none;
   }
 
   .comment-input:focus {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
   }
 
   .comment-composer-actions {
@@ -360,7 +360,7 @@
     height: 1.9rem;
     place-items: center;
     border-radius: 999px;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     transition:
       background 160ms ease,
       color 160ms ease,
@@ -369,8 +369,8 @@
 
   .emoji-toggle-button:hover,
   .emoji-toggle-button-active {
-    background: var(--color-button-hover);
-    color: var(--color-primary);
+    background: var(--color-action-hover);
+    color: var(--color-text-primary);
   }
 
   .emoji-toggle-button:hover {
@@ -400,7 +400,7 @@
   .comment-author {
     min-width: 0;
     overflow: hidden;
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.82rem;
     font-weight: 800;
     line-height: 1.15;
@@ -410,7 +410,7 @@
 
   .comment-time {
     flex: 0 0 auto;
-    color: var(--color-subtle);
+    color: var(--color-text-subtle);
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1.15;
@@ -424,7 +424,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 0.25rem;
-    color: color-mix(in srgb, var(--color-primary) 82%, #f43f5e 18%);
+    color: color-mix(in srgb, var(--color-text-primary) 82%, #f43f5e 18%);
     font-size: 0.72rem;
     font-weight: 900;
     line-height: 1;

@@ -126,7 +126,7 @@
   }
 </script>
 
-<header class="feed-toolbar glass-panel side-glass-panel" aria-label="Feed controls">
+<header class="feed-toolbar ui-panel ui-panel-side" aria-label="Feed controls">
   <div class="feed-toolbar-brand">
     <div class="min-w-0">
       <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed+AI</h1>
@@ -135,7 +135,7 @@
   <div class="feed-toolbar-actions">
       {#if newFeedItemCount > 0 && feedMode === 'all'}
         <button
-          class="glass-button feed-refresh-button gap-2"
+          class="ui-button feed-refresh-button gap-2"
           type="button"
           aria-label="Show new feed items"
           title="Show new feed items"
@@ -148,7 +148,7 @@
         </button>
       {/if}
       <button
-        class="glass-button favorites-mode-button gap-2"
+        class="ui-button favorites-mode-button gap-2"
         class:favorites-mode-button-active={feedMode === 'favorites'}
         type="button"
         aria-label={feedMode === 'favorites' ? 'Show all media' : 'Show favorites'}
@@ -159,7 +159,7 @@
         <span class="min-w-0 flex-1 truncate text-left">{feedMode === 'favorites' ? 'All' : 'Favorites'}</span>
       </button>
       <button
-        class="glass-button upload-drop-in gap-2"
+        class="ui-button upload-drop-in gap-2"
         class:upload-drop-in-active={dragActive}
         class:upload-drop-in-error={uploadStatus === 'error'}
         type="button"
@@ -197,7 +197,7 @@
         onchange={handleInputChange}
       />
       <button
-        class="glass-button board-create-button gap-2"
+        class="ui-button board-create-button gap-2"
         type="button"
         aria-label="Create drawing board"
         title="Create drawing board"
@@ -221,7 +221,7 @@
         onkeydown={handleBoardNameKeydown}
       />
       <button
-        class="glass-button board-name-action"
+        class="ui-button board-name-action"
         type="submit"
         aria-label="Create board"
         title="Create board"
@@ -234,7 +234,7 @@
         {/if}
       </button>
       <button
-        class="glass-button board-name-action"
+        class="ui-button board-name-action"
         type="button"
         aria-label="Cancel board creation"
         title="Cancel"
@@ -272,13 +272,13 @@
     margin-top: 0.75rem;
   }
 
-  .feed-toolbar-actions :global(.glass-button) {
+  .feed-toolbar-actions :global(.ui-button) {
     width: 100%;
     min-width: 0;
     justify-content: flex-start;
   }
 
-  .feed-toolbar-actions :global(.glass-button > svg) {
+  .feed-toolbar-actions :global(.ui-button > svg) {
     flex-shrink: 0;
   }
 
@@ -323,13 +323,13 @@
   }
 
   .upload-drop-in-active {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
     background: var(--background-image-glass-strong);
     transform: translateY(-1px);
   }
 
   .upload-drop-in-error {
-    color: var(--color-danger);
+    color: var(--color-text-danger);
   }
 
   .favorites-mode-button {
@@ -355,7 +355,7 @@
   .board-name-input {
     min-width: 0;
     border-radius: 0.85rem;
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     background: rgb(0 0 0 / 0.22);
     padding: 0.55rem 0.7rem;
     color: var(--color-text-primary);
@@ -369,7 +369,7 @@
   }
 
   .board-name-input:focus {
-    border-color: var(--color-glass-border-hover);
+    border-color: var(--color-border-glass-hover);
     background: rgb(0 0 0 / 0.3);
   }
 
@@ -381,7 +381,7 @@
 
   .board-name-error {
     grid-column: 1 / -1;
-    color: var(--color-danger);
+    color: var(--color-text-danger);
     font-size: 0.72rem;
     font-weight: 700;
     line-height: 1.2;

@@ -3,31 +3,51 @@
 @theme {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Colors */
-  --color-background: rgb(0 0 0);
-  --color-primary: rgb(255 255 255);
-  --color-secondary: rgb(255 255 255 / 0.86);
-  --color-muted: rgb(255 255 255 / 0.72);
-  --color-subtle: rgb(255 255 255 / 0.54);
-  --color-danger: rgb(254 202 202);
-  --color-media: rgb(0 0 0);
-  --color-overlay: rgb(0 0 0 / 0.86);
+  /* Semantic Colors */
+  --color-page: rgb(0 0 0);
+  --color-surface-media: rgb(0 0 0);
+  --color-surface-overlay: rgb(0 0 0 / 0.86);
+  --color-text-primary: rgb(255 255 255);
+  --color-text-secondary: rgb(255 255 255 / 0.86);
+  --color-text-muted: rgb(255 255 255 / 0.72);
+  --color-text-subtle: rgb(255 255 255 / 0.54);
+  --color-text-danger: rgb(254 202 202);
+
+  /* Compatibility aliases. Prefer semantic names for new code. */
+  --color-background: var(--color-page);
+  --color-primary: var(--color-text-primary);
+  --color-secondary: var(--color-text-secondary);
+  --color-muted: var(--color-text-muted);
+  --color-subtle: var(--color-text-subtle);
+  --color-danger: var(--color-text-danger);
+  --color-media: var(--color-surface-media);
+  --color-overlay: var(--color-surface-overlay);
 
   /* Glass Colors */
-  --color-glass-border: rgb(255 255 255 / 0.18);
-  --color-glass-border-soft: rgb(255 255 255 / 0.16);
-  --color-glass-border-hover: rgb(255 255 255 / 0.3);
+  --color-border-glass: rgb(255 255 255 / 0.18);
+  --color-border-glass-soft: rgb(255 255 255 / 0.16);
+  --color-border-glass-hover: rgb(255 255 255 / 0.3);
   --color-glass-highlight: rgb(255 255 255 / 0.16);
   --color-glass-fallback: rgb(17 19 24 / 0.96);
+
+  /* Compatibility aliases. Prefer semantic names for new code. */
+  --color-glass-border: var(--color-border-glass);
+  --color-glass-border-soft: var(--color-border-glass-soft);
+  --color-glass-border-hover: var(--color-border-glass-hover);
 
   /* UI Element Colors */
   --color-track-bg: rgb(255 255 255 / 0.2);
   --color-track-bg-strong: rgb(255 255 255 / 0.25);
   --color-track-fill: rgb(255 255 255 / 0.9);
-  --color-button-hover: rgb(255 255 255 / 0.12);
-  --color-button-hover-strong: rgb(255 255 255 / 0.14);
-  --color-button-bg: rgb(255 255 255 / 0.08);
+  --color-action-hover: rgb(255 255 255 / 0.12);
+  --color-action-hover-strong: rgb(255 255 255 / 0.14);
+  --color-action-bg: rgb(255 255 255 / 0.08);
   --color-debug-cell: rgb(255 255 255 / 0.05);
+
+  /* Compatibility aliases. Prefer semantic names for new code. */
+  --color-button-hover: var(--color-action-hover);
+  --color-button-hover-strong: var(--color-action-hover-strong);
+  --color-button-bg: var(--color-action-bg);
 
   /* Glass Backgrounds */
   --background-image-glass: rgb(0 0 0 / 0.04);
@@ -39,13 +59,13 @@
   --background-image-glass-overlay: rgb(0 0 0 / 0.22);
 
   /* Shadows */
-  --shadow-card: 0 1px 0 var(--color-glass-border) inset;
-  --shadow-control: 0 1px 0 var(--color-glass-border-soft) inset;
+  --shadow-card: 0 1px 0 var(--color-border-glass) inset;
+  --shadow-control: 0 1px 0 var(--color-border-glass-soft) inset;
   --shadow-control-hover: 0 1px 0 rgb(255 255 255 / 0.22) inset;
   --shadow-nav: 0 1px 0 var(--color-glass-highlight) inset;
-  --shadow-overlay: 0 1px 0 var(--color-glass-border-soft) inset, 0 -1px 0 rgb(255 255 255 / 0.09) inset;
-  --shadow-video-controls: 0 1px 0 var(--color-glass-border) inset;
-  --shadow-debug: 0 1px 0 var(--color-glass-border) inset;
+  --shadow-overlay: 0 1px 0 var(--color-border-glass-soft) inset, 0 -1px 0 rgb(255 255 255 / 0.09) inset;
+  --shadow-video-controls: 0 1px 0 var(--color-border-glass) inset;
+  --shadow-debug: 0 1px 0 var(--color-border-glass) inset;
   --shadow-popover: none;
   --shadow-seek: none;
   --shadow-play: none;
@@ -54,10 +74,14 @@
   --drop-shadow-text: 0 1px 8px rgb(0 0 0 / 0.34);
 
   /* Border Radii */
-  --radius-card: 1.75rem;
+  --radius-media-card: 1.75rem;
+  --radius-panel: 1.75rem;
   --radius-overlay: 1.25rem;
   --radius-control: 999px;
   --radius-toolbar: 1.5rem;
+
+  /* Compatibility alias. Prefer purpose-specific radii for new code. */
+  --radius-card: var(--radius-media-card);
 
   /* Patterns */
   --background-pattern-lines: repeating-linear-gradient(45deg,
@@ -84,8 +108,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--color-background);
-  color: var(--color-primary);
+  background: var(--color-page);
+  color: var(--color-text-primary);
 }
 
 button,
@@ -101,8 +125,9 @@ video {
 
 
 @layer components {
-  .glass-nav {
-    border-bottom: 1px solid var(--color-glass-border-soft);
+  .glass-nav,
+  .ui-nav {
+    border-bottom: 1px solid var(--color-border-glass-soft);
     background: var(--background-image-glass-nav);
     box-shadow: var(--shadow-nav);
     backdrop-filter: blur(30px) saturate(170%);
@@ -110,18 +135,21 @@ video {
   }
 
   .glass-card,
-  .glass-panel {
+  .glass-panel,
+  .ui-media-card,
+  .ui-panel {
     position: relative;
-    border: 1px solid var(--color-glass-border);
-    border-radius: var(--radius-card);
+    border: 1px solid var(--color-border-glass);
+    border-radius: var(--radius-media-card);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-card);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     backdrop-filter: blur(4px) saturate(140%);
     -webkit-backdrop-filter: blur(4px) saturate(140%);
   }
 
-  .glass-card {
+  .glass-card,
+  .ui-media-card {
     border-color: rgb(255 255 255 / 0.12);
     background: transparent;
     box-shadow: none;
@@ -129,29 +157,36 @@ video {
     -webkit-backdrop-filter: none;
   }
 
-  .glass-card::before {
+  .glass-card::before,
+  .ui-media-card::before {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: var(--color-media);
+    background: var(--color-surface-media);
     content: '';
   }
 
-  .glass-card::after {
+  .glass-card::after,
+  .ui-media-card::after {
     content: none;
   }
 
   .glass-card>*,
-  .glass-panel>* {
+  .glass-panel>*,
+  .ui-media-card>*,
+  .ui-panel>* {
     position: relative;
   }
 
-  .glass-card>* {
+  .glass-card>*,
+  .ui-media-card>* {
     z-index: 1;
   }
 
   .side-glass-panel,
-  .glass-panel.side-glass-panel {
+  .glass-panel.side-glass-panel,
+  .ui-panel-side,
+  .ui-panel.ui-panel-side {
     isolation: isolate;
     background: var(--background-image-glass-side);
     backdrop-filter: blur(5px) saturate(115%);
@@ -160,16 +195,18 @@ video {
   }
 
   .glass-button,
-  .glass-pill {
+  .glass-pill,
+  .ui-button,
+  .ui-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 2rem;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: var(--radius-control);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-control);
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     font-size: 0.75rem;
     font-weight: 700;
     line-height: 1;
@@ -177,7 +214,8 @@ video {
     -webkit-backdrop-filter: blur(28px) saturate(210%);
   }
 
-  .glass-button {
+  .glass-button,
+  .ui-button {
     padding: 0.45rem 0.85rem;
     transition:
       border-color 140ms ease,
@@ -185,15 +223,28 @@ video {
       transform 140ms ease;
   }
 
-  .glass-button:hover {
-    border-color: var(--color-glass-border-hover);
+  .glass-button:hover,
+  .ui-button:hover {
+    border-color: var(--color-border-glass-hover);
     box-shadow: var(--shadow-control-hover);
     transform: translateY(-1px);
   }
 
-  .glass-pill {
+  .ui-button-danger {
+    border-color: color-mix(in srgb, var(--color-text-danger) 45%, transparent);
+    color: var(--color-text-danger);
+  }
+
+  .ui-button-danger:hover {
+    border-color: color-mix(in srgb, var(--color-text-danger) 70%, transparent);
+    background: color-mix(in srgb, var(--color-text-danger) 14%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  .glass-pill,
+  .ui-pill {
     padding: 0.35rem 0.65rem;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
   }
 
   .media-frame {
@@ -203,7 +254,8 @@ video {
     overflow: hidden;
   }
 
-  .card-overlay {
+  .card-overlay,
+  .ui-overlay-panel {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
@@ -227,30 +279,34 @@ video {
       transform 180ms ease;
   }
 
-  .card-overlay h2 {
-    color: var(--color-primary);
+  .card-overlay h2,
+  .ui-overlay-panel h2 {
+    color: var(--color-text-primary);
     filter: drop-shadow(var(--drop-shadow-text));
   }
 
-  .card-overlay p {
-    color: var(--color-muted);
+  .card-overlay p,
+  .ui-overlay-panel p {
+    color: var(--color-text-muted);
   }
 
-  .card-overlay-visible {
+  .card-overlay-visible,
+  .ui-overlay-panel-visible {
     opacity: 1;
     transform: translateY(0);
   }
 
-  .glass-icon-button {
+  .glass-icon-button,
+  .ui-icon-button {
     display: grid;
     width: 2.25rem;
     height: 2.25rem;
     flex-shrink: 0;
     place-items: center;
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
-    background: var(--color-button-bg);
-    color: var(--color-secondary);
+    background: var(--color-action-bg);
+    color: var(--color-text-secondary);
     transition:
       background 140ms ease,
       border-color 140ms ease,
@@ -258,11 +314,23 @@ video {
       transform 140ms ease;
   }
 
-  .glass-icon-button:hover {
-    border-color: var(--color-glass-border-hover);
-    background: var(--color-button-hover-strong);
-    color: var(--color-primary);
+  .glass-icon-button:hover,
+  .ui-icon-button:hover {
+    border-color: var(--color-border-glass-hover);
+    background: var(--color-action-hover-strong);
+    color: var(--color-text-primary);
     transform: scale(1.04);
+  }
+
+  .ui-icon-button-danger {
+    border-color: color-mix(in srgb, var(--color-text-danger) 42%, transparent);
+    color: var(--color-text-danger);
+  }
+
+  .ui-icon-button-danger:hover {
+    border-color: color-mix(in srgb, var(--color-text-danger) 70%, transparent);
+    background: color-mix(in srgb, var(--color-text-danger) 14%, transparent);
+    color: var(--color-text-primary);
   }
 
   .debug-overlay {
@@ -272,18 +340,19 @@ video {
     z-index: 50;
     width: min(22rem, calc(100vw - 1.5rem));
     overflow: hidden;
-    border: 1px solid var(--color-glass-border);
+    border: 1px solid var(--color-border-glass);
     border-radius: var(--radius-toolbar);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-debug);
-    color: var(--color-primary);
+    color: var(--color-text-primary);
     font-size: 0.75rem;
     line-height: 1.2;
     backdrop-filter: blur(34px) saturate(210%);
     -webkit-backdrop-filter: blur(34px) saturate(210%);
   }
 
-  .debug-overlay.side-glass-panel {
+  .debug-overlay.side-glass-panel,
+  .debug-overlay.ui-panel-side {
     background: var(--background-image-glass-side);
     backdrop-filter: blur(6px) saturate(120%);
     -webkit-backdrop-filter: blur(6px) saturate(120%);
@@ -304,7 +373,7 @@ video {
     left: 50%;
     z-index: 90;
     width: min(42rem, calc(100vw - (var(--comments-panel-fullscreen-inset) * 2)));
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-media-card);
     transform: translateX(-50%);
   }
 
@@ -324,26 +393,26 @@ video {
     min-height: 100%;
     justify-content: center;
     padding: 0;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
   }
 
   .debug-toggle-collapsed:hover {
-    color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   .debug-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
-    border-top: 1px solid var(--color-glass-border-soft);
-    background: var(--color-button-bg);
+    border-top: 1px solid var(--color-border-glass-soft);
+    background: var(--color-action-bg);
   }
 
   .debug-section-title {
-    border-top: 1px solid var(--color-glass-border-soft);
+    border-top: 1px solid var(--color-border-glass-soft);
     background: rgb(255 255 255 / 0.07);
     padding: 0.45rem 0.75rem 0.35rem;
-    color: var(--color-subtle);
+    color: var(--color-text-subtle);
     font-size: 0.62rem;
     font-weight: 800;
     letter-spacing: 0;
@@ -355,10 +424,10 @@ video {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    border-top: 1px solid var(--color-glass-border-soft);
+    border-top: 1px solid var(--color-border-glass-soft);
     background: var(--color-debug-cell);
     padding: 0.5rem 0.75rem;
-    color: var(--color-subtle);
+    color: var(--color-text-subtle);
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -368,24 +437,24 @@ video {
     display: inline-grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     overflow: hidden;
-    border: 1px solid var(--color-glass-border-soft);
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
-    background: var(--color-button-bg);
+    background: var(--color-action-bg);
     text-transform: none;
   }
 
   .debug-segmented button {
     min-width: 4rem;
     padding: 0.3rem 0.55rem;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.7rem;
     font-weight: 800;
   }
 
   .debug-segmented button:hover,
   .debug-segment-active {
-    background: var(--color-button-hover-strong);
-    color: var(--color-primary);
+    background: var(--color-action-hover-strong);
+    color: var(--color-text-primary);
   }
 
   .debug-grid>div {
@@ -395,7 +464,7 @@ video {
   }
 
   .debug-grid dt {
-    color: var(--color-subtle);
+    color: var(--color-text-subtle);
     font-size: 0.68rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -404,7 +473,7 @@ video {
   .debug-grid dd {
     margin: 0.15rem 0 0;
     overflow-wrap: anywhere;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
   }
@@ -430,7 +499,7 @@ video {
     position: fixed;
     inset: 0;
     z-index: 78;
-    background: var(--color-overlay);
+    background: var(--color-surface-overlay);
     backdrop-filter: blur(18px) saturate(130%);
     -webkit-backdrop-filter: blur(18px) saturate(130%);
     content: '';
@@ -448,7 +517,7 @@ video {
     width: auto;
     border: 0;
     border-radius: 0;
-    background: var(--color-media);
+    background: var(--color-surface-media);
     box-shadow: none;
   }
 
@@ -478,10 +547,17 @@ video {
     .glass-panel,
     .glass-button,
     .glass-pill,
+    .ui-media-card,
+    .ui-panel,
+    .ui-button,
+    .ui-pill,
+    .ui-icon-button,
+    .ui-overlay-panel,
     .glass-overlay,
     .card-overlay,
     .feed-card-panel,
     .side-glass-panel,
+    .ui-panel-side,
     .debug-overlay {
       background: var(--color-glass-fallback);
     }
@@ -515,7 +591,7 @@ video {
     filter: blur(36px) brightness(0.45);
     opacity: 1;
     transform: scale(1.22);
-    background: var(--color-background);
+    background: var(--color-page);
     /* Fallback */
   }
 

@@ -34,7 +34,7 @@
 </script>
 
 <button
-  class="activity-mobile-toggle glass-icon-button"
+  class="activity-mobile-toggle ui-icon-button"
   type="button"
   aria-label="Open social activity"
   onclick={() => (mobileOpen = true)}
@@ -46,8 +46,8 @@
   <button class="activity-mobile-backdrop" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}></button>
 {/if}
 
-<aside class="activity-panel glass-panel side-glass-panel" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
-  <button class="activity-close glass-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
+<aside class="activity-panel ui-panel ui-panel-side" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
+  <button class="activity-close ui-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
     <X size={17} />
   </button>
 
@@ -163,7 +163,7 @@
     gap: 0.42rem;
     border-radius: var(--radius-overlay);
     padding: 0.72rem 0.78rem;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     text-align: left;
     transition:
       background 140ms ease,
@@ -171,7 +171,7 @@
   }
 
   .activity-row:hover {
-    background: var(--color-button-bg);
+    background: var(--color-action-bg);
     transform: translateY(-1px);
   }
 
@@ -190,15 +190,15 @@
     align-items: center;
     gap: 0.18rem;
     margin-left: auto;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.78rem;
     font-weight: 700;
     line-height: 1;
   }
 
   .activity-row-likes :global(svg) {
-    fill: color-mix(in srgb, var(--color-danger) 22%, transparent);
-    stroke: var(--color-danger);
+    fill: color-mix(in srgb, var(--color-text-danger) 22%, transparent);
+    stroke: var(--color-text-danger);
   }
 
   .activity-row-author-name {
@@ -219,7 +219,7 @@
     min-width: 0;
     align-items: center;
     gap: 0.4rem;
-    color: var(--color-muted);
+    color: var(--color-text-muted);
     font-size: 0.8rem;
     font-weight: 650;
     line-height: 1.28;
@@ -234,7 +234,7 @@
   .activity-row-text {
     display: -webkit-box;
     overflow: hidden;
-    color: var(--color-secondary);
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     line-height: 1.45;
