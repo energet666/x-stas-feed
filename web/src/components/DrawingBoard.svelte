@@ -91,6 +91,7 @@
   const SIZE_DRAG_STEP_PX = 3;
   const SIZE_DRAG_START_THRESHOLD_PX = 3;
   const NUMBER_INPUT_STEPPER_HIT_WIDTH = 18;
+  const BOARD_WHEEL_SIZE_STEP_DELTA = 28;
 
   onMount(() => {
     loadBrushSettings();
@@ -280,7 +281,7 @@
     ];
   }
 
-  function isPointerInsideRenderedCanvas(event: PointerEvent) {
+  function isPointerInsideRenderedCanvas(event: Pick<MouseEvent, 'clientX' | 'clientY'>) {
     const metrics = getCanvasMetrics();
     if (!metrics) return false;
 
@@ -295,7 +296,7 @@
     );
   }
 
-  function updateBrushCursor(event: PointerEvent) {
+  function updateBrushCursor(event: Pick<MouseEvent, 'clientX' | 'clientY' | 'currentTarget'>) {
     if (!expanded) return;
 
     const metrics = getCanvasMetrics();
@@ -315,7 +316,13 @@
     brushCursorVisible = true;
     brushCursorX = event.clientX - wrapRect.left;
     brushCursorY = event.clientY - wrapRect.top;
-    brushCursorSize = Math.max(2, currentSize * displayScale);
+    updateBrushCursorSize(metrics);
+  }
+
+  function updateBrushCursorSize(metrics = getCanvasMetrics()) {
+    brushCursorSize = metrics
+      ? Math.max(2, currentSize * (metrics.renderedWidth / canvasWidth))
+      : currentSize;
   }
 
   function updateCancelHint(pointerInsideCanvas: boolean) {
@@ -782,10 +789,7 @@
     currentSize = normalizedSize;
     saveBrushSize(normalizedSize);
     if (brushCursorVisible && canvasEl) {
-      const metrics = getCanvasMetrics();
-      brushCursorSize = metrics
-        ? Math.max(2, normalizedSize * (metrics.renderedWidth / canvasWidth))
-        : normalizedSize;
+      updateBrushCursorSize();
     }
   }
 
@@ -798,6 +802,19 @@
     event.preventDefault();
     event.stopPropagation();
     selectSize(currentSize + (event.deltaY < 0 ? 1 : -1));
+  }
+
+  function handleBoardWheel(event: WheelEvent) {
+    if (!expanded || historyMode || event.ctrlKey) return;
+
+    const delta = event.deltaY || event.deltaX;
+    if (delta === 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const step = Math.max(1, Math.round(Math.abs(delta) / BOARD_WHEEL_SIZE_STEP_DELTA));
+    selectSize(currentSize + (delta < 0 ? step : -step));
+    updateBrushCursor(event);
   }
 
   function handleCustomSizePointerDown(event: PointerEvent) {
@@ -1100,6 +1117,7 @@
       aria-label="Drawing board: {boardName}"
       style="--drawing-canvas-aspect: {canvasWidth / canvasHeight};"
       onkeydown={handleKeyDown}
+      onwheel={handleBoardWheel}
       tabindex="-1"
     >
       <canvas
@@ -1434,10 +1452,7 @@
       0 0 8px rgba(0, 0, 0, 0.35);
     opacity: 0;
     pointer-events: none;
-    transition:
-      opacity 90ms ease,
-      width 90ms ease,
-      height 90ms ease;
+    transition: opacity 90ms ease;
     will-change: transform, width, height;
   }
 
