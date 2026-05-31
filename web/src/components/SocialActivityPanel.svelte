@@ -17,6 +17,21 @@
 
   let mobileOpen = $state(false);
 
+  $effect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  });
+
   function formatActivityTime(value: string) {
     return new Date(value).toLocaleString();
   }
@@ -143,9 +158,12 @@
   }
 
   .activity-list {
+    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0.5rem;
+    -webkit-overflow-scrolling: touch;
   }
 
   .activity-empty {
@@ -262,6 +280,7 @@
       bottom: 0.75rem;
       z-index: 36;
       width: min(21rem, calc(100vw - 1.5rem));
+      height: calc(100dvh - 1.5rem);
       max-height: none;
       margin-top: 0;
       transform: translateX(calc(100% + 1rem));
