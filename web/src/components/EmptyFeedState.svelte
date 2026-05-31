@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Image, RefreshCw, Upload } from 'lucide-svelte';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     onRetry,
@@ -26,18 +27,18 @@
 
 <div class="ui-panel flex min-h-96 flex-col items-center justify-center p-8 text-center">
   <Image class="mb-4 text-muted" size={42} />
-  <h2 class="text-lg font-semibold text-primary">No media yet</h2>
+  <h2 class="text-lg font-semibold text-primary">{t.feed.emptyTitle}</h2>
   <p class="mt-2 max-w-sm text-sm font-medium text-muted">
-    Upload files here, or add them to <span class="font-mono">test-content</span>.
+    {t.feed.emptyDescription} <span class="font-mono">test-content</span>.
   </p>
   <div class="mt-5 flex flex-wrap justify-center gap-2">
     <button class="ui-button gap-2" type="button" onclick={openFilePicker}>
       <Upload size={16} />
-      Upload
+      {t.upload.action}
     </button>
     <button class="ui-button gap-2" type="button" onclick={onRetry}>
       <RefreshCw size={16} />
-      Refresh
+      {t.common.refresh}
     </button>
   </div>
   <input bind:this={inputEl} class="sr-only" type="file" multiple onchange={handleInputChange} />

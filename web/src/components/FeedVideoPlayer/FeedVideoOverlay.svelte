@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Play } from 'lucide-svelte';
+  import { uiText as t } from '../../lib/ui_text';
 
   let {
     paused,
@@ -39,13 +40,13 @@
 {/if}
 
 {#if paused}
-  <button class="video-play-overlay absolute grid place-items-center rounded-full" type="button" aria-label="Play video" onclick={onTogglePlay}>
+  <button class="video-play-overlay absolute grid place-items-center rounded-full" type="button" aria-label={t.playback.playVideo} onclick={onTogglePlay}>
     <Play size={26} fill="currentColor" />
   </button>
 {/if}
 
 {#if playBlocked}
-  <div class="video-play-message absolute rounded-full text-xs font-bold">Tap play to start video</div>
+  <div class="video-play-message absolute rounded-full text-xs font-bold">{t.playback.tapPlayToStartVideo}</div>
 {/if}
 
 <style>

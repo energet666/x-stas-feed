@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { CircleAlert, RefreshCw } from "lucide-svelte";
+	import { uiText as t } from '../lib/ui_text';
 
 	let {
 		message,
@@ -16,7 +17,7 @@
 		size={20}
 	/>
 	<div>
-		<h2 class="font-semibold">Could not load the feed</h2>
+		<h2 class="font-semibold">{t.feed.couldNotLoad}</h2>
 		<p class="text-sm opacity-85">{message}</p>
 		<button
 			class="ui-button mt-3 gap-2"
@@ -24,7 +25,7 @@
 			onclick={onRetry}
 		>
 			<RefreshCw size={16} />
-			Try again
+			{t.common.tryAgain}
 		</button>
 	</div>
 </div>

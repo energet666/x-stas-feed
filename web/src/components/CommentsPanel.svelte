@@ -1,6 +1,7 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
   import CommentThread from './CommentThread.svelte';
+  import { uiText as t } from '../lib/ui_text';
   import type { Comment, CommentLikeEvent, MediaItem } from '../lib/feed';
 
   let {
@@ -23,13 +24,13 @@
 </script>
 
 {#if item}
-  <aside class="comments-panel" aria-label={`Comments for ${item.displayName}`}>
+  <aside class="comments-panel" aria-label={t.comments.forMedia(item.displayName)}>
     <header class="flex items-center justify-between gap-3 border-b border-border-glass-soft px-4 py-3">
       <div class="min-w-0">
-        <p class="text-xs font-semibold uppercase text-subtle">Comments</p>
+        <p class="text-xs font-semibold uppercase text-subtle">{t.comments.title}</p>
         <h2 class="truncate text-base font-semibold text-primary">{item.displayName}</h2>
       </div>
-      <button class="ui-icon-button" type="button" aria-label="Close comments" onclick={onClose}>
+      <button class="ui-icon-button" type="button" aria-label={t.comments.close} onclick={onClose}>
         <X size={18} />
       </button>
     </header>

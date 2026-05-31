@@ -72,6 +72,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Favorites are stored only in browser `localStorage` under `feed-ai:favorites`. New favorites are inserted at the front of the ID array, so the favorites view shows most recently saved media first without server-side sorting.
 - The page header owns the all/favorites mode switch. In favorites mode, `App.svelte` requests only the saved favorite IDs through the favorites endpoint and removes an unfavorited visible card immediately while keeping the favorites cursor aligned after ID removal.
 - The former full-width page header is now a compact left-side feed controls panel placed above the user profile panel inside one shared left rail; it still owns upload and all/favorites controls and stacks above the feed on smaller screens.
+- The frontend UI is localized to Russian directly through the typed `web/src/lib/ui_text.ts` module. Do not add a full i18n framework or language switch for v1 unless product scope changes; keep new user-facing strings in that module.
 
 ## Feed Card Layout Decisions
 

@@ -7,11 +7,12 @@
     type Stroke
   } from '../lib/feed';
   import { boardEvents } from '../lib/board_events.svelte';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     mediaId,
     expanded = false,
-    username = 'Guest',
+    username = t.common.guest,
     ambientCanvas,
     previewFill = false,
     onClose
@@ -71,7 +72,7 @@
   let freeformSimplifyEpsilon = $state(DEFAULT_FREEFORM_SIMPLIFY_EPSILON);
   let historyMode = $state(false);
   let historyStrokeCount = $state(0);
-  let boardName = $state('Board');
+  let boardName = $state<string>(t.common.board);
   let brushCursorVisible = $state(false);
   let brushCursorX = $state(0);
   let brushCursorY = $state(0);
@@ -1002,7 +1003,7 @@
   function historyLastAuthor() {
     if (historyStrokeCount <= 0) return '—';
     const author = strokes[historyStrokeCount - 1]?.author?.trim();
-    return author || 'Guest';
+    return author || t.common.guest;
   }
 
   function loadBrushSettings() {
@@ -1114,7 +1115,7 @@
     <div
       class="drawing-canvas-wrap"
       role="application"
-      aria-label="Drawing board: {boardName}"
+      aria-label={t.board.drawingBoardNamed(boardName)}
       style="--drawing-canvas-aspect: {canvasWidth / canvasHeight};"
       onkeydown={handleKeyDown}
       onwheel={handleBoardWheel}
@@ -1157,8 +1158,8 @@
         <button
           class="drawing-close-btn"
           type="button"
-          aria-label="Close drawing board"
-          title="Close drawing board"
+          aria-label={t.board.close}
+          title={t.board.close}
           onclick={closeBoard}
         >
           <X size={18} />
@@ -1175,22 +1176,22 @@
             max={strokes.length}
             step="1"
             value={historyStrokeCount}
-            aria-label="Visible drawing history strokes"
-            title="Visible drawing history strokes"
+            aria-label={t.board.visibleHistoryStrokes}
+            title={t.board.visibleHistoryStrokes}
             onpointerdown={handleHistoryRangePointerDown}
             oninput={handleHistoryRangeInput}
             onkeydown={handleHistoryRangeKeydown}
           />
           <div
             class="drawing-history-count"
-            aria-label={`Showing ${historyStrokeCount} of ${strokes.length} strokes`}
+            aria-label={t.board.showingHistoryStrokes(historyStrokeCount, strokes.length)}
           >
             {historyStrokeCount}/{strokes.length}
           </div>
           <div
             class="drawing-history-author"
-            aria-label={`Last visible stroke author: ${historyLastAuthor()}`}
-            title={`Last visible stroke author: ${historyLastAuthor()}`}
+            aria-label={t.board.lastVisibleStrokeAuthor(historyLastAuthor())}
+            title={t.board.lastVisibleStrokeAuthor(historyLastAuthor())}
           >
             <span>Автор</span>
             <strong>{historyLastAuthor()}</strong>
@@ -1198,8 +1199,8 @@
           <button
             class="drawing-tool-btn drawing-history-exit"
             type="button"
-            aria-label="Exit history mode"
-            title="Exit history mode"
+            aria-label={t.board.exitHistory}
+            title={t.board.exitHistory}
             onclick={exitHistoryMode}
           >
             <X size={16} />
@@ -1211,7 +1212,7 @@
           <button
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={currentTool === 'freeform'}
-            title="Freeform"
+            title={t.board.freeform}
             onclick={() => selectTool('freeform')}
           >
             <Pencil size={16} />
@@ -1219,7 +1220,7 @@
           <button
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={currentTool === 'line'}
-            title="Line"
+            title={t.board.line}
             onclick={() => selectTool('line')}
           >
             <svg
@@ -1238,8 +1239,8 @@
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={showDebugSegments}
             type="button"
-            title="Show point density"
-            aria-label="Show point density"
+            title={t.board.showPointDensity}
+            aria-label={t.board.showPointDensity}
             aria-pressed={showDebugSegments}
             onclick={() => (showDebugSegments = !showDebugSegments)}
           >
@@ -1248,8 +1249,8 @@
           {#if lastRawPointCount !== null && lastSimplifiedPointCount !== null}
             <div
               class="drawing-point-stats"
-              title="Last stroke points before/after simplification"
-              aria-label={`Last stroke points before simplification ${lastRawPointCount}, after simplification ${lastSimplifiedPointCount}`}
+              title={t.board.strokePointStatsTitle}
+              aria-label={t.board.strokePointStats(lastRawPointCount, lastSimplifiedPointCount)}
             >
               <span>{lastRawPointCount}</span>
               <span>{lastSimplifiedPointCount}</span>
@@ -1262,8 +1263,8 @@
             max={MAX_FREEFORM_SIMPLIFY_EPSILON}
             step="0.5"
             value={freeformSimplifyEpsilon}
-            aria-label="Simplification error tolerance"
-            title="Simplification error tolerance"
+            aria-label={t.board.simplificationTolerance}
+            title={t.board.simplificationTolerance}
             oninput={handleSimplifyEpsilonInput}
           />
         </div>
@@ -1275,7 +1276,7 @@
             <button
               class="drawing-size-btn"
               class:drawing-size-btn-active={currentSize === size}
-              title="Size {size}"
+              title={t.board.size(size)}
               onclick={() => selectSize(size)}
             >
               <span
@@ -1292,8 +1293,8 @@
             max={MAX_BRUSH_SIZE}
             step="1"
             value={currentSize}
-            aria-label="Custom brush size"
-            title="Custom brush size"
+            aria-label={t.board.customBrushSize}
+            title={t.board.customBrushSize}
             onclick={handleCustomSizeClick}
             oninput={handleCustomSizeInput}
             onwheel={handleCustomSizeWheel}
@@ -1310,7 +1311,7 @@
           <button
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={showColorPicker}
-            title="Color"
+            title={t.board.color}
             onclick={() => (showColorPicker = !showColorPicker)}
           >
             <Palette size={16} />
@@ -1340,7 +1341,7 @@
                   onclick={() => selectColor(color)}
                 ></button>
               {/each}
-              <label class="drawing-color-custom-wrap" title="Custom color" aria-label="Custom color">
+              <label class="drawing-color-custom-wrap" title={t.board.customColor} aria-label={t.board.customColor}>
                 <Palette size={14} />
                 <span
                   class="drawing-color-custom-preview"
@@ -1362,8 +1363,8 @@
           <button
             class="drawing-tool-btn"
             type="button"
-            title="History"
-            aria-label="Open history mode"
+            title={t.board.history}
+            aria-label={t.board.openHistory}
             onclick={enterHistoryMode}
           >
             <History size={16} />

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pencil, RefreshCw, Star, Upload, X } from 'lucide-svelte';
+  import { uiText as t } from '../lib/ui_text';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
   type FeedMode = 'all' | 'favorites';
@@ -102,7 +103,7 @@
       boardFormOpen = false;
       boardName = '';
     } catch (err) {
-      boardError = err instanceof Error ? err.message : 'Board creation failed';
+      boardError = err instanceof Error ? err.message : t.board.creationFailed;
       boardCreating = false;
       focusBoardNameInput();
     } finally {
@@ -126,7 +127,7 @@
   }
 </script>
 
-<header class="feed-toolbar ui-panel ui-panel-side" aria-label="Feed controls">
+<header class="feed-toolbar ui-panel ui-panel-side" aria-label={t.feed.controls}>
   <div class="feed-toolbar-brand">
     <div class="min-w-0">
       <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed+AI</h1>
@@ -137,13 +138,13 @@
         <button
           class="ui-button feed-refresh-button gap-2"
           type="button"
-          aria-label="Show new feed items"
-          title="Show new feed items"
+          aria-label={t.feed.showNewItems}
+          title={t.feed.showNewItems}
           onclick={onRefreshFeed}
         >
           <RefreshCw size={15} />
           <span class="min-w-0 flex-1 truncate text-left">
-            {newFeedItemCount === 1 ? '1 new item' : `${newFeedItemCount} new items`}
+            {t.feed.showNewItems}: {newFeedItemCount}
           </span>
         </button>
       {/if}
@@ -151,20 +152,20 @@
         class="ui-button favorites-mode-button gap-2"
         class:favorites-mode-button-active={feedMode === 'favorites'}
         type="button"
-        aria-label={feedMode === 'favorites' ? 'Show all media' : 'Show favorites'}
-        title={feedMode === 'favorites' ? 'Show all media' : 'Show favorites'}
+        aria-label={feedMode === 'favorites' ? t.feed.showAllMedia : t.feed.showFavorites}
+        title={feedMode === 'favorites' ? t.feed.showAllMedia : t.feed.showFavorites}
         onclick={onToggleFavoriteMode}
       >
         <Star size={15} fill={feedMode === 'favorites' ? 'currentColor' : 'none'} />
-        <span class="min-w-0 flex-1 truncate text-left">{feedMode === 'favorites' ? 'All' : 'Favorites'}</span>
+        <span class="min-w-0 flex-1 truncate text-left">{feedMode === 'favorites' ? t.feed.all : t.feed.favorites}</span>
       </button>
       <button
         class="ui-button upload-drop-in gap-2"
         class:upload-drop-in-active={dragActive}
         class:upload-drop-in-error={uploadStatus === 'error'}
         type="button"
-        aria-label="Upload files"
-        title="Upload files"
+        aria-label={t.upload.files}
+        title={t.upload.files}
         disabled={uploadStatus === 'uploading'}
         onclick={openFilePicker}
         ondragenter={handleDragEnter}
@@ -199,32 +200,32 @@
       <button
         class="ui-button board-create-button gap-2"
         type="button"
-        aria-label="Create drawing board"
-        title="Create drawing board"
+        aria-label={t.board.createDrawingBoard}
+        title={t.board.createDrawingBoard}
         onclick={openBoardForm}
       >
         <Pencil size={15} />
-        <span class="min-w-0 flex-1 truncate text-left">Board</span>
+        <span class="min-w-0 flex-1 truncate text-left">{t.board.createBoardShort}</span>
       </button>
   </div>
   {#if boardFormOpen}
     <form class="board-name-form" onsubmit={submitBoardForm}>
-      <label class="sr-only" for="board-name-input">Board name</label>
+      <label class="sr-only" for="board-name-input">{t.board.name}</label>
       <input
         bind:this={boardNameInputEl}
         bind:value={boardName}
         id="board-name-input"
         class="board-name-input"
         maxlength="80"
-        placeholder="Board name"
+        placeholder={t.board.namePlaceholder}
         disabled={boardCreating}
         onkeydown={handleBoardNameKeydown}
       />
       <button
         class="ui-button board-name-action"
         type="submit"
-        aria-label="Create board"
-        title="Create board"
+        aria-label={t.board.createBoard}
+        title={t.board.createBoard}
         disabled={boardCreating}
       >
         {#if boardCreating}
@@ -236,8 +237,8 @@
       <button
         class="ui-button board-name-action"
         type="button"
-        aria-label="Cancel board creation"
-        title="Cancel"
+        aria-label={t.board.cancelCreation}
+        title={t.common.cancel}
         disabled={boardCreating}
         onclick={closeBoardForm}
       >

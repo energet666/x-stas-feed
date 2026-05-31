@@ -1,5 +1,6 @@
 <script lang="ts">
   import MediaPlaybackControls from '../MediaPlaybackControls.svelte';
+  import { uiText as t } from '../../lib/ui_text';
 
   let {
     paused,
@@ -37,8 +38,8 @@
 </script>
 
 <MediaPlaybackControls
-  ariaLabel="Audio controls"
-  seekLabel="Seek audio"
+  ariaLabel={t.playback.audioControls}
+  seekLabel={t.playback.seekAudio}
   {paused}
   {currentTime}
   {duration}

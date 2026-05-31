@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { Dice5 } from 'lucide-svelte';
   import { fallbackUsername, randomUsername } from '../lib/usernames';
+  import { uiText as t } from '../lib/ui_text';
   import DrawingBoard from './DrawingBoard.svelte';
 
   let { 
@@ -84,7 +85,7 @@
   }
 </script>
 
-<aside class="user-sidebar ui-panel ui-panel-side" aria-label="Profile settings">
+<aside class="user-sidebar ui-panel ui-panel-side" aria-label={t.profile.settings}>
   <div class="user-sidebar-body">
     <label class="mb-2 block text-xs font-semibold text-subtle" for="username-input">Тебя зовут:</label>
     <div class="flex gap-2">
@@ -98,7 +99,7 @@
         bind:value={username}
         placeholder={fallbackUsername}
       />
-      <button class="ui-icon-button" type="button" aria-label="Generate random nickname" onclick={randomizeUsername}>
+      <button class="ui-icon-button" type="button" aria-label={t.profile.randomNickname} onclick={randomizeUsername}>
         <Dice5 size={18} />
       </button>
     </div>
@@ -109,8 +110,8 @@
 <button
   class="master-board-preview-container"
   type="button"
-  aria-label="Open master drawing board"
-  title="Open master drawing board"
+  aria-label={t.board.openMaster}
+  title={t.board.openMaster}
   onclick={onExpandMasterBoard}
 >
   <DrawingBoard mediaId="master" expanded={false} {username} previewFill={true} />

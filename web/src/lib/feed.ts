@@ -1,3 +1,5 @@
+import { uiText } from './ui_text';
+
 export type Comment = {
   id: string;
   author: string;
@@ -143,7 +145,7 @@ export async function fetchFeedItem(index: number) {
   const response = await fetch(`/api/feed?${params.toString()}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Feed item request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.feedItemRequest(response.status));
   }
 
   const result = (await response.json()) as IndexedFeedItem;
@@ -158,7 +160,7 @@ export async function fetchActivity({ limit }: { limit: number }) {
   const response = await fetch(`/api/activity?${params.toString()}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Activity request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.activityRequest(response.status));
   }
 
   const data = (await response.json()) as { items: Omit<CommentActivityItem, 'type'>[] };
@@ -173,7 +175,7 @@ export async function fetchMediaItem(mediaId: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    const error = new Error(message ?? `Media item request failed with ${response.status}`);
+    const error = new Error(message ?? uiText.errors.mediaItemRequest(response.status));
     (error as Error & { status?: number }).status = response.status;
     throw error;
   }
@@ -185,7 +187,7 @@ export async function fetchComments(mediaId: string) {
   const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/comments`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Comments request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.commentsRequest(response.status));
   }
 
   const body = (await response.json()) as { comments: Comment[] | null };
@@ -201,7 +203,7 @@ export async function createComment(mediaId: string, text: string, author: strin
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Comment request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.commentRequest(response.status));
   }
 
   return (await response.json()) as Comment;
@@ -214,7 +216,7 @@ export async function createLike(mediaId: string) {
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Like request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.likeRequest(response.status));
   }
 
   return (await response.json()) as { likeCount: number };
@@ -230,7 +232,7 @@ export async function createCommentLike(mediaId: string, commentId: string) {
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Comment like request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.commentLikeRequest(response.status));
   }
 
   return (await response.json()) as { likeCount: number };
@@ -240,7 +242,7 @@ export async function fetchShipScores() {
   const response = await fetch('/api/ships/scores');
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Score request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.scoreRequest(response.status));
   }
 
   const data = (await response.json()) as { scores: ShipScore[] };
@@ -256,7 +258,7 @@ export async function createShipScore(name: string, score: number) {
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Score submission failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.scoreSubmission(response.status));
   }
 
   const data = (await response.json()) as { scores: ShipScore[] };
@@ -294,12 +296,12 @@ export function uploadMedia(files: File[], onProgress?: (progress: UploadProgres
       const message =
         body && 'error' in body && typeof body.error === 'string'
           ? body.error
-          : uploadErrorsMessage(body as UploadResult | null) ?? `Upload failed with ${request.status}`;
+          : uploadErrorsMessage(body as UploadResult | null) ?? uiText.upload.failedWithStatus(request.status);
       reject(new Error(message));
     };
 
-    request.onerror = () => reject(new Error('Upload failed'));
-    request.onabort = () => reject(new Error('Upload was cancelled'));
+    request.onerror = () => reject(new Error(uiText.upload.failed));
+    request.onabort = () => reject(new Error(uiText.upload.cancelled));
     request.send(form);
   });
 }
@@ -329,7 +331,7 @@ async function responseErrorMessage(response: Response) {
 function uploadErrorsMessage(body: UploadResult | null) {
   const firstError = body?.errors?.[0];
   if (!firstError) return undefined;
-  return `${firstError.filename || 'File'}: ${firstError.error}`;
+  return `${firstError.filename || uiText.common.file}: ${firstError.error}`;
 }
 
 function normalizeMediaItem(item: MediaItem) {
@@ -393,7 +395,7 @@ export async function createBoard(name: string) {
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Board creation failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.boardCreation(response.status));
   }
 
   return (await response.json()) as BoardInfo;
@@ -403,7 +405,7 @@ export async function fetchBoard(mediaId: string) {
   const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}`);
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Board request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.boardRequest(response.status));
   }
 
   const data = (await response.json()) as BoardData;
@@ -415,7 +417,7 @@ export async function fetchBoards() {
   const response = await fetch('/api/boards');
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Boards request failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.boardsRequest(response.status));
   }
 
   const data = (await response.json()) as { boards: BoardInfo[] };
@@ -441,6 +443,6 @@ export async function createStroke(
 
   if (!response.ok) {
     const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Stroke creation failed with ${response.status}`);
+    throw new Error(message ?? uiText.errors.strokeCreation(response.status));
   }
 }

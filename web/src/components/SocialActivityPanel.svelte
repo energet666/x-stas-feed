@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Heart, LoaderCircle, MessageCircle, PanelRightOpen, PencilLine, X } from 'lucide-svelte';
   import type { ActivityItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     items,
@@ -27,7 +28,7 @@
 
   function formatBoardAuthors(authors: string[]) {
     const names = authors.filter(Boolean);
-    if (names.length === 0) return 'Guest';
+    if (names.length === 0) return t.common.guest;
     if (names.length <= 3) return names.join(', ');
     return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
   }
@@ -36,18 +37,18 @@
 <button
   class="activity-mobile-toggle ui-icon-button"
   type="button"
-  aria-label="Open social activity"
+  aria-label={t.activity.open}
   onclick={() => (mobileOpen = true)}
 >
   <PanelRightOpen size={18} />
 </button>
 
 {#if mobileOpen}
-  <button class="activity-mobile-backdrop" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}></button>
+  <button class="activity-mobile-backdrop" type="button" aria-label={t.activity.close} onclick={() => (mobileOpen = false)}></button>
 {/if}
 
-<aside class="activity-panel ui-panel ui-panel-side" class:activity-panel-mobile-open={mobileOpen} aria-label="Social activity">
-  <button class="activity-close ui-icon-button" type="button" aria-label="Close social activity" onclick={() => (mobileOpen = false)}>
+<aside class="activity-panel ui-panel ui-panel-side" class:activity-panel-mobile-open={mobileOpen} aria-label={t.activity.label}>
+  <button class="activity-close ui-icon-button" type="button" aria-label={t.activity.close} onclick={() => (mobileOpen = false)}>
     <X size={17} />
   </button>
 
@@ -63,7 +64,7 @@
     {:else if items.length === 0}
       <div class="activity-empty px-4 text-center">
         <MessageCircle class="text-subtle" size={28} />
-        <p class="text-sm font-semibold text-muted">No activity yet</p>
+        <p class="text-sm font-semibold text-muted">{t.activity.empty}</p>
       </div>
     {:else}
       {#each items as item (item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.mediaId}`)}
@@ -74,10 +75,10 @@
               <span class="truncate">{item.mediaDisplayName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="truncate font-semibold text-primary">{item.comment.author || 'Guest'}</span>
+              <span class="truncate font-semibold text-primary">{item.comment.author || t.common.guest}</span>
               <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
               {#if item.comment.likeCount > 0}
-                <span class="activity-row-likes" aria-label={`${item.comment.likeCount} likes`}>
+                <span class="activity-row-likes" aria-label={t.likes.count(item.comment.likeCount)}>
                   <Heart size={13} />
                   <span>{item.comment.likeCount}</span>
                 </span>
@@ -90,13 +91,13 @@
               <span class="truncate">{item.boardName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="activity-row-author-name truncate font-semibold text-primary" title={item.authors.join(', ') || 'Guest'}>
+              <span class="activity-row-author-name truncate font-semibold text-primary" title={item.authors.join(', ') || t.common.guest}>
                 {formatBoardAuthors(item.authors)}
               </span>
               <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
             </span>
             <span class="activity-row-text">
-              {item.strokeCount === 1 ? 'added 1 stroke' : `added ${item.strokeCount} strokes`}
+              {t.activity.addedStrokes(item.strokeCount)}
             </span>
           {/if}
         </button>

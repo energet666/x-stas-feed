@@ -2,6 +2,7 @@
   import { Maximize2, Star, X } from 'lucide-svelte';
   import { formatMediaDate } from '../lib/date';
   import type { MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -28,8 +29,8 @@
       class="ui-icon-button favorite-button"
       class:favorite-button-active={favorite}
       type="button"
-      aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
-      title={favorite ? 'Remove from favorites' : 'Add to favorites'}
+      aria-label={favorite ? t.media.removeFromFavorites : t.media.addToFavorites}
+      title={favorite ? t.media.removeFromFavorites : t.media.addToFavorites}
       onclick={(event) => {
         event.stopPropagation();
         onToggleFavorite();
@@ -40,8 +41,8 @@
     <button
       class="ui-icon-button"
       type="button"
-      aria-label={expanded ? 'Close fullscreen media' : 'Open media fullscreen'}
-      title={expanded ? 'Close fullscreen media' : 'Open media fullscreen'}
+      aria-label={expanded ? t.media.closeFullscreen : t.media.openFullscreen}
+      title={expanded ? t.media.closeFullscreen : t.media.openFullscreen}
       onclick={(event) => {
         event.stopPropagation();
         onToggleExpanded();

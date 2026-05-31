@@ -3,6 +3,7 @@
   import CommentThread from './CommentThread.svelte';
   import MediaCard from './MediaCard.svelte';
   import type { Comment, CommentLikeEvent, CommentEvent, MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -36,13 +37,13 @@
 </script>
 
 <div class="activity-modal-backdrop" role="presentation" onclick={onClose}></div>
-<div class="activity-modal" role="dialog" aria-modal="true" aria-label="Activity media">
+<div class="activity-modal" role="dialog" aria-modal="true" aria-label={t.activity.mediaDialog}>
   <header class="activity-modal-header">
     <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">{item?.type === 'board' ? 'Board activity' : 'Activity comment'}</p>
-      <h2 class="truncate text-base font-bold text-primary">{item?.displayName ?? 'Loading media'}</h2>
+      <p class="text-xs font-semibold uppercase text-subtle">{item?.type === 'board' ? t.activity.boardActivity : t.activity.commentActivity}</p>
+      <h2 class="truncate text-base font-bold text-primary">{item?.displayName ?? t.common.loadingMedia}</h2>
     </div>
-    <button class="ui-icon-button" type="button" aria-label="Close media" onclick={onClose}>
+    <button class="ui-icon-button" type="button" aria-label={t.activity.closeMedia} onclick={onClose}>
       <X size={18} />
     </button>
   </header>
@@ -76,7 +77,7 @@
         />
       </article>
 
-      <aside class="activity-modal-comments" aria-label={`Comments for ${item.displayName}`}>
+      <aside class="activity-modal-comments" aria-label={t.comments.forMedia(item.displayName)}>
         <CommentThread
           {item}
           {username}

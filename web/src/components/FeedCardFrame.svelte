@@ -3,6 +3,7 @@
   import type { MediaItem } from '../lib/feed';
   import FeedCardCommentsPreview from './FeedCardCommentsPreview.svelte';
   import FeedCardInfoPanel from './FeedCardInfoPanel.svelte';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -154,7 +155,7 @@
         {#if showFeedChrome}
           <section
             class="feed-card-panel"
-            aria-label="Media information"
+            aria-label={t.media.information}
             onpointerenter={keepOverlayFromPanel}
             onpointermove={keepOverlayFromPanel}
             onpointerdown={keepOverlayFromPanel}
@@ -172,7 +173,7 @@
         {#if topAccessory}
           <section
             class="feed-card-panel"
-            aria-label="Media actions"
+            aria-label={t.media.actions}
             onpointerenter={keepOverlayFromPanel}
             onpointermove={keepOverlayFromPanel}
             onpointerdown={keepOverlayFromPanel}
@@ -196,7 +197,7 @@
             <div class="feed-card-bottom-accessory-inner">
               <section
                 class="feed-card-panel"
-                aria-label="Media controls"
+                aria-label={t.media.controls}
                 onpointerenter={keepOverlayFromPanel}
                 onpointermove={keepOverlayFromPanel}
                 onpointerdown={keepOverlayFromPanel}
@@ -216,7 +217,7 @@
         {#if showFeedChrome}
           <section
             class="feed-card-panel"
-            aria-label="Comment summary"
+            aria-label={t.media.commentSummary}
             onpointerenter={keepOverlayFromPanel}
             onpointermove={keepOverlayFromPanel}
             onpointerdown={keepOverlayFromPanel}

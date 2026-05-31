@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { Heart, LoaderCircle, MessageCircle, Smile } from 'lucide-svelte';
   import EmojiPanel from './EmojiPanel.svelte';
+  import { uiText as t } from '../lib/ui_text';
   import {
     createComment,
     createCommentLike,
@@ -80,7 +81,7 @@
       onCommentsChanged(mediaId, nextComments);
       scrollCommentsToBottom('auto');
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Unable to load comments';
+      error = err instanceof Error ? err.message : t.comments.loadFallback;
     } finally {
       loading = false;
     }
@@ -100,7 +101,7 @@
       draft = '';
       emojiPanelOpen = false;
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Unable to save comment';
+      error = err instanceof Error ? err.message : t.comments.saveFallback;
     } finally {
       submitting = false;
     }
@@ -224,7 +225,7 @@
   {:else if comments.length === 0}
     <div class="flex h-40 flex-col items-center justify-center gap-3 text-center">
       <MessageCircle class="text-subtle" size={30} />
-      <p class="text-sm font-semibold text-muted">No comments yet</p>
+      <p class="text-sm font-semibold text-muted">{t.comments.empty}</p>
     </div>
   {:else}
     <div class="space-y-3">
@@ -232,7 +233,7 @@
         <article class="comment-item">
           <div class="comment-meta-row">
             <div class="comment-author-time">
-              <span class="comment-author">{comment.author || 'Guest'}</span>
+              <span class="comment-author">{comment.author || t.common.guest}</span>
               <time class="comment-time" datetime={comment.createdAt}>
                 {new Date(comment.createdAt).toLocaleString()}
               </time>
@@ -241,7 +242,7 @@
               class="comment-like-button"
               class:comment-like-button-pending={(pendingCommentLikeCounts[comment.id] ?? 0) > 0}
               type="button"
-              aria-label="Like comment"
+              aria-label={t.comments.like}
               onclick={() => likeComment(comment.id)}
             >
               <span class="comment-like-icon-wrap" aria-hidden="true">
@@ -276,7 +277,7 @@
 
 <form bind:this={commentFormEl} class="comment-thread-form" onsubmit={submitComment}>
   <div class="comment-composer">
-    <label class="sr-only" for={item ? `comment-composer-${item.id}` : 'comment-composer'}>Add a comment</label>
+    <label class="sr-only" for={item ? `comment-composer-${item.id}` : 'comment-composer'}>{t.comments.add}</label>
     <!-- svelte-ignore a11y_autofocus - the comments UI is opened by an explicit user action and should be ready for typing. -->
     <textarea
       id={item ? `comment-composer-${item.id}` : 'comment-composer'}
@@ -294,7 +295,7 @@
         class="emoji-toggle-button"
         class:emoji-toggle-button-active={emojiPanelOpen}
         type="button"
-        aria-label="Open emoji panel"
+        aria-label={t.comments.openEmoji}
         aria-expanded={emojiPanelOpen}
         onclick={toggleEmojiPanel}
       >

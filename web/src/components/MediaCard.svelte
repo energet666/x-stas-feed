@@ -5,6 +5,7 @@
   import FileCardContent from './FileCardContent.svelte';
   import DrawingBoardCard from './DrawingBoardCard.svelte';
   import type { MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -13,7 +14,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
-    username = 'Guest',
+    username = t.common.guest,
     suppressFeedChrome = false,
     onReveal,
     onKeep,

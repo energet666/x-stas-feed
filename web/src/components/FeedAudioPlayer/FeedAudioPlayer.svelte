@@ -8,6 +8,7 @@
   import { onDestroy, onMount } from 'svelte';
   import FeedCardFrame from '../FeedCardFrame.svelte';
   import AudioControls from './FeedAudioControls.svelte';
+  import { uiText as t } from '../../lib/ui_text';
   import type { MediaItem } from '../../lib/feed';
   import {
     FEED_VIDEO_PLAY_EVENT,
@@ -299,7 +300,7 @@
       class="audio-card-surface"
       class:audio-card-surface-playing={!paused}
       role="button"
-      aria-label={`Audio player: ${item.displayName}`}
+      aria-label={t.playback.audioPlayer(item.displayName)}
       aria-pressed={!paused}
       tabindex="0"
       onpointermove={onReveal}
@@ -355,7 +356,7 @@
       </div>
 
       <div class="audio-copy">
-        <p class="audio-kicker">Audio</p>
+        <p class="audio-kicker">{t.playback.audio}</p>
         <h3 title={title}>{title}</h3>
         {#if artist}
           <p class="audio-artist">{artist}</p>
@@ -364,7 +365,7 @@
           <p class="audio-album">{albumLine}</p>
         {/if}
         {#if playBlocked}
-          <p class="audio-error">Playback was blocked by the browser.</p>
+          <p class="audio-error">{t.playback.browserBlocked}</p>
         {/if}
       </div>
     </div>

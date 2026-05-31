@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { Pause, Play, Volume2, VolumeX } from 'lucide-svelte';
   import { formatVideoTime } from './FeedVideoPlayer/utils';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     ariaLabel,
@@ -110,7 +111,7 @@
   aria-label={ariaLabel}
   tabindex="-1"
 >
-  <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={onTogglePlay}>
+  <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={paused ? t.playback.play : t.playback.pause} onclick={onTogglePlay}>
     {#if paused}
       <Play size={18} fill="currentColor" />
     {:else}
@@ -143,7 +144,7 @@
 
   <span class="media-playback-time media-playback-time-end shrink-0 font-bold">{formatVideoTime(duration)}</span>
 
-  <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={muted ? 'Unmute' : 'Mute'} onclick={onToggleMute}>
+  <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={muted ? t.playback.unmute : t.playback.mute} onclick={onToggleMute}>
     {#if muted || volume === 0}
       <VolumeX size={18} />
     {:else}
@@ -154,7 +155,7 @@
   {#if supportsVolumeControl}
     <input
       class="media-playback-volume shrink-0 cursor-pointer rounded-full"
-      aria-label="Volume"
+      aria-label={t.playback.volume}
       type="range"
       min="0"
       max="1"

@@ -15,6 +15,7 @@
   import DrawingBoard from './components/DrawingBoard.svelte';
   import { boardEvents } from './lib/board_events.svelte';
   import { fallbackUsername, randomUsername } from './lib/usernames';
+  import { uiText as t } from './lib/ui_text';
   import {
     commentEventsURL,
     createBoard,
@@ -99,7 +100,7 @@
   let activityModalOpen = $state(false);
   let latestCommentEvent = $state<CommentEvent | null>(null);
   let latestCommentLikeEvent = $state<CommentLikeEvent | null>(null);
-  let username = $state(fallbackUsername);
+  let username = $state<string>(fallbackUsername);
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
@@ -108,7 +109,7 @@
   let feedMode = $state<FeedMode>('all');
   let gameActive = $state(false);
   let uploadStatus = $state<UploadStatus>('idle');
-  let uploadMessage = $state('Upload');
+  let uploadMessage = $state<string>(t.upload.action);
   let uploadProgress = $state<number | null>(null);
   let pageDragActive = $state(false);
   let ambientReadyIDs = $state<Record<string, boolean>>({});
@@ -316,7 +317,7 @@
         initialLoaded = true;
         return;
       }
-      error = err instanceof Error ? err.message : 'Unable to load feed';
+      error = err instanceof Error ? err.message : t.feed.loadFallback;
       initialLoaded = true;
     } finally {
       if (requestVersion === feedRequestVersion) {
@@ -388,7 +389,7 @@
       const boardActivityItems = activityItems.filter((item) => item.type === 'board');
       activityItems = sortActivityItems([...response.items, ...boardActivityItems]).slice(0, activityLimit);
     } catch (err) {
-      activityError = err instanceof Error ? err.message : 'Unable to load activity';
+      activityError = err instanceof Error ? err.message : t.activity.loadFallback;
     } finally {
       activityLoading = false;
     }
@@ -406,11 +407,11 @@
     const uploadFiles = files.filter((file) => file.size > 0);
     if (uploadStatus === 'uploading') return;
     if (uploadFiles.length === 0) {
-      setUploadStatus('error', 'No files', null);
+      setUploadStatus('error', t.upload.noFiles, null);
       return;
     }
 
-    setUploadStatus('uploading', uploadFiles.length === 1 ? uploadFiles[0].name : `${uploadFiles.length} files`, 0);
+    setUploadStatus('uploading', uploadFiles.length === 1 ? uploadFiles[0].name : t.upload.selectedFiles(uploadFiles.length), 0);
 
     try {
       const result = await uploadMedia(uploadFiles, (progress) => {
@@ -419,26 +420,26 @@
       const uploadedCount = result.items.length;
       const errorCount = result.errors?.length ?? 0;
       if (uploadedCount === 0) {
-        throw new Error(result.errors?.[0]?.error ?? 'No files were uploaded');
+        throw new Error(result.errors?.[0]?.error ?? t.upload.noneUploaded);
       }
 
       setUploadStatus(
         errorCount > 0 ? 'error' : 'success',
-        errorCount > 0 ? `${uploadedCount} uploaded, ${errorCount} failed` : `${uploadedCount} uploaded`,
+        errorCount > 0 ? t.upload.uploadedWithErrors(uploadedCount, errorCount) : t.upload.uploaded(uploadedCount),
         null
       );
       resetFeedState();
       await loadPage();
       scheduleViewportUpdate();
     } catch (err) {
-      setUploadStatus('error', err instanceof Error ? err.message : 'Upload failed', null);
+      setUploadStatus('error', err instanceof Error ? err.message : t.upload.failed, null);
     }
   }
 
   async function handleCreateBoard(name: string) {
     const board = await createBoard(name);
     const boardItem = boardInfoToMediaItem(board);
-    if (!boardItem) throw new Error('Board media item was not returned');
+    if (!boardItem) throw new Error(t.board.mediaItemMissing);
     resetFeedState();
     await loadPage();
     scheduleViewportUpdate();
@@ -471,7 +472,7 @@
     if (status === 'success' || status === 'error') {
       uploadStatusTimer = window.setTimeout(() => {
         uploadStatus = 'idle';
-        uploadMessage = 'Upload';
+        uploadMessage = t.upload.action;
         uploadProgress = null;
       }, 3200);
     }
@@ -898,7 +899,7 @@
     try {
       selectedActivityMedia = await fetchMediaItem(activityItem.mediaId);
     } catch (err) {
-      activityMediaError = err instanceof Error ? err.message : 'Unable to load media';
+      activityMediaError = err instanceof Error ? err.message : t.activity.mediaLoadFallback;
     } finally {
       activityMediaLoading = false;
     }
@@ -1114,7 +1115,7 @@
 
   function upsertBoardActivity(event: StrokeEvent, boardName: string) {
     const existing = activityItems.find((item) => item.type === 'board' && item.mediaId === event.mediaId);
-    const author = event.stroke.author || 'Guest';
+    const author = event.stroke.author || t.common.guest;
     const authors = existing?.type === 'board'
       ? [...existing.authors.filter((existingAuthor) => existingAuthor !== author), author]
       : [author];
@@ -1143,16 +1144,16 @@
 
     const item = boardMediaItem(event.mediaId);
     if (item) {
-      upsertBoardActivity(event, item.displayName || item.filename || 'Board');
+      upsertBoardActivity(event, item.displayName || item.filename || t.common.board);
       return;
     }
 
     if (event.mediaId === 'master') {
-      upsertBoardActivity(event, 'Master Board');
+      upsertBoardActivity(event, t.common.masterBoard);
       return;
     }
 
-    upsertBoardActivity(event, 'Board');
+    upsertBoardActivity(event, t.common.board);
     if (pendingBoardActivityFetches.has(event.mediaId)) return;
     pendingBoardActivityFetches.add(event.mediaId);
 
@@ -1325,7 +1326,7 @@
   <title>Feed AI</title>
   <meta
     name="description"
-    content="An infinite local feed for photos, videos, and files."
+    content={t.meta.description}
   />
 </svelte:head>
 
@@ -1345,7 +1346,7 @@
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="ui-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
           <LoaderCircle class="text-primary" size={30} />
-          <p class="text-sm font-bold text-primary">Drop files to upload</p>
+          <p class="text-sm font-bold text-primary">{t.feed.dropFilesToUpload}</p>
         </div>
       </div>
     {/if}
@@ -1389,10 +1390,10 @@
               <Star size={22} />
             </div>
             <div class="space-y-1">
-              <h2 class="text-base font-bold text-primary">No favorites to show</h2>
-              <p class="max-w-xs text-sm font-semibold text-muted">Star media cards to keep them here.</p>
+              <h2 class="text-base font-bold text-primary">{t.feed.noFavoritesTitle}</h2>
+              <p class="max-w-xs text-sm font-semibold text-muted">{t.feed.noFavoritesDescription}</p>
             </div>
-            <button class="ui-button gap-2" type="button" onclick={showAllMedia}>Show all media</button>
+            <button class="ui-button gap-2" type="button" onclick={showAllMedia}>{t.feed.showAllMedia}</button>
           </div>
         {/if}
 
@@ -1454,7 +1455,7 @@
           {#if loading && initialLoaded}
             <LoaderCircle class="animate-spin text-muted" size={26} />
           {:else if initialLoaded && !hasMore && items.length > 0}
-            <p class="text-sm font-semibold text-muted">End of feed</p>
+            <p class="text-sm font-semibold text-muted">{t.feed.end}</p>
           {/if}
         </div>
       </section>
@@ -1502,8 +1503,8 @@
       <button
         class="feed-top-button"
         type="button"
-        aria-label="Scroll feed to top"
-        title="Scroll feed to top"
+        aria-label={t.feed.scrollToTop}
+        title={t.feed.scrollToTop}
         onclick={scrollFeedToTop}
       >
         <Rocket size={19} />

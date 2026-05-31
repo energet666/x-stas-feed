@@ -2,6 +2,7 @@
   import FeedCardFrame from './FeedCardFrame.svelte';
   import DrawingBoard from './DrawingBoard.svelte';
   import type { MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -10,7 +11,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
-    username = 'Guest',
+    username = t.common.guest,
     suppressFeedChrome = false,
     onReveal,
     onKeep,
@@ -79,8 +80,8 @@
       <button
         class="drawing-board-preview-button"
         type="button"
-        aria-label={`Open drawing board ${item.displayName || item.filename}`}
-        title="Open drawing board"
+        aria-label={t.board.openDrawingBoardNamed(item.displayName || item.filename)}
+        title={t.board.openDrawingBoard}
         onclick={openBoardFromPreview}
       >
         <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} />

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Bug, ChevronDown } from 'lucide-svelte';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     collapsed,
@@ -69,7 +70,7 @@
 
   const formatPx = (value: number | undefined) => (value === undefined ? '-' : `${Math.round(value)}px`);
   const formatNumber = (value: number | undefined) => (value === undefined ? '-' : String(value));
-  const formatBool = (value: boolean) => (value ? 'yes' : 'no');
+  const formatBool = (value: boolean) => (value ? t.debug.yes : t.debug.no);
 </script>
 
 <aside class="debug-overlay ui-panel-side" class:debug-overlay-collapsed={collapsed}>
@@ -77,8 +78,8 @@
     class="debug-toggle"
     class:debug-toggle-collapsed={collapsed}
     type="button"
-    aria-label={collapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
-    title={collapsed ? 'Expand debug overlay' : 'Collapse debug overlay'}
+    aria-label={collapsed ? t.debug.expand : t.debug.collapse}
+    title={collapsed ? t.debug.expand : t.debug.collapse}
     onclick={onToggle}
   >
     {#if collapsed}
@@ -86,7 +87,7 @@
     {:else}
       <span class="inline-flex items-center gap-2">
         <Bug size={14} />
-        Feed debug
+        {t.debug.title}
       </span>
       <ChevronDown size={14} />
     {/if}
@@ -94,109 +95,109 @@
 
   {#if !collapsed}
     <div class="debug-control-row">
-      <span>Card bg</span>
-      <div class="debug-segmented" role="group" aria-label="Card background mode">
+      <span>{t.debug.cardBg}</span>
+      <div class="debug-segmented" role="group" aria-label={t.debug.cardBackgroundMode}>
         <button
           class:debug-segment-active={cardBackgroundMode === 'simple'}
           type="button"
           onclick={() => onCardBackgroundModeChange('simple')}
         >
-          Simple
+          {t.debug.simple}
         </button>
         <button
           class:debug-segment-active={cardBackgroundMode === 'ambient'}
           type="button"
           onclick={() => onCardBackgroundModeChange('ambient')}
         >
-          Ambient
+          {t.debug.ambient}
         </button>
       </div>
     </div>
 
-    <div class="debug-section-title">Window</div>
+    <div class="debug-section-title">{t.debug.window}</div>
     <dl class="debug-grid">
       <div>
-        <dt>Mode</dt>
+        <dt>{t.debug.mode}</dt>
         <dd>{feedMode}</dd>
       </div>
       <div>
-        <dt>Ready</dt>
+        <dt>{t.debug.ready}</dt>
         <dd>{formatBool(initialLoaded)}</dd>
       </div>
       <div>
-        <dt>Items</dt>
+        <dt>{t.debug.items}</dt>
         <dd>{loadedCount}</dd>
       </div>
       <div>
-        <dt>Mounted</dt>
+        <dt>{t.debug.mounted}</dt>
         <dd>{mountedCount}</dd>
       </div>
       <div>
-        <dt>Visible rows</dt>
+        <dt>{t.debug.visibleRows}</dt>
         <dd>{visibleStartIndex >= 0 ? `${visibleStartIndex}-${visibleEndIndex}` : '-'}</dd>
       </div>
       <div>
-        <dt>Hidden rows</dt>
+        <dt>{t.debug.hiddenRows}</dt>
         <dd>{unloadedBefore} / {unloadedAfter}</dd>
       </div>
       <div>
-        <dt>Measured</dt>
+        <dt>{t.debug.measured}</dt>
         <dd>{measuredCount}</dd>
       </div>
       <div>
-        <dt>Overscan</dt>
+        <dt>{t.debug.overscan}</dt>
         <dd>{overscanRows}</dd>
       </div>
     </dl>
 
-    <div class="debug-section-title">Feed indexes</div>
+    <div class="debug-section-title">{t.debug.feedIndexes}</div>
     <dl class="debug-grid">
       <div>
-        <dt>Bounds</dt>
+        <dt>{t.debug.bounds}</dt>
         <dd>{formatNumber(firstFeedIndex)}-{formatNumber(lastFeedIndex)}</dd>
       </div>
       <div>
-        <dt>Loaded span</dt>
+        <dt>{t.debug.loadedSpan}</dt>
         <dd>{formatNumber(topFeedIndex)}-{formatNumber(bottomFeedIndex)}</dd>
       </div>
       <div>
-        <dt>Load older</dt>
+        <dt>{t.debug.loadOlder}</dt>
         <dd>{formatBool(hasMore)} / {formatBool(loading)}</dd>
       </div>
       <div>
-        <dt>Preload</dt>
+        <dt>{t.debug.preload}</dt>
         <dd>{preloadAheadPx}px</dd>
       </div>
     </dl>
 
-    <div class="debug-section-title">Geometry</div>
+    <div class="debug-section-title">{t.debug.geometry}</div>
     <dl class="debug-grid">
       <div>
-        <dt>Viewport</dt>
+        <dt>{t.debug.viewport}</dt>
         <dd>{Math.round(viewportStart)}-{Math.round(viewportEnd)}</dd>
       </div>
       <div>
-        <dt>Window h</dt>
+        <dt>{t.debug.windowHeight}</dt>
         <dd>{Math.round(viewportHeight)}px</dd>
       </div>
       <div>
-        <dt>Scroll / list</dt>
+        <dt>{t.debug.scrollList}</dt>
         <dd>{Math.round(scrollY)} / {Math.round(listTop)}</dd>
       </div>
       <div>
-        <dt>Items height</dt>
+        <dt>{t.debug.itemsHeight}</dt>
         <dd>{Math.round(totalHeight)}px</dd>
       </div>
       <div>
-        <dt>Loaded bottom</dt>
+        <dt>{t.debug.loadedBottom}</dt>
         <dd>{Math.round(loadedBottom)}px</dd>
       </div>
       <div>
-        <dt>Spacers</dt>
+        <dt>{t.debug.spacers}</dt>
         <dd>{Math.round(topSpacer)} / {Math.round(bottomSpacer)}</dd>
       </div>
       <div>
-        <dt>Sentinel</dt>
+        <dt>{t.debug.sentinel}</dt>
         <dd>{formatPx(bottomSentinelTop)}</dd>
       </div>
     </dl>

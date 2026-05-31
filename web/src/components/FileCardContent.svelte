@@ -2,6 +2,7 @@
   import { Download, ExternalLink, File, FileArchive, FileCode2, FileText, Table2 } from 'lucide-svelte';
   import { formatFileSize, formatMediaDate } from '../lib/date';
   import type { MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item
@@ -10,7 +11,7 @@
   } = $props();
 
   const extension = $derived(fileExtension(item.displayName || item.filename));
-  const fileLabel = $derived(extension ? extension.toUpperCase() : 'FILE');
+  const fileLabel = $derived(extension ? extension.toUpperCase() : t.files.genericLabel);
   const mimeLabel = $derived(item.mimeType || 'application/octet-stream');
   const visualKind = $derived(iconKind(mimeLabel, extension));
   const visibleName = $derived(displayFileName(item.displayName));
@@ -81,15 +82,15 @@
       <h3 title={item.displayName}>{visibleName}</h3>
       <dl>
         <div>
-          <dt>Size</dt>
+          <dt>{t.files.size}</dt>
           <dd>{formatFileSize(item.size)}</dd>
         </div>
         <div>
-          <dt>Type</dt>
+          <dt>{t.files.type}</dt>
           <dd>{mimeLabel}</dd>
         </div>
         <div>
-          <dt>Modified</dt>
+          <dt>{t.files.modified}</dt>
           <dd>{formatMediaDate(item.modifiedAt)}</dd>
         </div>
       </dl>
@@ -99,12 +100,12 @@
       {#if canOpenInBrowser}
         <a class="file-card-action" href={item.url} target="_blank" rel="noreferrer" onclick={(event) => event.stopPropagation()}>
           <ExternalLink size={17} />
-          <span>Open</span>
+          <span>{t.files.open}</span>
         </a>
       {/if}
       <a class="file-card-action" href={item.url} download={item.displayName} onclick={(event) => event.stopPropagation()}>
         <Download size={17} />
-        <span>Download</span>
+        <span>{t.files.download}</span>
       </a>
     </div>
   </div>

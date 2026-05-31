@@ -1,4 +1,6 @@
-export const fallbackUsername = 'Guest';
+import { uiText } from './ui_text';
+
+export const fallbackUsername = uiText.common.guest;
 
 const funnyWords = [
   'Бодрый Кабачок',

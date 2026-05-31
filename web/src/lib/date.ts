@@ -1,5 +1,7 @@
+import { uiText } from './ui_text';
+
 export function formatMediaDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -9,8 +11,8 @@ export function formatMediaDate(value: string) {
 }
 
 export function formatFileSize(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown size';
-  return new Intl.NumberFormat(undefined, {
+  if (!Number.isFinite(bytes) || bytes < 0) return uiText.files.unknownSize;
+  return new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: bytes < 1024 * 1024 ? 0 : 1,
     style: 'unit',
     unit: sizeUnit(bytes),

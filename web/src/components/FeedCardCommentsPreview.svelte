@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { Heart, MessageCircle } from 'lucide-svelte';
   import type { MediaItem } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   let {
     item,
@@ -39,7 +40,7 @@
     class="feed-card-like-button"
     class:feed-card-like-button-pending={likePending}
     type="button"
-    aria-label={`Like ${item.displayName}`}
+    aria-label={t.likes.media(item.displayName)}
     onclick={(event) => {
       event.stopPropagation();
       onLike();
@@ -63,7 +64,7 @@
   <button
     class="feed-card-comments-preview"
     type="button"
-    aria-label={`Open comments for ${item.displayName}`}
+    aria-label={t.comments.openFor(item.displayName)}
     onclick={(event) => {
       event.stopPropagation();
       onOpenComments();
@@ -76,10 +77,10 @@
 
     <span class="feed-card-comments-text">
       {#if latestComment}
-        <span class="font-semibold text-primary">{latestComment.author || 'Guest'}</span>
+        <span class="font-semibold text-primary">{latestComment.author || t.common.guest}</span>
         {latestComment.text}
       {:else}
-        <span>Add a comment</span>
+        <span>{t.comments.add}</span>
       {/if}
     </span>
   </button>

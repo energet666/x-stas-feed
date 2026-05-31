@@ -10,6 +10,7 @@
   import FeedCardFrame from '../FeedCardFrame.svelte';
   import FeedVideoControls from './FeedVideoControls.svelte';
   import FeedVideoOverlay from './FeedVideoOverlay.svelte';
+  import { uiText as t } from '../../lib/ui_text';
   import { mediaPosterURL } from '../../lib/feed';
   import type { MediaItem } from '../../lib/feed';
   import {
@@ -791,7 +792,7 @@
       class="feed-video-player relative z-1 h-full w-full overflow-hidden"
       class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
       role="presentation"
-      aria-label={`Video player: ${item.displayName}`}
+      aria-label={t.playback.videoPlayer(item.displayName)}
       onpointermove={revealControls}
       onpointerenter={revealControls}
       onmousemove={revealControls}

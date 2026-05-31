@@ -1,0 +1,218 @@
+export const uiText = {
+  common: {
+    guest: 'Гость',
+    file: 'Файл',
+    board: 'Доска',
+    masterBoard: 'Главная доска',
+    cancel: 'Отмена',
+    refresh: 'Обновить',
+    tryAgain: 'Повторить',
+    loadingMedia: 'Загрузка медиа'
+  },
+  meta: {
+    description: 'Бесконечная локальная лента для фото, видео и файлов.'
+  },
+  feed: {
+    controls: 'Управление лентой',
+    couldNotLoad: 'Не удалось загрузить ленту',
+    loadFallback: 'Не удалось загрузить ленту',
+    end: 'Конец ленты',
+    scrollToTop: 'Наверх ленты',
+    emptyTitle: 'Медиа пока нет',
+    emptyDescription: 'Загрузите файлы здесь или добавьте их в',
+    noFavoritesTitle: 'В избранном пока пусто',
+    noFavoritesDescription: 'Отмечайте карточки звёздочкой, чтобы сохранить их здесь.',
+    showAllMedia: 'Показать все медиа',
+    showFavorites: 'Показать избранное',
+    all: 'Все',
+    favorites: 'Избранное',
+    showNewItems: 'Показать новые записи',
+    dropFilesToUpload: 'Отпустите файлы для загрузки'
+  },
+  upload: {
+    action: 'Загрузить',
+    files: 'Загрузить файлы',
+    noFiles: 'Нет файлов',
+    noneUploaded: 'Файлы не были загружены',
+    failed: 'Загрузка не удалась',
+    cancelled: 'Загрузка отменена',
+    failedWithStatus: (status: number) => `Загрузка не удалась: ${status}`,
+    selectedFiles: (count: number) => plural(count, ['файл', 'файла', 'файлов']),
+    uploaded: (count: number) => `${count} ${plural(count, ['загружен', 'загружено', 'загружено'])}`,
+    uploadedWithErrors: (uploaded: number, failed: number) =>
+      `${uploaded} ${plural(uploaded, ['загружен', 'загружено', 'загружено'])}, ${failed} ${plural(failed, ['ошибка', 'ошибки', 'ошибок'])}`
+  },
+  comments: {
+    title: 'Комментарии',
+    forMedia: (name: string) => `Комментарии к ${name}`,
+    close: 'Закрыть комментарии',
+    empty: 'Комментариев пока нет',
+    add: 'Добавить комментарий',
+    openEmoji: 'Открыть панель эмодзи',
+    like: 'Поставить лайк комментарию',
+    openFor: (name: string) => `Открыть комментарии к ${name}`,
+    loadFallback: 'Не удалось загрузить комментарии',
+    saveFallback: 'Не удалось сохранить комментарий'
+  },
+  likes: {
+    media: (name: string) => `Поставить лайк ${name}`,
+    count: (count: number) => `${count} ${plural(count, ['лайк', 'лайка', 'лайков'])}`
+  },
+  profile: {
+    settings: 'Настройки профиля',
+    randomNickname: 'Сгенерировать случайный никнейм'
+  },
+  activity: {
+    open: 'Открыть активность',
+    close: 'Закрыть активность',
+    label: 'Активность',
+    empty: 'Активности пока нет',
+    loadFallback: 'Не удалось загрузить активность',
+    mediaDialog: 'Медиа из активности',
+    closeMedia: 'Закрыть медиа',
+    boardActivity: 'Активность доски',
+    commentActivity: 'Комментарий из активности',
+    mediaLoadFallback: 'Не удалось загрузить медиа',
+    addedStrokes: (count: number) => `добавлено ${count} ${plural(count, ['штрих', 'штриха', 'штрихов'])}`
+  },
+  media: {
+    information: 'Информация о медиа',
+    actions: 'Действия с медиа',
+    controls: 'Управление медиа',
+    commentSummary: 'Кратко о комментариях',
+    addToFavorites: 'Добавить в избранное',
+    removeFromFavorites: 'Убрать из избранного',
+    openFullscreen: 'Открыть медиа на весь экран',
+    closeFullscreen: 'Закрыть полноэкранное медиа'
+  },
+  playback: {
+    audioPlayer: (name: string) => `Аудиоплеер: ${name}`,
+    videoPlayer: (name: string) => `Видеоплеер: ${name}`,
+    play: 'Воспроизвести',
+    pause: 'Пауза',
+    mute: 'Выключить звук',
+    unmute: 'Включить звук',
+    volume: 'Громкость',
+    audioControls: 'Управление аудио',
+    videoControls: 'Управление видео',
+    seekAudio: 'Перемотка аудио',
+    seekVideo: 'Перемотка видео',
+    pip: 'Картинка в картинке',
+    playVideo: 'Воспроизвести видео',
+    tapPlayToStartVideo: 'Нажмите воспроизведение, чтобы запустить видео',
+    audio: 'Аудио',
+    browserBlocked: 'Браузер заблокировал воспроизведение.'
+  },
+  files: {
+    unknownSize: 'Размер неизвестен',
+    genericLabel: 'ФАЙЛ',
+    size: 'Размер',
+    type: 'Тип',
+    modified: 'Изменён',
+    open: 'Открыть',
+    download: 'Скачать'
+  },
+  board: {
+    createDrawingBoard: 'Создать доску',
+    createBoard: 'Создать доску',
+    createBoardShort: 'Доска',
+    creationFailed: 'Не удалось создать доску',
+    mediaItemMissing: 'Медиа доски не вернулось с сервера',
+    name: 'Название доски',
+    namePlaceholder: 'Название доски',
+    cancelCreation: 'Отменить создание доски',
+    openMaster: 'Открыть главную доску',
+    openDrawingBoard: 'Открыть доску',
+    openDrawingBoardNamed: (name: string) => `Открыть доску ${name}`,
+    drawingBoardNamed: (name: string) => `Доска: ${name}`,
+    close: 'Закрыть доску',
+    visibleHistoryStrokes: 'Видимые штрихи истории',
+    showingHistoryStrokes: (visible: number, total: number) => `Показано ${visible} из ${total} штрихов`,
+    lastVisibleStrokeAuthor: (author: string) => `Автор последнего видимого штриха: ${author}`,
+    exitHistory: 'Выйти из истории',
+    freeform: 'Свободная линия',
+    line: 'Линия',
+    showPointDensity: 'Показать плотность точек',
+    strokePointStatsTitle: 'Точки последнего штриха до/после упрощения',
+    strokePointStats: (before: number, after: number) =>
+      `Точек до упрощения: ${before}, после упрощения: ${after}`,
+    simplificationTolerance: 'Допуск ошибки упрощения',
+    size: (size: number) => `Размер ${size}`,
+    customBrushSize: 'Свой размер кисти',
+    color: 'Цвет',
+    customColor: 'Свой цвет',
+    history: 'История',
+    openHistory: 'Открыть историю'
+  },
+  emoji: {
+    panel: 'Панель эмодзи'
+  },
+  debug: {
+    expand: 'Развернуть отладочную панель',
+    collapse: 'Свернуть отладочную панель',
+    title: 'Отладка ленты',
+    cardBg: 'Фон карточки',
+    cardBackgroundMode: 'Режим фона карточки',
+    simple: 'Простой',
+    ambient: 'Окружение',
+    window: 'Окно',
+    mode: 'Режим',
+    ready: 'Готово',
+    items: 'Элементы',
+    mounted: 'Смонтировано',
+    visibleRows: 'Видимые ряды',
+    hiddenRows: 'Скрытые ряды',
+    measured: 'Измерено',
+    overscan: 'Запас',
+    feedIndexes: 'Индексы ленты',
+    bounds: 'Границы',
+    loadedSpan: 'Загружено',
+    loadOlder: 'Старые',
+    preload: 'Предзагрузка',
+    geometry: 'Геометрия',
+    viewport: 'Область',
+    windowHeight: 'Высота окна',
+    scrollList: 'Скролл / список',
+    itemsHeight: 'Высота элементов',
+    loadedBottom: 'Низ загрузки',
+    spacers: 'Отступы',
+    sentinel: 'Маркер',
+    yes: 'да',
+    no: 'нет'
+  },
+  game: {
+    time: 'Время',
+    leaders: 'Лидеры',
+    resultNotSaved: 'Результат не сохранён',
+    savingScore: 'Сохраняем счёт...',
+    loadingLeaders: 'Загружаем лидеров...',
+    scoreSaveFailed: 'Не удалось сохранить счёт',
+    leadersUnavailable: 'Лидеры недоступны',
+    noScores: 'Счётов пока нет',
+    enterToRestart: 'Enter — заново'
+  },
+  errors: {
+    feedItemRequest: (status: number) => `Запрос элемента ленты не удался: ${status}`,
+    activityRequest: (status: number) => `Запрос активности не удался: ${status}`,
+    mediaItemRequest: (status: number) => `Запрос медиа не удался: ${status}`,
+    commentsRequest: (status: number) => `Запрос комментариев не удался: ${status}`,
+    commentRequest: (status: number) => `Запрос комментария не удался: ${status}`,
+    likeRequest: (status: number) => `Запрос лайка не удался: ${status}`,
+    commentLikeRequest: (status: number) => `Запрос лайка комментария не удался: ${status}`,
+    scoreRequest: (status: number) => `Запрос счёта не удался: ${status}`,
+    scoreSubmission: (status: number) => `Отправка счёта не удалась: ${status}`,
+    boardCreation: (status: number) => `Создание доски не удалось: ${status}`,
+    boardRequest: (status: number) => `Запрос доски не удался: ${status}`,
+    boardsRequest: (status: number) => `Запрос досок не удался: ${status}`,
+    strokeCreation: (status: number) => `Создание штриха не удалось: ${status}`
+  }
+} as const;
+
+function plural(count: number, forms: readonly [string, string, string]) {
+  const abs = Math.abs(count);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
+}

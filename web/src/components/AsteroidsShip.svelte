@@ -8,6 +8,7 @@
     type ShipSnapshot,
     type ShipState as NetworkShipState
   } from '../lib/feed';
+  import { uiText as t } from '../lib/ui_text';
 
   type ShipState = {
     x: number;
@@ -92,7 +93,7 @@
   const shipSessionStorageKey = 'feed-ai:ship-session-id';
   const keys = new Set<string>();
 
-  let { username = 'Guest' }: { username: string } = $props();
+  let { username = t.common.guest }: { username: string } = $props();
 
   let ship = $state<ShipState>({
     x: 8,
@@ -431,7 +432,7 @@
   async function submitScore(submissionID: number, finalScore: number) {
     scoreSubmitStatus = 'saving';
     try {
-      const scores = await createShipScore(username.trim() || 'Guest', finalScore);
+      const scores = await createShipScore(username.trim() || t.common.guest, finalScore);
       if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
       leaderboard = scores;
       scoreSubmitStatus = 'saved';
@@ -839,7 +840,7 @@
           type: 'state',
           ship: {
             id: sessionID,
-            name: username.trim() || 'Guest',
+            name: username.trim() || t.common.guest,
             x: center.x,
             y: center.y,
             angle: ship.angle,
@@ -1101,30 +1102,30 @@
 {#if roundStatus === 'finished'}
   <section class="asteroids-leaderboard" aria-live="polite">
     <div class="asteroids-leaderboard-header">
-      <span>Time</span>
+      <span>{t.game.time}</span>
       <strong>{score}</strong>
     </div>
-    <div class="asteroids-leaderboard-title">Leaders</div>
+    <div class="asteroids-leaderboard-title">{t.game.leaders}</div>
     {#if !roundSaved}
-      <p>Result not saved</p>
+      <p>{t.game.resultNotSaved}</p>
     {/if}
     {#if scoreSubmitStatus === 'saving'}
-      <p>{roundSaved ? 'Saving score...' : 'Loading leaders...'}</p>
+      <p>{roundSaved ? t.game.savingScore : t.game.loadingLeaders}</p>
     {:else if scoreSubmitStatus === 'error'}
-      <p>{roundSaved ? 'Score save failed' : 'Leaders unavailable'}</p>
+      <p>{roundSaved ? t.game.scoreSaveFailed : t.game.leadersUnavailable}</p>
     {:else if leaderboard.length === 0}
-      <p>No scores yet</p>
+      <p>{t.game.noScores}</p>
     {:else}
       <ol>
         {#each leaderboard as item, index (`${item.createdAt}-${index}`)}
-          <li class:currentScore={roundSaved && item.name === (username.trim() || 'Guest') && item.score === score}>
+          <li class:currentScore={roundSaved && item.name === (username.trim() || t.common.guest) && item.score === score}>
             <span>{index + 1}. {item.name}</span>
             <strong>{item.score}</strong>
           </li>
         {/each}
       </ol>
     {/if}
-    <div class="asteroids-restart">Enter to restart</div>
+    <div class="asteroids-restart">{t.game.enterToRestart}</div>
   </section>
 {/if}
 

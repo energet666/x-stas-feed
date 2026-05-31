@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { uiText as t } from '../lib/ui_text';
+
   type EmojiMartSelection = {
     native?: string;
   };
@@ -134,7 +136,7 @@
   }
 </script>
 
-<div bind:this={panelEl} class="emoji-panel" aria-label="Emoji panel"></div>
+<div bind:this={panelEl} class="emoji-panel" aria-label={t.emoji.panel}></div>
 
 <style>
   .emoji-panel {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PictureInPicture2 } from 'lucide-svelte';
   import MediaPlaybackControls from '../MediaPlaybackControls.svelte';
+  import { uiText as t } from '../../lib/ui_text';
 
   let {
     paused,
@@ -42,8 +43,8 @@
 </script>
 
 <MediaPlaybackControls
-  ariaLabel="Video controls"
-  seekLabel="Seek video"
+  ariaLabel={t.playback.videoControls}
+  seekLabel={t.playback.seekVideo}
   {paused}
   {currentTime}
   {duration}
@@ -62,7 +63,7 @@
 >
   {#snippet extraControls()}
     {#if supportsPip}
-      <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label="Picture in Picture" onclick={onTogglePip}>
+      <button class="media-playback-button grid size-8 shrink-0 place-items-center rounded-full" type="button" aria-label={t.playback.pip} onclick={onTogglePip}>
         <PictureInPicture2 size={18} />
       </button>
     {/if}
