@@ -227,6 +227,8 @@ func isFieldKeyChar(char byte) bool {
 
 func colorForLogField(key, value string) string {
 	switch key {
+	case "clientIP":
+		return cyan
 	case "method":
 		return blue
 	case "path", "mediaID", "filename":

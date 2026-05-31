@@ -29,13 +29,14 @@ func TestColorizeLogFieldsKeepsEscapedQuotesInsideQuotedValues(t *testing.T) {
 }
 
 func TestFormatConsoleLineSplitsLogFieldsAcrossLines(t *testing.T) {
-	line := `request method=GET path="/media/id" query="" status=200 requestBytes=0 responseBytes=123 duration=4ms`
+	line := `request method=GET clientIP="203.0.113.8" path="/media/id" query="" status=200 requestBytes=0 responseBytes=123 duration=4ms`
 
 	formatted := formatConsoleLine("2026/05/31 12:00:00", line, false)
 
 	want := strings.Join([]string{
 		"2026/05/31 12:00:00 request",
 		"  method=GET",
+		`  clientIP="203.0.113.8"`,
 		`  path="/media/id"`,
 		`  query=""`,
 		"  status=200",

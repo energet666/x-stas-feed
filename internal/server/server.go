@@ -696,8 +696,9 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
 		s.logger.Printf(
-			"request method=%s path=%q query=%q%s status=%d requestBytes=%d responseBytes=%d duration=%s",
+			"request method=%s clientIP=%q path=%q query=%q%s status=%d requestBytes=%d responseBytes=%d duration=%s",
 			r.Method,
+			clientIP(r),
 			r.URL.Path,
 			r.URL.RawQuery,
 			s.mediaRequestLogFields(r),
@@ -707,6 +708,14 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			time.Since(started).Round(time.Millisecond),
 		)
 	})
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func (s *Server) mediaRequestLogFields(r *http.Request) string {

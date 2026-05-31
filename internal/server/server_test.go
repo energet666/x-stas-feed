@@ -146,6 +146,7 @@ func TestRequestLogIncludesQueryStatusRequestBytesResponseBytesAndDuration(t *te
 	var logs bytes.Buffer
 	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
 	req := httptest.NewRequest(http.MethodGet, "/api/feed?index=-1&limit=2", nil)
+	req.RemoteAddr = "203.0.113.8:49152"
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -153,6 +154,9 @@ func TestRequestLogIncludesQueryStatusRequestBytesResponseBytesAndDuration(t *te
 	output := logs.String()
 	if !strings.Contains(output, `path="/api/feed" query="index=-1&limit=2"`) {
 		t.Fatalf("expected request log to include query string, got %q", output)
+	}
+	if !strings.Contains(output, `clientIP="203.0.113.8"`) {
+		t.Fatalf("expected request log to include client IP, got %q", output)
 	}
 	if !strings.Contains(output, "status=200") || !strings.Contains(output, "requestBytes=") || !strings.Contains(output, "responseBytes=") || !strings.Contains(output, "duration=") {
 		t.Fatalf("expected request log to include status, request bytes, response bytes, and duration, got %q", output)
