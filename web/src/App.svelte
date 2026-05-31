@@ -1,6 +1,6 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
-  import { AlertCircle, LoaderCircle, Rocket, Star, Upload } from 'lucide-svelte';
+  import { AlertCircle, LoaderCircle, PanelRightOpen, Rocket, Star, Upload } from 'lucide-svelte';
   import ActivityMediaModal from './components/ActivityMediaModal.svelte';
   import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
@@ -128,6 +128,7 @@
   let masterBoardExpanded = $state(false);
   let activityBoardExpandedID = $state<string | null>(null);
   let newFeedItemCount = $state(0);
+  let activityPanelOpen = $state(false);
   let unsubscribeBoardActivity: (() => void) | undefined = undefined;
   const pendingBoardActivityFetches = new Set<string>();
 
@@ -1530,6 +1531,7 @@
       </section>
 
       <SocialActivityPanel
+        bind:mobileOpen={activityPanelOpen}
         items={activityItems}
         loading={activityLoading}
         error={activityError}
@@ -1569,17 +1571,63 @@
       />
     {/if}
 
-    {#if scrollY > viewportHeight * 0.85}
+    <div class="floating-action-stack" aria-label={t.feed.controls}>
+      {#if scrollY > viewportHeight * 0.85}
+        <button
+          class="floating-action-button"
+          type="button"
+          aria-label={t.feed.scrollToTop}
+          title={t.feed.scrollToTop}
+          onclick={scrollFeedToTop}
+        >
+          <Rocket size={19} />
+        </button>
+      {/if}
       <button
-        class="feed-top-button"
+        class="floating-action-button activity-floating-action"
         type="button"
-        aria-label={t.feed.scrollToTop}
-        title={t.feed.scrollToTop}
-        onclick={scrollFeedToTop}
+        aria-label={t.activity.open}
+        title={t.activity.open}
+        onclick={() => (activityPanelOpen = true)}
       >
-        <Rocket size={19} />
+        <PanelRightOpen size={18} />
       </button>
-    {/if}
+      {#if debugToolsEnabled && debugCollapsed}
+        <FeedDebugOverlay
+          collapsed={debugCollapsed}
+          loadedCount={items.length}
+          mountedCount={visibleRows.length}
+          {unloadedBefore}
+          {unloadedAfter}
+          {visibleStartIndex}
+          {visibleEndIndex}
+          {loading}
+          {initialLoaded}
+          {hasMore}
+          {feedMode}
+          {viewportStart}
+          {viewportEnd}
+          {viewportHeight}
+          {scrollY}
+          {listTop}
+          {totalHeight}
+          {loadedBottom}
+          {topSpacer}
+          {bottomSpacer}
+          {measuredCount}
+          {firstFeedIndex}
+          {lastFeedIndex}
+          {topFeedIndex}
+          {bottomFeedIndex}
+          {bottomSentinelTop}
+          {preloadAheadPx}
+          {overscanRows}
+          {cardBackgroundMode}
+          onToggle={toggleDebugCollapsed}
+          onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
+        />
+      {/if}
+    </div>
   {/if}
 
   {#if masterBoardExpanded}
@@ -1607,7 +1655,7 @@
   {/if}
 </main>
 
-{#if !gameActive && debugToolsEnabled}
+{#if !gameActive && debugToolsEnabled && !debugCollapsed}
   <FeedDebugOverlay
     collapsed={debugCollapsed}
     loadedCount={items.length}
@@ -1693,14 +1741,23 @@
     background: #0f0f17;
   }
 
-  .feed-top-button {
+  .floating-action-stack {
     position: fixed;
     right: max(1rem, env(safe-area-inset-right));
-    bottom: max(4.5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
-    z-index: 40;
+    bottom: max(1rem, calc(env(safe-area-inset-bottom) + 1rem));
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .floating-action-button,
+  .floating-action-stack :global(.ui-icon-button) {
     display: grid;
-    width: 3rem;
-    height: 3rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 2.75rem;
     place-items: center;
     border: 1px solid var(--color-border-glass);
     border-radius: 999px;
@@ -1715,14 +1772,26 @@
       transform 140ms ease;
   }
 
-  .feed-top-button:hover {
+  .floating-action-button:hover,
+  .floating-action-stack :global(.ui-icon-button:hover) {
     border-color: var(--color-border-glass-hover);
     box-shadow: var(--shadow-control-hover);
     transform: translateY(-2px);
   }
 
-  .feed-top-button:focus-visible {
+  .floating-action-button:focus-visible,
+  .floating-action-stack :global(.ui-icon-button:focus-visible) {
     outline: 2px solid rgb(255 255 255 / 0.82);
     outline-offset: 3px;
+  }
+
+  .activity-floating-action {
+    display: none;
+  }
+
+  @media (width < 1344px) {
+    .activity-floating-action {
+      display: grid;
+    }
   }
 </style>

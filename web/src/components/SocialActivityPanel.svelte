@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Heart, LoaderCircle, MessageCircle, PanelRightOpen, PencilLine, X } from 'lucide-svelte';
+  import { Heart, LoaderCircle, MessageCircle, PencilLine, X } from 'lucide-svelte';
   import type { ActivityItem } from '../lib/feed';
   import { uiText as t } from '../lib/ui_text';
 
@@ -7,15 +7,15 @@
     items,
     loading,
     error,
+    mobileOpen = $bindable(false),
     onSelect
   }: {
     items: ActivityItem[];
     loading: boolean;
     error: string | null;
+    mobileOpen?: boolean;
     onSelect: (item: ActivityItem) => void;
   } = $props();
-
-  let mobileOpen = $state(false);
 
   $effect(() => {
     if (!mobileOpen) return;
@@ -48,15 +48,6 @@
     return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
   }
 </script>
-
-<button
-  class="activity-mobile-toggle ui-icon-button"
-  type="button"
-  aria-label={t.activity.open}
-  onclick={() => (mobileOpen = true)}
->
-  <PanelRightOpen size={18} />
-</button>
 
 {#if mobileOpen}
   <button class="activity-mobile-backdrop" type="button" aria-label={t.activity.close} onclick={() => (mobileOpen = false)}></button>
@@ -122,18 +113,10 @@
 </aside>
 
 <style>
-  .activity-mobile-toggle {
-    position: fixed;
-    right: 0.85rem;
-    bottom: 4.25rem;
-    z-index: 35;
-    display: none;
-  }
-
   .activity-mobile-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 34;
+    z-index: 54;
     display: none;
     background: rgb(0 0 0 / 0.52);
     backdrop-filter: blur(8px);
@@ -265,10 +248,6 @@
   }
 
   @media (width < 1344px) {
-    .activity-mobile-toggle {
-      display: grid;
-    }
-
     .activity-mobile-backdrop {
       display: block;
     }
@@ -278,7 +257,7 @@
       top: 0.75rem;
       right: 0.75rem;
       bottom: 0.75rem;
-      z-index: 36;
+      z-index: 56;
       width: min(21rem, calc(100vw - 1.5rem));
       height: calc(100dvh - 1.5rem);
       max-height: none;

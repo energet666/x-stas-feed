@@ -73,27 +73,32 @@
   const formatBool = (value: boolean) => (value ? t.debug.yes : t.debug.no);
 </script>
 
-<aside class="debug-overlay ui-panel-side" class:debug-overlay-collapsed={collapsed}>
+{#if collapsed}
   <button
-    class="debug-toggle"
-    class:debug-toggle-collapsed={collapsed}
+    class="ui-icon-button"
     type="button"
-    aria-label={collapsed ? t.debug.expand : t.debug.collapse}
-    title={collapsed ? t.debug.expand : t.debug.collapse}
+    aria-label={t.debug.expand}
+    title={t.debug.expand}
     onclick={onToggle}
   >
-    {#if collapsed}
-      <Bug size={17} />
-    {:else}
+    <Bug size={17} />
+  </button>
+{:else}
+  <aside class="debug-overlay ui-panel-side">
+    <button
+      class="debug-toggle"
+      type="button"
+      aria-label={t.debug.collapse}
+      title={t.debug.collapse}
+      onclick={onToggle}
+    >
       <span class="inline-flex items-center gap-2">
         <Bug size={14} />
         {t.debug.title}
       </span>
       <ChevronDown size={14} />
-    {/if}
-  </button>
+    </button>
 
-  {#if !collapsed}
     <div class="debug-control-row">
       <span>{t.debug.cardBg}</span>
       <div class="debug-segmented" role="group" aria-label={t.debug.cardBackgroundMode}>
@@ -201,5 +206,5 @@
         <dd>{formatPx(bottomSentinelTop)}</dd>
       </div>
     </dl>
-  {/if}
-</aside>
+  </aside>
+{/if}
