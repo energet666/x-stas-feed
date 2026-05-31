@@ -193,7 +193,10 @@
         {:else}
           <Upload size={15} />
         {/if}
-        <span class="min-w-0 flex-1 truncate text-left">
+        <span
+          class="upload-drop-in-label min-w-0 flex-1 text-left"
+          class:upload-drop-in-label-expanded={uploadStatus === 'error' || (dragActive && dragHasMultipleFiles)}
+        >
           {#if uploadStatus === 'uploading' && uploadProgress !== null}
             {uploadProgress}%
           {:else if dragActive && dragHasMultipleFiles}
@@ -297,6 +300,21 @@
 
   .upload-drop-in {
     max-width: 100%;
+  }
+
+  .upload-drop-in-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upload-drop-in-label-expanded {
+    display: -webkit-box;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .feed-refresh-button {

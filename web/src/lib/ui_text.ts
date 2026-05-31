@@ -32,8 +32,10 @@ export const uiText = {
   upload: {
     action: 'Загрузить',
     files: 'Загрузить файлы',
+    alreadyUploading: 'Дождитесь окончания текущей загрузки',
     noFiles: 'Нет файлов',
     oneFileOnly: 'Можно загрузить только один файл за раз',
+    fileTooLarge: (maxSize: string) => `Файл слишком большой. Максимум: ${maxSize}`,
     noneUploaded: 'Файлы не были загружены',
     failed: 'Загрузка не удалась',
     cancelled: 'Загрузка отменена',

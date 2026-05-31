@@ -1,5 +1,7 @@
 import { uiText } from './ui_text';
 
+export const maxUploadBytes = 5 * 1024 ** 3;
+
 export type Comment = {
   id: string;
   author: string;

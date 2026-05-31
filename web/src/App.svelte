@@ -1,6 +1,6 @@
 <script lang="ts">
   import { flushSync, onMount } from 'svelte';
-  import { LoaderCircle, Rocket, Star } from 'lucide-svelte';
+  import { AlertCircle, LoaderCircle, Rocket, Star, Upload } from 'lucide-svelte';
   import ActivityMediaModal from './components/ActivityMediaModal.svelte';
   import AsteroidsShip from './components/AsteroidsShip.svelte';
   import BackgroundParticles from './components/BackgroundParticles.svelte';
@@ -24,6 +24,7 @@
     fetchBoard,
     fetchFeedItem,
     fetchMediaItem,
+    maxUploadBytes,
     uploadMedia,
     type ActivityItem,
     type BoardInfo,
@@ -113,6 +114,7 @@
   let uploadProgress = $state<number | null>(null);
   let pageDragActive = $state(false);
   let pageDragHasMultipleFiles = $state(false);
+  let uploadFeedRefreshPending = false;
   let ambientReadyIDs = $state<Record<string, boolean>>({});
   let pendingLikeCounts = $state<Record<string, number>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
@@ -417,7 +419,12 @@
     }
 
     const uploadFile = uploadFiles[0];
+    if (uploadFile.size > maxUploadBytes) {
+      setUploadStatus('error', t.upload.fileTooLarge(formatFileSize(maxUploadBytes)), null);
+      return;
+    }
     setUploadStatus('uploading', uploadFile.name, 0);
+    uploadFeedRefreshPending = true;
 
     try {
       const result = await uploadMedia(uploadFile, (progress) => {
@@ -439,6 +446,8 @@
       scheduleViewportUpdate();
     } catch (err) {
       setUploadStatus('error', err instanceof Error ? err.message : t.upload.failed, null);
+    } finally {
+      uploadFeedRefreshPending = false;
     }
   }
 
@@ -1190,6 +1199,7 @@
   }
 
   function handleFeedItemCreated(event: FeedItemCreatedEvent) {
+    if (uploadFeedRefreshPending) return;
     if (feedMode !== 'all' || !initialLoaded) return;
     if (items.some((item) => item.id === event.item.id)) return;
 
@@ -1304,6 +1314,18 @@
     return (event.dataTransfer?.files.length ?? 0) > 1;
   }
 
+  function formatFileSize(bytes: number) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+  }
+
   function updateBackgroundKeyboardFocus(event: PointerEvent) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -1361,9 +1383,21 @@
     {#if pageDragActive}
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="ui-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
-          <LoaderCircle class="text-primary" size={30} />
+          {#if uploadStatus === 'uploading'}
+            <LoaderCircle class="animate-spin text-primary" size={30} />
+          {:else if pageDragHasMultipleFiles}
+            <AlertCircle class="text-danger" size={30} />
+          {:else}
+            <Upload class="text-primary" size={30} />
+          {/if}
           <p class="text-sm font-bold text-primary">
-            {pageDragHasMultipleFiles ? t.upload.oneFileOnly : t.feed.dropFilesToUpload}
+            {#if uploadStatus === 'uploading'}
+              {t.upload.alreadyUploading}
+            {:else if pageDragHasMultipleFiles}
+              {t.upload.oneFileOnly}
+            {:else}
+              {t.feed.dropFilesToUpload}
+            {/if}
           </p>
         </div>
       </div>

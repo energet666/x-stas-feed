@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	mediaCacheControl = "public, max-age=3600"
-	uploadMaxBytes    = 1 << 30
+	mediaCacheControl  = "public, max-age=3600"
+	uploadMaxBytes     = 5 * 1024 * 1024 * 1024
+	uploadMaxSizeLabel = "5 GiB"
 )
 
 type Server struct {
@@ -163,7 +164,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.ContentLength > uploadMaxBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+		writeUploadTooLarge(w)
 		return
 	}
 
@@ -195,7 +196,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			if isRequestTooLarge(err) {
-				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+				writeUploadTooLarge(w)
 				return
 			}
 			writeError(w, http.StatusBadRequest, "invalid upload payload")
@@ -241,7 +242,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			_ = temp.Close()
 			_ = os.Remove(temp.Name())
 			if isRequestTooLarge(copyErr) {
-				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+				writeUploadTooLarge(w)
 				return
 			}
 			writeError(w, http.StatusBadRequest, "invalid upload payload")
@@ -265,7 +266,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 	item, uploadErr := s.library.SaveUploadWithModifiedAt(uploadFilename, uploadTemp, uploadModifiedAt)
 	if uploadErr != nil {
 		if isRequestTooLarge(uploadErr) {
-			writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+			writeUploadTooLarge(w)
 			return
 		}
 		response.Errors = append(response.Errors, uploadError{Filename: uploadFilename, Error: uploadErr.Error()})
@@ -773,9 +774,13 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+func writeUploadTooLarge(w http.ResponseWriter) {
+	writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large; maximum upload size is "+uploadMaxSizeLabel)
+}
+
 func isRequestTooLarge(err error) bool {
 	var maxBytesError *http.MaxBytesError
-	return errors.As(err, &maxBytesError)
+	return errors.As(err, &maxBytesError) || strings.Contains(err.Error(), "request body too large")
 }
 
 func writeDevFallback(w http.ResponseWriter) {
