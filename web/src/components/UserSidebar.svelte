@@ -7,9 +7,11 @@
 
   let { 
     username = $bindable(fallbackUsername),
+    debugToolsEnabled = false,
     onExpandMasterBoard
   }: { 
     username: string;
+    debugToolsEnabled?: boolean;
     onExpandMasterBoard: () => void;
   } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
@@ -114,7 +116,7 @@
   title={t.board.openMaster}
   onclick={onExpandMasterBoard}
 >
-  <DrawingBoard mediaId="master" expanded={false} {username} previewFill={true} />
+  <DrawingBoard mediaId="master" expanded={false} {username} previewFill={true} {debugToolsEnabled} />
 </button>
 
 <style>

@@ -16,6 +16,7 @@
     likePending = false,
     username = t.common.guest,
     suppressFeedChrome = false,
+    debugToolsEnabled = false,
     onReveal,
     onKeep,
     onHide,
@@ -32,6 +33,7 @@
     likePending?: boolean;
     username?: string;
     suppressFeedChrome?: boolean;
+    debugToolsEnabled?: boolean;
     onReveal: (id: string) => void;
     onKeep: (id: string) => void;
     onHide: (id: string) => void;
@@ -70,6 +72,7 @@
     {likePending}
     {username}
     {suppressFeedChrome}
+    {debugToolsEnabled}
     onReveal={revealOverlay}
     onKeep={keepOverlay}
     onHide={hideOverlay}

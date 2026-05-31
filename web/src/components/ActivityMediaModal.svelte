@@ -13,6 +13,7 @@
     commentEvent,
     commentLikeEvent,
     likePending = false,
+    debugToolsEnabled = false,
     onClose,
     onCommentsChanged,
     onCommentLikeChanged,
@@ -26,6 +27,7 @@
     commentEvent: CommentEvent | null;
     commentLikeEvent: CommentLikeEvent | null;
     likePending?: boolean;
+    debugToolsEnabled?: boolean;
     onClose: () => void;
     onCommentsChanged: (mediaId: string, comments: Comment[]) => void;
     onCommentLikeChanged: (mediaId: string, commentId: string, likeCount: number) => void;
@@ -66,6 +68,7 @@
           ambientActive={true}
           {overlayVisible}
           {likePending}
+          {debugToolsEnabled}
           suppressFeedChrome={true}
           onReveal={() => (overlayVisible = true)}
           onKeep={() => (overlayVisible = true)}

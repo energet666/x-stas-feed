@@ -15,6 +15,7 @@
     username = t.common.guest,
     ambientCanvas,
     previewFill = false,
+    debugToolsEnabled = false,
     onClose
   }: {
     mediaId: string;
@@ -22,6 +23,7 @@
     username: string;
     ambientCanvas?: HTMLCanvasElement;
     previewFill?: boolean;
+    debugToolsEnabled?: boolean;
     onClose?: () => void;
   } = $props();
 
@@ -131,6 +133,12 @@
     tick().then(() => {
       requestAnimationFrame(redraw);
     });
+  });
+
+  $effect(() => {
+    if (!debugToolsEnabled) {
+      showDebugSegments = false;
+    }
   });
 
   async function loadBoard() {
@@ -416,7 +424,7 @@
 
     const ctx = activeStrokeCanvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    if (showDebugSegments) {
+    if (debugToolsEnabled && showDebugSegments) {
       drawDebugSegmentedFreeformStroke(ctx, newPoints, currentSize);
     } else {
       drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform');
@@ -1235,38 +1243,40 @@
               <circle cx="17" cy="7" r="2.25"></circle>
             </svg>
           </button>
-          <button
-            class="drawing-tool-btn"
-            class:drawing-tool-btn-active={showDebugSegments}
-            type="button"
-            title={t.board.showPointDensity}
-            aria-label={t.board.showPointDensity}
-            aria-pressed={showDebugSegments}
-            onclick={() => (showDebugSegments = !showDebugSegments)}
-          >
-            <Activity size={16} />
-          </button>
-          {#if lastRawPointCount !== null && lastSimplifiedPointCount !== null}
-            <div
-              class="drawing-point-stats"
-              title={t.board.strokePointStatsTitle}
-              aria-label={t.board.strokePointStats(lastRawPointCount, lastSimplifiedPointCount)}
+          {#if debugToolsEnabled}
+            <button
+              class="drawing-tool-btn"
+              class:drawing-tool-btn-active={showDebugSegments}
+              type="button"
+              title={t.board.showPointDensity}
+              aria-label={t.board.showPointDensity}
+              aria-pressed={showDebugSegments}
+              onclick={() => (showDebugSegments = !showDebugSegments)}
             >
-              <span>{lastRawPointCount}</span>
-              <span>{lastSimplifiedPointCount}</span>
-            </div>
+              <Activity size={16} />
+            </button>
+            {#if lastRawPointCount !== null && lastSimplifiedPointCount !== null}
+              <div
+                class="drawing-point-stats"
+                title={t.board.strokePointStatsTitle}
+                aria-label={t.board.strokePointStats(lastRawPointCount, lastSimplifiedPointCount)}
+              >
+                <span>{lastRawPointCount}</span>
+                <span>{lastSimplifiedPointCount}</span>
+              </div>
+            {/if}
+            <input
+              class="drawing-epsilon-input"
+              type="number"
+              min={MIN_FREEFORM_SIMPLIFY_EPSILON}
+              max={MAX_FREEFORM_SIMPLIFY_EPSILON}
+              step="0.5"
+              value={freeformSimplifyEpsilon}
+              aria-label={t.board.simplificationTolerance}
+              title={t.board.simplificationTolerance}
+              oninput={handleSimplifyEpsilonInput}
+            />
           {/if}
-          <input
-            class="drawing-epsilon-input"
-            type="number"
-            min={MIN_FREEFORM_SIMPLIFY_EPSILON}
-            max={MAX_FREEFORM_SIMPLIFY_EPSILON}
-            step="0.5"
-            value={freeformSimplifyEpsilon}
-            aria-label={t.board.simplificationTolerance}
-            title={t.board.simplificationTolerance}
-            oninput={handleSimplifyEpsilonInput}
-          />
         </div>
 
         <div class="drawing-toolbar-divider"></div>

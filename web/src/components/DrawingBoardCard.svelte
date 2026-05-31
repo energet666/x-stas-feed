@@ -13,6 +13,7 @@
     likePending = false,
     username = t.common.guest,
     suppressFeedChrome = false,
+    debugToolsEnabled = false,
     onReveal,
     onKeep,
     onHide,
@@ -29,6 +30,7 @@
     likePending?: boolean;
     username?: string;
     suppressFeedChrome?: boolean;
+    debugToolsEnabled?: boolean;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
@@ -75,7 +77,7 @@
 
   {#snippet content()}
     {#if expanded}
-      <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} onClose={onToggleExpanded} />
+      <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} {debugToolsEnabled} onClose={onToggleExpanded} />
     {:else}
       <button
         class="drawing-board-preview-button"
@@ -84,7 +86,7 @@
         title={t.board.openDrawingBoard}
         onclick={openBoardFromPreview}
       >
-        <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} />
+        <DrawingBoard {mediaId} {expanded} {username} {ambientCanvas} {debugToolsEnabled} />
       </button>
     {/if}
   {/snippet}

@@ -14,6 +14,7 @@
   import UserSidebar from './components/UserSidebar.svelte';
   import DrawingBoard from './components/DrawingBoard.svelte';
   import { boardEvents } from './lib/board_events.svelte';
+  import { debugToolsStorageKey, readDebugToolsEnabled } from './lib/debug';
   import { fallbackUsername, randomUsername } from './lib/usernames';
   import { uiText as t } from './lib/ui_text';
   import {
@@ -89,6 +90,7 @@
   let bottomSentinelTop = $state<number | undefined>(undefined);
   let measuredHeights = $state<Record<string, number>>({});
   let debugCollapsed = $state(false);
+  let debugToolsEnabled = $state(false);
   let activeOverlayID = $state<string | null>(null);
   let expandedItemID = $state<string | null>(null);
   let commentsPanelItemID = $state<string | null>(null);
@@ -197,6 +199,7 @@
   onMount(() => {
     document.documentElement.classList.toggle('safari-browser', isSafariBrowser());
     debugCollapsed = readStoredDebugCollapsed();
+    debugToolsEnabled = readDebugToolsEnabled();
     username = readStoredUsername();
     usernameStorageReady = true;
     cardBackgroundMode = readStoredCardBackgroundMode();
@@ -206,6 +209,9 @@
     updateViewport();
     window.addEventListener('scroll', scheduleViewportUpdate, { passive: true });
     window.addEventListener('resize', scheduleViewportUpdate);
+    window.addEventListener('storage', syncDebugToolsEnabled);
+    window.addEventListener('focus', syncDebugToolsEnabled);
+    document.addEventListener('visibilitychange', syncDebugToolsEnabled);
     window.addEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
     window.addEventListener(gameStartedEvent, activateGameMode);
     window.addEventListener(gameExitedEvent, deactivateGameMode);
@@ -228,6 +234,9 @@
       unsubscribeBoardActivity?.();
       window.removeEventListener('scroll', scheduleViewportUpdate);
       window.removeEventListener('resize', scheduleViewportUpdate);
+      window.removeEventListener('storage', syncDebugToolsEnabled);
+      window.removeEventListener('focus', syncDebugToolsEnabled);
+      document.removeEventListener('visibilitychange', syncDebugToolsEnabled);
       window.removeEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
       window.removeEventListener(gameStartedEvent, activateGameMode);
       window.removeEventListener(gameExitedEvent, deactivateGameMode);
@@ -665,6 +674,12 @@
     } catch {
       return false;
     }
+  }
+
+  function syncDebugToolsEnabled(event?: StorageEvent | Event) {
+    if (event instanceof StorageEvent && event.key !== debugToolsStorageKey) return;
+    if (document.visibilityState === 'hidden') return;
+    debugToolsEnabled = readDebugToolsEnabled();
   }
 
   function persistUsername(nextUsername: string) {
@@ -1418,6 +1433,7 @@
         />
         <UserSidebar 
           bind:username 
+          {debugToolsEnabled}
           onExpandMasterBoard={toggleMasterBoard}
         />
       </div>
@@ -1473,6 +1489,7 @@
               overlayVisible={activeOverlayID === item.id}
               likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
               username={commentUsername}
+              {debugToolsEnabled}
               onReveal={revealCardOverlay}
               onKeep={keepCardOverlay}
               onHide={hideCardOverlay}
@@ -1547,6 +1564,7 @@
         onCommentsChanged={updateItemComments}
         onCommentLikeChanged={updateItemCommentLikeCount}
         onOpenBoardEdit={openActivityBoardFromMedia}
+        {debugToolsEnabled}
         onLike={likeItem}
       />
     {/if}
@@ -1570,6 +1588,7 @@
         mediaId="master"
         expanded={true}
         username={commentUsername}
+        {debugToolsEnabled}
         onClose={toggleMasterBoard}
       />
     </div>
@@ -1581,13 +1600,14 @@
         mediaId={activityBoardExpandedID}
         expanded={true}
         username={commentUsername}
+        {debugToolsEnabled}
         onClose={closeActivityBoard}
       />
     </div>
   {/if}
 </main>
 
-{#if !gameActive}
+{#if !gameActive && debugToolsEnabled}
   <FeedDebugOverlay
     collapsed={debugCollapsed}
     loadedCount={items.length}
