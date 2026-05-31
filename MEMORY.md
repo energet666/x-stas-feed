@@ -2,6 +2,15 @@
 
 This file is for durable project decisions, constraints, and known risks. It is not a changelog; routine implementation steps, small UI tweaks, and verification logs belong in git history or final task notes.
 
+## Documentation Decisions
+
+- The root `README.md` documents the repository's current executable behavior, including the implemented index-based main feed API (`GET /api/feed?index=`), development and production-style run commands, filesystem sidecar storage, and the high-level HTTP surface. If the feed contract changes back to cursor/limit, update the README together with the server/frontend implementation.
+- README documentation changes were verified with `make check` on 2026-05-31. The first sandboxed run failed because `httptest` could not bind localhost (`operation not permitted`); the same command passed outside the sandbox with `svelte-check` clean and all Go tests passing.
+- README favorites documentation was corrected on 2026-05-31: the current Svelte UI renders favorites from browser `localStorage` (`feed-ai:favorites`) by resolving IDs with `GET /api/media/{id}` one at a time and removing stale 404 IDs client-side. The legacy `POST /api/feed/favorites` endpoint remains in the backend but is not used by the current UI.
+- README board documentation was corrected on 2026-05-31: regular boards are represented as root `.board` media placeholders and rendered through the main feed; image-backed boards also use their media IDs with board detail/stroke endpoints. The master board is the only non-feed board and uses the fixed ID `master`. The legacy `GET /api/boards` list endpoint remains in the backend, but the current UI does not call it.
+- README board background documentation was corrected on 2026-05-31: `GET /api/boards/{id}` returns `board.background.url`, and current image-backed boards point directly at `/media/{id}`. The legacy `GET /api/boards/{id}/background` endpoint remains as backend compatibility/fallback for old board metadata without a direct URL, but the current UI does not fetch it.
+- Project Markdown was synchronized on 2026-05-31 so `AGENTS.md`, `DESIGN.md`, `README.md`, and `MEMORY.md` describe the current index-based feed API, frontend-owned favorites rendering, feed-backed regular boards, direct board background URLs, and the broader media scope beyond photos/videos.
+
 ## Product Direction
 
 - Build a modern one-column Instagram-like infinite media feed for local photos, videos, audio, and generic files.
@@ -23,7 +32,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Media serving and comment APIs must validate IDs through the same safe lookup model.
 - Media responses set `Cache-Control: public, max-age=3600`; a `Cache-Control: no-cache` header on media requests is client/browser controlled and can appear during reloads or when DevTools disables cache.
 - Main feed indexing is append-only and oldest-to-newest internally: index `0` is the oldest item, the highest index is the newest item, and `GET /api/feed?index=-1` returns the newest item plus `firstIndex`/`lastIndex` bounds. Other non-negative indexes fetch exactly one feed item. The frontend renders the main feed newest-first by requesting decreasing indexes as the user scrolls down.
-- Favorites feed pagination uses `POST /api/feed/favorites` with browser-owned ordered media IDs. The server does safe ID lookup against scanned media, ignores stale/missing IDs, preserves the request order, and applies cursor/limit over that ordered ID list.
+- Favorites mode is frontend-owned. The browser stores ordered media IDs in `localStorage` under `feed-ai:favorites`, inserts new favorites at the front, maps the shared virtual feed index onto that array, resolves cards one at a time with `GET /api/media/{id}`, and removes stale/missing IDs on `404`. The older `POST /api/feed/favorites` endpoint still exists in the backend but is not used by the current Svelte UI.
 - The media scanner must ignore internal comment storage such as `test-content/.comments`.
 - Media and comment serving uses a long-lived in-memory runtime index initialized once from disk. After startup, out-of-band filesystem media additions/removals are intentionally unsupported until restart; server-managed uploads, comments, comment likes, and media likes update the runtime index directly while preserving filesystem-backed durability.
 - Production server logs media scan and runtime index initialization counts/durations, plus server-managed upload/comment/like persistence events, so heavy filesystem operations are visible in stdout.
@@ -70,7 +79,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Upload UI is a compact header drop-in plus page-level drag-and-drop. After a successful upload, the frontend resets feed pagination and reloads from the first page so newest uploaded media appears at the top.
 - Card titles and media accessibility labels use `displayName`, not the technical storage filename.
 - Favorites are stored only in browser `localStorage` under `feed-ai:favorites`. New favorites are inserted at the front of the ID array, so the favorites view shows most recently saved media first without server-side sorting.
-- The page header owns the all/favorites mode switch. In favorites mode, `App.svelte` requests only the saved favorite IDs through the favorites endpoint and removes an unfavorited visible card immediately while keeping the favorites cursor aligned after ID removal.
+- The page header owns the all/favorites mode switch. In favorites mode, `App.svelte` uses the saved favorite ID array, resolves visible items through `GET /api/media/{id}`, removes stale IDs on `404`, and removes an unfavorited visible card immediately while keeping virtual indexes aligned after ID removal.
 - The former full-width page header is now a compact left-side feed controls panel placed above the user profile panel inside one shared left rail; it still owns upload and all/favorites controls and stacks above the feed on smaller screens.
 - The frontend UI is localized to Russian directly through the typed `web/src/lib/ui_text.ts` module. Do not add a full i18n framework or language switch for v1 unless product scope changes; keep new user-facing strings in that module.
 

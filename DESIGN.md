@@ -48,4 +48,4 @@ Keep scoped styles inside a Svelte component when the rules are feature-specific
 
 Use lucide-svelte icons for standard actions. Buttons that are only actions should generally be icon buttons with accessible labels; reserve text buttons for commands where the label carries important meaning.
 
-Avoid reintroducing external component themes. The app's visual identity is a dark, media-first glass interface with restrained borders, minimal external shadows, and readable overlays over photos and videos.
+Avoid reintroducing external component themes. The app's visual identity is a dark, media-first glass interface with restrained borders, minimal external shadows, and readable overlays over media content.

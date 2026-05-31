@@ -2,7 +2,7 @@
 
 ## Product
 
-Build a modern Instagram-like infinite media feed for photos and videos. Test media files live in `test-content`.
+Build a modern Instagram-like infinite media feed for local photos, videos, audio, generic files, and drawing boards. Test media files live in `test-content`.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ Build a modern Instagram-like infinite media feed for photos and videos. Test me
 - Use the standard Go `net/http` server.
 - Agents may start the local server only for their own short verification checks and must stop it immediately afterward, unless the user explicitly asks to keep or start the server.
 - Do not use WebSocket. If async server-to-client communication is needed, use SSE.
-- The app does not need a database, uploads, auth, likes, or personalization for v1.
+- The app does not need a database, auth, or personalization for v1. Uploads, media likes, and comment likes are filesystem-backed.
 - Comments are required for v1, but must remain filesystem-backed; do not add a database.
 - Store comments in server-managed text files whose names are deterministically associated with the media file. Do not trust client-supplied filesystem paths.
 - When a new comment is created, the backend should create the corresponding comment file if it does not exist and append the comment there.
@@ -34,11 +34,18 @@ Build a modern Instagram-like infinite media feed for photos and videos. Test me
 ## Media Feed Rules
 
 - Read test media from `test-content`.
-- Support photos and videos.
-- Sort media by file modification time, newest first. Use filename as a stable tie-breaker.
+- Support photos, videos, audio, generic files, and `.board` drawing cards.
+- Sort media by file modification time for feed display, newest first. Use filename as a stable tie-breaker. The current API stores the runtime index oldest-to-newest internally and the frontend renders newest-first by walking indexes downward.
 - The feed must handle an empty `test-content` directory gracefully.
-- Expose cursor-based pagination through `GET /api/feed?cursor=&limit=`.
+- Expose index-based main-feed loading through `GET /api/feed?index=`. `index=-1` returns the newest item and bounds; non-negative indexes fetch exact items.
 - Serve media through safe server-controlled URLs, not by trusting arbitrary paths from the client.
+
+## Favorites and Boards
+
+- Favorites are browser-owned under `localStorage` key `feed-ai:favorites`. The current UI resolves saved IDs with `GET /api/media/{id}` and removes stale `404` IDs client-side; do not assume `POST /api/feed/favorites` drives the UI.
+- Regular boards are media items represented by root `.board` placeholder files and rendered through the main feed. Stroke history lives under `test-content/.boards/`.
+- Image-backed boards use the image media ID with `GET /api/boards/{mediaID}` and receive a direct `board.background.url`, normally `/media/{id}`. The current UI does not fetch `GET /api/boards/{id}/background`.
+- The master board is the only non-feed board. It uses fixed ID `master`, lives at `test-content/.boards/master.jsonl`, and is shown from the sidebar.
 
 ## Comment Rules
 
