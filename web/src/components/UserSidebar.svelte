@@ -154,7 +154,7 @@
     display: block;
     width: 100%;
     aspect-ratio: 3 / 2;
-    border-radius: var(--radius-overlay);
+    border-radius: var(--radius-panel);
     border: 1px solid var(--color-border-glass-soft);
     overflow: hidden;
     cursor: pointer;
