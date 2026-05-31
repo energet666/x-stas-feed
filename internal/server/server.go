@@ -696,12 +696,13 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
 		s.logger.Printf(
-			"request method=%s path=%q query=%q%s status=%d bytes=%d duration=%s",
+			"request method=%s path=%q query=%q%s status=%d requestBytes=%d responseBytes=%d duration=%s",
 			r.Method,
 			r.URL.Path,
 			r.URL.RawQuery,
 			s.mediaRequestLogFields(r),
 			recorder.status,
+			r.ContentLength,
 			recorder.bytes,
 			time.Since(started).Round(time.Millisecond),
 		)

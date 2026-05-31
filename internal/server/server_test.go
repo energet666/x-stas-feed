@@ -139,7 +139,7 @@ func TestFeedScanKeepsGIFAsImageMedia(t *testing.T) {
 	}
 }
 
-func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
+func TestRequestLogIncludesQueryStatusRequestBytesResponseBytesAndDuration(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.txt")
 
@@ -154,8 +154,8 @@ func TestRequestLogIncludesQueryStatusBytesAndDuration(t *testing.T) {
 	if !strings.Contains(output, `path="/api/feed" query="index=-1&limit=2"`) {
 		t.Fatalf("expected request log to include query string, got %q", output)
 	}
-	if !strings.Contains(output, "status=200") || !strings.Contains(output, "bytes=") || !strings.Contains(output, "duration=") {
-		t.Fatalf("expected request log to include status, bytes, and duration, got %q", output)
+	if !strings.Contains(output, "status=200") || !strings.Contains(output, "requestBytes=") || !strings.Contains(output, "responseBytes=") || !strings.Contains(output, "duration=") {
+		t.Fatalf("expected request log to include status, request bytes, response bytes, and duration, got %q", output)
 	}
 }
 

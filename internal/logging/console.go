@@ -53,11 +53,16 @@ func (w *ConsoleWriter) Write(p []byte) (int, error) {
 }
 
 func (w *ConsoleWriter) formatLine(line string) string {
+	text := strings.TrimRight(line, "\r\n")
+	newline := line[len(text):]
+	if newline == "" {
+		newline = "\n"
+	}
 	if !w.color {
-		return time.Now().Format("2006/01/02 15:04:05") + " " + line
+		return formatConsoleLine(time.Now().Format("2006/01/02 15:04:05"), text, false) + newline
 	}
 	timestamp := dim + cyan + time.Now().Format("2006/01/02 15:04:05") + reset
-	return timestamp + " " + colorizeLogFields(line)
+	return formatConsoleLine(timestamp, text, true) + newline
 }
 
 func shouldColorConsole() bool {
@@ -95,6 +100,67 @@ func colorizeLogFields(line string) string {
 		index = end
 	}
 	return builder.String()
+}
+
+type logField struct {
+	key   string
+	value string
+}
+
+func formatConsoleLine(timestamp, line string, color bool) string {
+	prefix, fields, ok := parseLogFields(line)
+	if !ok {
+		if color {
+			line = colorizeLogFields(line)
+		}
+		return timestamp + " " + line
+	}
+
+	var builder strings.Builder
+	builder.WriteString(timestamp)
+	if prefix != "" {
+		builder.WriteString(" ")
+		builder.WriteString(prefix)
+	}
+	for _, field := range fields {
+		builder.WriteString("\n  ")
+		if color {
+			builder.WriteString(colorizeLogField(field.key, field.value))
+			continue
+		}
+		builder.WriteString(field.key)
+		builder.WriteString("=")
+		builder.WriteString(field.value)
+	}
+	return builder.String()
+}
+
+func parseLogFields(line string) (string, []logField, bool) {
+	var fields []logField
+	firstFieldStart := -1
+	for index := 0; index < len(line); {
+		start, end, key, value, ok := nextLogField(line, index)
+		if !ok {
+			break
+		}
+		if firstFieldStart == -1 {
+			firstFieldStart = start
+		}
+		fields = append(fields, logField{key: key, value: value})
+		index = end
+	}
+	if len(fields) == 0 {
+		return "", nil, false
+	}
+	return strings.TrimSpace(line[:firstFieldStart]), fields, true
+}
+
+func colorizeLogField(key, value string) string {
+	color := colorForLogField(key, value)
+	if color == "" {
+		return key + "=" + value
+	}
+	return dim + key + "=" + reset + color + value + reset
 }
 
 func nextLogField(line string, offset int) (int, int, string, string, bool) {
@@ -171,7 +237,7 @@ func colorForLogField(key, value string) string {
 		return colorForStatus(value)
 	case "duration":
 		return yellow
-	case "bytes", "size", "items", "mediaItems", "comments", "activityItems":
+	case "bytes", "requestBytes", "responseBytes", "size", "items", "mediaItems", "comments", "activityItems":
 		return white
 	case "source":
 		if strings.Contains(value, "cache") {
