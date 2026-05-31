@@ -1151,7 +1151,7 @@ func TestUploadEndpointKeepsGIFAsImageMedia(t *testing.T) {
 	}
 }
 
-func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
+func TestUploadEndpointRejectsMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
@@ -1159,34 +1159,21 @@ func TestUploadEndpointSavesMultipleFilesWithUniqueNames(t *testing.T) {
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
-	if res.Code != http.StatusCreated {
-		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", res.Code, res.Body.String())
 	}
 
-	var upload uploadResponse
-	if err := json.NewDecoder(res.Body).Decode(&upload); err != nil {
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if len(upload.Items) != 2 {
-		t.Fatalf("expected two uploaded items, got %#v", upload)
+	if body.Error != "only one file can be uploaded at a time" {
+		t.Fatalf("expected single-file error, got %#v", body)
 	}
-	if upload.Items[0].Filename != "clip.mp4" || upload.Items[1].Filename != "clip (1).mp4" {
-		t.Fatalf("expected original filename plus numeric suffix, got %#v", upload.Items)
-	}
-	if upload.Items[0].DisplayName != "clip.mp4" || upload.Items[1].DisplayName != "clip (1).mp4" {
-		t.Fatalf("expected display names to use unique filenames, got %#v", upload.Items)
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
-	res = httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	var feedItem media.IndexedItem
-	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
-		t.Fatal(err)
-	}
-	if feedItem.LastIndex != 1 {
-		t.Fatalf("expected both uploaded files in feed, got %#v", feedItem)
+	if matches, err := filepath.Glob(filepath.Join(dir, "clip*")); err != nil || len(matches) != 0 {
+		t.Fatalf("expected no uploaded files, matches=%v err=%v", matches, err)
 	}
 }
 

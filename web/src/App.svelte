@@ -112,6 +112,7 @@
   let uploadMessage = $state<string>(t.upload.action);
   let uploadProgress = $state<number | null>(null);
   let pageDragActive = $state(false);
+  let pageDragHasMultipleFiles = $state(false);
   let ambientReadyIDs = $state<Record<string, boolean>>({});
   let pendingLikeCounts = $state<Record<string, number>>({});
   let overlayHideTimer: ReturnType<typeof setTimeout> | undefined = undefined;
@@ -410,11 +411,16 @@
       setUploadStatus('error', t.upload.noFiles, null);
       return;
     }
+    if (uploadFiles.length > 1) {
+      setUploadStatus('error', t.upload.oneFileOnly, null);
+      return;
+    }
 
-    setUploadStatus('uploading', uploadFiles.length === 1 ? uploadFiles[0].name : t.upload.selectedFiles(uploadFiles.length), 0);
+    const uploadFile = uploadFiles[0];
+    setUploadStatus('uploading', uploadFile.name, 0);
 
     try {
-      const result = await uploadMedia(uploadFiles, (progress) => {
+      const result = await uploadMedia(uploadFile, (progress) => {
         uploadProgress = progress.percent;
       });
       const uploadedCount = result.items.length;
@@ -1261,23 +1267,27 @@
     if (!hasDraggedFiles(event) || gameActive) return;
     event.preventDefault();
     pageDragActive = true;
+    pageDragHasMultipleFiles = hasMultipleDraggedFiles(event);
   }
 
   function handleWindowDragOver(event: DragEvent) {
     if (!hasDraggedFiles(event) || gameActive) return;
     event.preventDefault();
     pageDragActive = true;
+    pageDragHasMultipleFiles = hasMultipleDraggedFiles(event);
   }
 
   function handleWindowDragLeave(event: DragEvent) {
     if (event.relatedTarget) return;
     pageDragActive = false;
+    pageDragHasMultipleFiles = false;
   }
 
   function handleWindowDrop(event: DragEvent) {
     if (!hasDraggedFiles(event) || gameActive) return;
     event.preventDefault();
     pageDragActive = false;
+    pageDragHasMultipleFiles = false;
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length > 0) {
       void handleUploadFiles(files);
@@ -1286,6 +1296,12 @@
 
   function hasDraggedFiles(event: DragEvent) {
     return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  function hasMultipleDraggedFiles(event: DragEvent) {
+    const items = event.dataTransfer?.items;
+    if (items && items.length > 0) return items.length > 1;
+    return (event.dataTransfer?.files.length ?? 0) > 1;
   }
 
   function updateBackgroundKeyboardFocus(event: PointerEvent) {
@@ -1346,7 +1362,9 @@
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="ui-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
           <LoaderCircle class="text-primary" size={30} />
-          <p class="text-sm font-bold text-primary">{t.feed.dropFilesToUpload}</p>
+          <p class="text-sm font-bold text-primary">
+            {pageDragHasMultipleFiles ? t.upload.oneFileOnly : t.feed.dropFilesToUpload}
+          </p>
         </div>
       </div>
     {/if}

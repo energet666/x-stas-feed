@@ -175,8 +175,18 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response uploadResponse
-	seenFilePart := false
+	var uploadFilename string
+	var uploadModifiedAt time.Time
+	var uploadTemp *os.File
 	var pendingModifiedAt []time.Time
+
+	defer func() {
+		if uploadTemp != nil {
+			name := uploadTemp.Name()
+			_ = uploadTemp.Close()
+			_ = os.Remove(name)
+		}
+	}()
 
 	for {
 		part, err := reader.NextPart()
@@ -206,38 +216,65 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		seenFilePart = true
+		if uploadTemp != nil {
+			_ = part.Close()
+			writeError(w, http.StatusBadRequest, "only one file can be uploaded at a time")
+			return
+		}
+
 		filename := partFilename(part)
 		var sourceModifiedAt time.Time
 		if len(pendingModifiedAt) > 0 {
 			sourceModifiedAt = pendingModifiedAt[0]
 			pendingModifiedAt = pendingModifiedAt[1:]
 		}
-		var item media.Item
-		var uploadErr error
-		item, uploadErr = s.library.SaveUploadWithModifiedAt(filename, part, sourceModifiedAt)
+
+		temp, err := os.CreateTemp("", "feed-ai-upload-*")
+		if err != nil {
+			_ = part.Close()
+			writeError(w, http.StatusInternalServerError, "upload could not be stored")
+			return
+		}
+		_, copyErr := io.Copy(temp, part)
 		_ = part.Close()
-		if uploadErr != nil {
-			if isRequestTooLarge(uploadErr) {
+		if copyErr != nil {
+			_ = temp.Close()
+			_ = os.Remove(temp.Name())
+			if isRequestTooLarge(copyErr) {
 				writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
 				return
 			}
-			response.Errors = append(response.Errors, uploadError{Filename: filename, Error: uploadErr.Error()})
-			continue
-		}
-		response.Items = append(response.Items, item)
-		s.publishFeedItemCreated(item.ID)
-	}
-
-	if len(response.Items) == 0 {
-		if !seenFilePart && len(response.Errors) == 0 {
-			writeError(w, http.StatusBadRequest, "no files were uploaded")
+			writeError(w, http.StatusBadRequest, "invalid upload payload")
 			return
 		}
+		uploadFilename = filename
+		uploadModifiedAt = sourceModifiedAt
+		uploadTemp = temp
+	}
+
+	if uploadTemp == nil {
+		writeError(w, http.StatusBadRequest, "no files were uploaded")
+		return
+	}
+
+	if _, err := uploadTemp.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusInternalServerError, "upload could not be read")
+		return
+	}
+
+	item, uploadErr := s.library.SaveUploadWithModifiedAt(uploadFilename, uploadTemp, uploadModifiedAt)
+	if uploadErr != nil {
+		if isRequestTooLarge(uploadErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "upload request is too large")
+			return
+		}
+		response.Errors = append(response.Errors, uploadError{Filename: uploadFilename, Error: uploadErr.Error()})
 		writeJSON(w, http.StatusBadRequest, response)
 		return
 	}
 
+	response.Items = append(response.Items, item)
+	s.publishFeedItemCreated(item.ID)
 	writeJSON(w, http.StatusCreated, response)
 }
 

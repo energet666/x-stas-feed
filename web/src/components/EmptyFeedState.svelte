@@ -41,5 +41,5 @@
       {t.common.refresh}
     </button>
   </div>
-  <input bind:this={inputEl} class="sr-only" type="file" multiple onchange={handleInputChange} />
+  <input bind:this={inputEl} class="sr-only" type="file" onchange={handleInputChange} />
 </div>

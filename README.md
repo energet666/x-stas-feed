@@ -147,7 +147,7 @@ Other feed and media endpoints:
 - `GET /media/{id}`
 - `GET /api/media/{id}/poster?time=0`
 - `GET /api/media/{id}/cover`
-- `POST /api/uploads` multipart form with `files` parts and optional `modifiedAt` parts in Unix milliseconds
+- `POST /api/uploads` multipart form with one `files` part and an optional `modifiedAt` part in Unix milliseconds
 
 Favorites are currently a frontend-owned view. The browser stores media IDs in `localStorage` under `feed-ai:favorites`; newly favorited items are inserted at the front of that list. When the user opens favorites, the frontend walks that saved list in order and resolves each card with `GET /api/media/{id}`. Missing/stale IDs are removed client-side when the server returns `404`. The older `POST /api/feed/favorites` backend endpoint still exists, but the current Svelte UI does not use it for rendering favorites.
 

@@ -265,13 +265,11 @@ export async function createShipScore(name: string, score: number) {
   return Array.isArray(data.scores) ? data.scores : [];
 }
 
-export function uploadMedia(files: File[], onProgress?: (progress: UploadProgress) => void) {
+export function uploadMedia(file: File, onProgress?: (progress: UploadProgress) => void) {
   return new Promise<UploadResult>((resolve, reject) => {
     const form = new FormData();
-    for (const file of files) {
-      form.append('modifiedAt', String(file.lastModified));
-      form.append('files', file);
-    }
+    form.append('modifiedAt', String(file.lastModified));
+    form.append('files', file);
 
     const request = new XMLHttpRequest();
     request.open('POST', '/api/uploads');

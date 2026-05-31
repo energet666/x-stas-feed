@@ -31,6 +31,7 @@
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
   let boardNameInputEl = $state<HTMLInputElement | undefined>(undefined);
   let dragActive = $state(false);
+  let dragHasMultipleFiles = $state(false);
   let boardFormOpen = $state(false);
   let boardName = $state('');
   let boardCreating = $state(false);
@@ -53,17 +54,20 @@
     if (!hasDraggedFiles(event)) return;
     event.preventDefault();
     dragActive = true;
+    dragHasMultipleFiles = hasMultipleDraggedFiles(event);
   }
 
   function handleDragOver(event: DragEvent) {
     if (!hasDraggedFiles(event)) return;
     event.preventDefault();
     dragActive = true;
+    dragHasMultipleFiles = hasMultipleDraggedFiles(event);
   }
 
   function handleDragLeave(event: DragEvent) {
     if (event.currentTarget === event.target) {
       dragActive = false;
+      dragHasMultipleFiles = false;
     }
   }
 
@@ -71,6 +75,7 @@
     if (!hasDraggedFiles(event)) return;
     event.preventDefault();
     dragActive = false;
+    dragHasMultipleFiles = false;
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length > 0) {
       onUploadFiles(files);
@@ -79,6 +84,12 @@
 
   function hasDraggedFiles(event: DragEvent) {
     return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  function hasMultipleDraggedFiles(event: DragEvent) {
+    const items = event.dataTransfer?.items;
+    if (items && items.length > 0) return items.length > 1;
+    return (event.dataTransfer?.files.length ?? 0) > 1;
   }
 
   function openBoardForm() {
@@ -185,6 +196,8 @@
         <span class="min-w-0 flex-1 truncate text-left">
           {#if uploadStatus === 'uploading' && uploadProgress !== null}
             {uploadProgress}%
+          {:else if dragActive && dragHasMultipleFiles}
+            {t.upload.oneFileOnly}
           {:else}
             {uploadMessage}
           {/if}
@@ -194,7 +207,6 @@
         bind:this={inputEl}
         class="sr-only"
         type="file"
-        multiple
         onchange={handleInputChange}
       />
       <button

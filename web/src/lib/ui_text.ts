@@ -33,6 +33,7 @@ export const uiText = {
     action: 'Загрузить',
     files: 'Загрузить файлы',
     noFiles: 'Нет файлов',
+    oneFileOnly: 'Можно загрузить только один файл за раз',
     noneUploaded: 'Файлы не были загружены',
     failed: 'Загрузка не удалась',
     cancelled: 'Загрузка отменена',
