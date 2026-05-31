@@ -111,6 +111,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 - Use a custom feed audio card rather than native browser controls.
 - Audio cards render embedded cover art when `coverUrl` is available; otherwise they show a styled fallback album surface using extracted title/artist/album metadata or the display name.
+- Audio cards use embedded cover art for the outer ambient background when ambient mode is active. The card's internal decorative gradient is disabled in that state so it does not obscure the blurred cover; audio without cover art keeps the decorative fallback ambient and internal gradient.
 - Audio playback uses a hidden native `<audio>` element with custom play/pause, seek, time, mute, and volume controls.
 - Audio shares the same persisted volume/mute storage and media progress key pattern as video. Only media at least 120 seconds long persists progress.
 - Audio and video players coordinate through the shared playback event so starting one mounted player pauses the others.

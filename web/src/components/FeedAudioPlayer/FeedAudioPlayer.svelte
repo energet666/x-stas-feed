@@ -299,6 +299,7 @@
       bind:this={container}
       class="audio-card-surface"
       class:audio-card-surface-playing={!paused}
+      class:audio-card-surface-cover-ambient={ambientActive && showCover}
       role="button"
       aria-label={t.playback.audioPlayer(item.displayName)}
       aria-pressed={!paused}
@@ -430,6 +431,14 @@
 
   .audio-card-surface-playing::before {
     animation-play-state: running;
+  }
+
+  .audio-card-surface-cover-ambient {
+    background: transparent;
+  }
+
+  .audio-card-surface-cover-ambient::before {
+    opacity: 0;
   }
 
   @keyframes audio-background-spin {
