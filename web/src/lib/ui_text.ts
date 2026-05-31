@@ -27,7 +27,7 @@ export const uiText = {
     all: 'Все',
     favorites: 'Избранное',
     showNewItems: 'Показать новые записи',
-    dropFilesToUpload: 'Отпустите файлы для загрузки'
+    dropFilesToUpload: 'Отпустите файл для загрузки'
   },
   upload: {
     action: 'Загрузить',
