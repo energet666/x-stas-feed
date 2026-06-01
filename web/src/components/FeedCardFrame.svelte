@@ -289,7 +289,7 @@
 
   .feed-card-overlay-visible {
     pointer-events: auto;
-    transform: translateY(0);
+    transform: none;
   }
 
   .feed-card-bottom-accessory {
@@ -312,7 +312,7 @@
   }
 
   .feed-card-bottom-accessory-visible .feed-card-bottom-accessory-inner {
-    transform: translateY(0);
+    transform: none;
   }
 
   .feed-card-panel {

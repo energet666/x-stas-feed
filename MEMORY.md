@@ -89,6 +89,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 
 - `FeedCardFrame` owns card geometry and overlay layering.
 - Feed card shells keep their page-background glass effect through a `::before` backing layer. Do not put `backdrop-filter` directly on `.ui-media-card`, because nested overlay panels need to blur their own backdrop rather than inheriting a flattened card backdrop.
+- Firefox may fail to render `backdrop-filter` on feed-card overlay panels while a visible parent still has a no-op transform such as `translateY(0)`. Keep transforms only on hidden/animating overlay states and set visible feed-card overlay/accessory transforms to `none` so panel blur activates in Firefox.
 - Feed card shells use a real translucent border instead of inset edge shadows, because inset 1px shadows render heavier on straight edges than on rounded corners.
 - Card visual effects are being restored in stages for scroll performance testing. Ambient media layer and ambient blur are enabled; card backing pattern, glass transparency, shell backdrop blur, media drop shadow, and shell inset shadows remain disabled. Global background particles are enabled again and may react to scroll only through a clamped, eased draw offset; direct scroll-velocity mutation caused visible jitter in Safari.
 - Card layers are:
