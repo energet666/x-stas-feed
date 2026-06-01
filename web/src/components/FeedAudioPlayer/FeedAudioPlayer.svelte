@@ -66,7 +66,7 @@
   let supportsVolumeControl = $state(true);
   let isDragging = $state(false);
   let isOverControls = $state(false);
-  let playBlocked = $state(false);
+  let playbackError = $state<'blocked' | 'unsupported' | 'failed' | ''>('');
   let coverFailed = $state(false);
   let container = $state<HTMLDivElement | undefined>(undefined);
   let lastProgressSaveAt = 0;
@@ -128,6 +128,7 @@
 
   function syncMetadata() {
     if (!audio) return;
+    playbackError = '';
     duration = Number.isFinite(audio.duration) ? audio.duration : item.durationSeconds ?? 0;
     supportsVolumeControl = canSetVolume(audio);
     applyStoredVolume();
@@ -142,20 +143,29 @@
 
   async function togglePlay() {
     if (!audio) return;
-    playBlocked = false;
+    playbackError = '';
     if (audio.paused) {
       try {
         if (currentTime > 0.5 && audio.currentTime <= 0.5) {
           audio.currentTime = currentTime;
         }
         await audio.play();
-      } catch {
-        playBlocked = true;
+      } catch (error) {
+        playbackError = playbackErrorFor(error, audio);
       }
     } else {
       audio.pause();
     }
     onReveal();
+  }
+
+  function playbackErrorFor(error: unknown, element: HTMLAudioElement) {
+    const name = error instanceof DOMException ? error.name : '';
+    if (name === 'NotAllowedError') return 'blocked';
+    if (name === 'NotSupportedError' || element.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      return 'unsupported';
+    }
+    return 'failed';
   }
 
   function handleCardClick(event: MouseEvent) {
@@ -339,8 +349,13 @@
         onended={() => {
           paused = true;
           currentTime = 0;
+          playbackError = '';
           clearStoredProgress(item.id);
           onReveal();
+        }}
+        onerror={(event) => {
+          playbackError = playbackErrorFor(undefined, event.currentTarget as HTMLAudioElement);
+          paused = true;
         }}
       ></audio>
 
@@ -365,8 +380,8 @@
         {#if albumLine}
           <p class="audio-album">{albumLine}</p>
         {/if}
-        {#if playBlocked}
-          <p class="audio-error">{t.playback.browserBlocked}</p>
+        {#if playbackError}
+          <p class="audio-error">{t.playback.audioErrors[playbackError]}</p>
         {/if}
       </div>
     </div>
@@ -398,13 +413,14 @@
     position: relative;
     display: grid;
     height: 100%;
-    min-height: 34rem;
+    min-height: 0;
     overflow: hidden;
-    grid-template-rows: auto auto;
-    align-content: center;
-    place-items: center;
-    gap: clamp(1.4rem, 3.5vw, 2.2rem);
-    padding: clamp(4.4rem, 12vw, 6rem) clamp(1.25rem, 5vw, 3rem) clamp(7.5rem, 14vw, 8.5rem);
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    justify-items: center;
+    align-items: start;
+    gap: 0.9rem;
+    padding: 2rem 2rem 5.5rem;
     background: rgb(12 16 22);
     color: var(--color-text-primary);
   }
@@ -460,8 +476,11 @@
 
   .audio-art-wrap {
     display: grid;
-    width: min(64%, 22rem);
-    max-width: min(100%, 44vh);
+    width: auto;
+    max-width: 100%;
+    height: 100%;
+    max-height: 34rem;
+    min-height: 0;
     aspect-ratio: 1;
     place-items: center;
   }
@@ -483,7 +502,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
 
   .audio-art-fallback {
@@ -506,6 +525,7 @@
   .audio-copy {
     display: grid;
     width: min(100%, 32rem);
+    min-height: 0;
     justify-items: center;
     gap: 0.3rem;
     text-align: center;
@@ -521,13 +541,13 @@
 
   h3 {
     display: -webkit-box;
-    max-height: 3.9em;
+    max-height: 2.2em;
     overflow: hidden;
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    font-size: clamp(1.35rem, 4vw, 2.05rem);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 1.35rem;
     font-weight: 850;
     line-height: 1.08;
     letter-spacing: 0;
@@ -538,7 +558,7 @@
   .audio-error {
     max-width: 100%;
     overflow-wrap: anywhere;
-    font-size: 0.92rem;
+    font-size: 0.84rem;
     font-weight: 750;
   }
 
@@ -556,13 +576,18 @@
 
   @media (max-width: 520px) {
     .audio-card-surface {
+      gap: 0.75rem;
       padding-right: 1rem;
+      padding-bottom: 5.25rem;
       padding-left: 1rem;
     }
 
     .audio-art-wrap {
-      width: min(72%, 18rem);
-      max-width: min(100%, 38vh);
+      max-height: 100%;
+    }
+
+    h3 {
+      font-size: 1.18rem;
     }
   }
 
