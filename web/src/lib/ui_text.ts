@@ -63,6 +63,9 @@ export const uiText = {
   },
   profile: {
     settings: 'Настройки профиля',
+    visitor: 'Посетитель',
+    expandVisitorPanel: 'Развернуть панель посетителя',
+    collapseVisitorPanel: 'Свернуть панель посетителя',
     randomNickname: 'Сгенерировать случайный никнейм'
   },
   activity: {
