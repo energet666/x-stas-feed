@@ -194,6 +194,25 @@ video {
     transform: translateZ(0);
   }
 
+  :root.no-glass-effects .glass-nav,
+  :root.no-glass-effects .ui-nav,
+  :root.no-glass-effects .glass-panel,
+  :root.no-glass-effects .ui-panel,
+  :root.no-glass-effects .side-glass-panel,
+  :root.no-glass-effects .ui-panel-side,
+  :root.no-glass-effects .debug-overlay,
+  :root.no-glass-effects .glass-button,
+  :root.no-glass-effects .glass-pill,
+  :root.no-glass-effects .ui-button,
+  :root.no-glass-effects .ui-pill {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  :root.no-glass-effects .debug-overlay {
+    background: linear-gradient(180deg, rgb(16 16 20 / 0.88), rgb(7 7 10 / 0.82)), rgb(0 0 0 / 0.74);
+  }
+
   .glass-button,
   .glass-pill,
   .ui-button,
@@ -339,6 +358,7 @@ video {
     bottom: 0.75rem;
     z-index: 50;
     width: min(22rem, calc(100vw - 1.5rem));
+    max-height: min(44rem, calc(100vh - 1.5rem));
     overflow: hidden;
     border: 1px solid var(--color-border-glass);
     border-radius: var(--radius-toolbar);
@@ -349,6 +369,13 @@ video {
     line-height: 1.2;
     backdrop-filter: blur(34px) saturate(210%);
     -webkit-backdrop-filter: blur(34px) saturate(210%);
+  }
+
+  .debug-scroll-body {
+    max-height: calc(min(44rem, 100vh - 1.5rem) - 2.25rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .debug-overlay.side-glass-panel,
@@ -461,6 +488,22 @@ video {
     min-width: 0;
     padding: 0.5rem 0.75rem;
     background: var(--color-debug-cell);
+  }
+
+  .debug-reset-button {
+    width: 100%;
+    min-height: 2rem;
+    border: 1px solid var(--color-border-glass);
+    border-radius: var(--radius-control);
+    background: var(--color-action-bg);
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .debug-reset-button:hover {
+    background: var(--color-action-hover-strong);
+    color: var(--color-text-primary);
   }
 
   .debug-grid dt {

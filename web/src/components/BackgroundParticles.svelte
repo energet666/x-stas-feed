@@ -17,7 +17,7 @@
   };
 
   let particles: Particle[] = [];
-  let animationFrameId: number;
+  let animationFrameId: number | undefined = undefined;
   let width = 0;
   let height = 0;
   let time = 0;
@@ -33,6 +33,7 @@
     canvas.width = width;
     canvas.height = height;
     initParticles();
+    drawParticles();
   }
 
   function handleScroll() {
@@ -56,48 +57,23 @@
       x: Math.random() * width,
       y: randomY ? Math.random() * height : height + 10,
       radius: Math.random() * 2 + 1, // Increased radius
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: -(Math.random() * 0.5 + 0.2), // move upwards
+      vx: (Math.random() - 0.5) * 0.18,
+      vy: -(Math.random() * 0.28 + 0.1),
       alpha: Math.random() * 0.5 + 0.2, // Increased alpha
-      pulseSpeed: Math.random() * 0.02 + 0.01,
+      pulseSpeed: Math.random() * 0.018 + 0.008,
       glow: Math.random() > 0.8,
-      phase: Math.random() * Math.PI * 2,
+      phase: Math.random() * Math.PI * 2
     };
   }
 
-  function animate(now: number) {
+  function drawParticles() {
     if (!ctx) return;
-    const delta =
-      lastFrameAt > 0 ? Math.min((now - lastFrameAt) / 16.67, 2) : 1;
-    lastFrameAt = now;
-    ctx.clearRect(0, 0, width, height);
-    time += delta;
-    scrollOffset +=
-      (targetScrollOffset - scrollOffset) * Math.min(1, 0.14 * delta);
-    targetScrollOffset *= Math.pow(0.92, delta);
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, width, height);
 
     for (let i = 0; i < particles.length; i++) {
-      let p = particles[i];
-
-      p.x += (p.vx + Math.sin(time * p.pulseSpeed + p.phase) * 0.1) * delta;
-      p.y += p.vy * delta;
-
-      // Wrap around (recreate if they go off screen)
-      if (p.y < -10) {
-        p.y = height + 10;
-        p.x = Math.random() * width;
-      } else if (p.y > height + 10) {
-        p.y = -10;
-        p.x = Math.random() * width;
-      }
-
-      if (p.x < -10) p.x = width + 10;
-      if (p.x > width + 10) p.x = -10;
-
-      // Draw
-      const currentAlpha =
-        p.alpha + Math.sin(time * p.pulseSpeed * 2 + p.phase) * 0.1;
-      const alphaClamped = Math.max(0.05, Math.min(0.8, currentAlpha));
+      const p = particles[i];
+      const alphaClamped = Math.max(0.05, Math.min(0.8, p.alpha));
       let drawY = p.y + scrollOffset;
       if (drawY < -10) drawY += height + 20;
       if (drawY > height + 10) drawY -= height + 20;
@@ -114,22 +90,76 @@
 
       ctx.fill();
     }
+  }
 
+  function animate(now: number) {
+    animationFrameId = undefined;
+    if (!ctx) {
+      return;
+    }
+
+    const delta = lastFrameAt > 0 ? Math.min((now - lastFrameAt) / 16.67, 4) : 1;
+    lastFrameAt = now;
+    time += delta;
+    scrollOffset += (targetScrollOffset - scrollOffset) * Math.min(1, 0.14 * delta);
+    targetScrollOffset *= Math.pow(0.92, delta);
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.x += (p.vx + Math.sin(time * p.pulseSpeed + p.phase) * 0.08) * delta;
+      p.y += p.vy * delta;
+
+      if (p.y < -10) {
+        p.y = height + 10;
+        p.x = Math.random() * width;
+      } else if (p.y > height + 10) {
+        p.y = -10;
+        p.x = Math.random() * width;
+      }
+
+      if (p.x < -10) p.x = width + 10;
+      if (p.x > width + 10) p.x = -10;
+    }
+
+    drawParticles();
+    requestNextFrame();
+  }
+
+  function requestNextFrame() {
+    if (animationFrameId !== undefined || document.visibilityState === "hidden") return;
     animationFrameId = requestAnimationFrame(animate);
   }
 
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") {
+      if (animationFrameId !== undefined) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      }
+      return;
+    }
+
+    lastFrameAt = 0;
+    drawParticles();
+    requestNextFrame();
+  }
+
   onMount(() => {
-    ctx = canvas.getContext("2d");
+    ctx = canvas.getContext("2d", { alpha: false });
     lastScrollY = window.scrollY;
     resize();
     window.addEventListener("resize", resize);
     window.addEventListener("scroll", handleScroll, { passive: true });
-    animationFrameId = requestAnimationFrame(animate);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    requestNextFrame();
 
     return () => {
       window.removeEventListener("resize", resize);
       window.removeEventListener("scroll", handleScroll);
-      cancelAnimationFrame(animationFrameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (animationFrameId !== undefined) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
   });
 </script>
@@ -137,5 +167,5 @@
 <canvas
   bind:this={canvas}
   class="fixed inset-0 pointer-events-none"
-  style="z-index: -1;"
+  style="z-index: -1; width: 100vw; height: 100vh;"
 ></canvas>

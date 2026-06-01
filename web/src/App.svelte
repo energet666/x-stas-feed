@@ -46,6 +46,10 @@
   const preloadAheadPx = 1600;
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
+  const pageBackgroundEnabledStorageKey = 'feed-ai:page-background-enabled';
+  const backgroundParticlesEnabledStorageKey = 'feed-ai:background-particles-enabled';
+  const asteroidsEnabledStorageKey = 'feed-ai:asteroids-enabled';
+  const glassEffectsEnabledStorageKey = 'feed-ai:glass-effects-enabled';
   const favoritesStorageKey = 'feed-ai:favorites';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
@@ -53,6 +57,7 @@
   const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
 
   type CardBackgroundMode = 'simple' | 'ambient';
+  type GlassEffectsMode = 'off' | 'full';
   type FeedMode = 'all' | 'favorites';
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
@@ -107,6 +112,10 @@
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
   let cardBackgroundModeStorageReady = $state(false);
+  let backgroundParticlesEnabled = $state(true);
+  let asteroidsEnabled = $state(true);
+  let glassEffectsMode = $state<GlassEffectsMode>('off');
+  let backgroundLayersStorageReady = $state(false);
   let favoriteIDs = $state<string[]>([]);
   let favoritesStorageReady = $state(false);
   let feedMode = $state<FeedMode>('all');
@@ -205,6 +214,10 @@
     usernameStorageReady = true;
     cardBackgroundMode = readStoredCardBackgroundMode();
     cardBackgroundModeStorageReady = true;
+    backgroundParticlesEnabled = readStoredBackgroundLayerEnabled(backgroundParticlesEnabledStorageKey);
+    asteroidsEnabled = readStoredBackgroundLayerEnabled(asteroidsEnabledStorageKey);
+    glassEffectsMode = readStoredGlassEffectsMode();
+    backgroundLayersStorageReady = true;
     favoriteIDs = readStoredFavoriteIDs();
     favoritesStorageReady = true;
     updateViewport();
@@ -223,6 +236,7 @@
 
     return () => {
       document.documentElement.classList.remove('safari-browser');
+      document.documentElement.classList.remove('no-glass-effects');
       clearTimeout(overlayHideTimer);
       clearTimeout(uploadStatusTimer);
       if (viewportFrameID !== undefined) {
@@ -279,6 +293,14 @@
   $effect(() => {
     if (!cardBackgroundModeStorageReady) return;
     persistCardBackgroundMode(cardBackgroundMode);
+  });
+
+  $effect(() => {
+    if (!backgroundLayersStorageReady) return;
+    persistBackgroundLayerEnabled(backgroundParticlesEnabledStorageKey, backgroundParticlesEnabled);
+    persistBackgroundLayerEnabled(asteroidsEnabledStorageKey, asteroidsEnabled);
+    persistGlassEffectsMode(glassEffectsMode);
+    document.documentElement.classList.toggle('no-glass-effects', glassEffectsMode === 'off');
   });
 
   $effect(() => {
@@ -704,6 +726,14 @@
     }
   }
 
+  function persistBackgroundLayerEnabled(storageKey: string, enabled: boolean) {
+    try {
+      window.localStorage.setItem(storageKey, String(enabled));
+    } catch {
+      // Ignore storage failures; the in-memory debug setting still applies.
+    }
+  }
+
   function persistFavoriteIDs(nextIDs: string[]) {
     try {
       window.localStorage.setItem(favoritesStorageKey, JSON.stringify(nextIDs));
@@ -727,6 +757,44 @@
     } catch {
       return 'ambient';
     }
+  }
+
+  function readStoredBackgroundLayerEnabled(storageKey: string) {
+    try {
+      const storedValue = window.localStorage.getItem(storageKey);
+      if (storedValue !== null) return storedValue !== 'false';
+      return window.localStorage.getItem(pageBackgroundEnabledStorageKey) !== 'false';
+    } catch {
+      return true;
+    }
+  }
+
+  function persistGlassEffectsMode(mode: GlassEffectsMode) {
+    try {
+      window.localStorage.setItem(glassEffectsEnabledStorageKey, mode);
+    } catch {
+      // Ignore storage failures; the in-memory debug setting still applies.
+    }
+  }
+
+  function readStoredGlassEffectsMode(): GlassEffectsMode {
+    try {
+      const storedValue = window.localStorage.getItem(glassEffectsEnabledStorageKey);
+      if (storedValue === 'off' || storedValue === 'full') return storedValue;
+      if (storedValue === 'soft') return 'off';
+      if (storedValue === 'false') return 'off';
+      if (storedValue === 'true') return 'full';
+      return 'off';
+    } catch {
+      return 'off';
+    }
+  }
+
+  function resetDebugSwitches() {
+    cardBackgroundMode = 'ambient';
+    backgroundParticlesEnabled = true;
+    asteroidsEnabled = true;
+    glassEffectsMode = 'off';
   }
 
   function readStoredFavoriteIDs() {
@@ -1393,8 +1461,12 @@
 />
 
 <main class="app-shell min-h-screen">
-  <BackgroundParticles />
-  <AsteroidsShip username={commentUsername} />
+  {#if backgroundParticlesEnabled}
+    <BackgroundParticles />
+  {/if}
+  {#if asteroidsEnabled}
+    <AsteroidsShip username={commentUsername} />
+  {/if}
   {#if !gameActive}
     {#if pageDragActive}
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
@@ -1623,8 +1695,15 @@
           {preloadAheadPx}
           {overscanRows}
           {cardBackgroundMode}
+          {backgroundParticlesEnabled}
+          {asteroidsEnabled}
+          {glassEffectsMode}
           onToggle={toggleDebugCollapsed}
           onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
+          onBackgroundParticlesEnabledChange={(enabled) => (backgroundParticlesEnabled = enabled)}
+          onAsteroidsEnabledChange={(enabled) => (asteroidsEnabled = enabled)}
+          onGlassEffectsModeChange={(mode) => (glassEffectsMode = mode)}
+          onResetSwitches={resetDebugSwitches}
         />
       {/if}
     </div>
@@ -1686,8 +1765,15 @@
     {preloadAheadPx}
     {overscanRows}
     {cardBackgroundMode}
+    {backgroundParticlesEnabled}
+    {asteroidsEnabled}
+    {glassEffectsMode}
     onToggle={toggleDebugCollapsed}
     onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
+    onBackgroundParticlesEnabledChange={(enabled) => (backgroundParticlesEnabled = enabled)}
+    onAsteroidsEnabledChange={(enabled) => (asteroidsEnabled = enabled)}
+    onGlassEffectsModeChange={(mode) => (glassEffectsMode = mode)}
+    onResetSwitches={resetDebugSwitches}
   />
 {/if}
 

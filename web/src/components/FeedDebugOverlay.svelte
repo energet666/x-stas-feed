@@ -32,8 +32,15 @@
     preloadAheadPx,
     overscanRows,
     cardBackgroundMode,
+    backgroundParticlesEnabled,
+    asteroidsEnabled,
+    glassEffectsMode,
     onToggle,
-    onCardBackgroundModeChange
+    onCardBackgroundModeChange,
+    onBackgroundParticlesEnabledChange,
+    onAsteroidsEnabledChange,
+    onGlassEffectsModeChange,
+    onResetSwitches
   }: {
     collapsed: boolean;
     loadedCount: number;
@@ -64,8 +71,15 @@
     preloadAheadPx: number;
     overscanRows: number;
     cardBackgroundMode: 'simple' | 'ambient';
+    backgroundParticlesEnabled: boolean;
+    asteroidsEnabled: boolean;
+    glassEffectsMode: 'off' | 'full';
     onToggle: () => void;
     onCardBackgroundModeChange: (mode: 'simple' | 'ambient') => void;
+    onBackgroundParticlesEnabledChange: (enabled: boolean) => void;
+    onAsteroidsEnabledChange: (enabled: boolean) => void;
+    onGlassEffectsModeChange: (mode: 'off' | 'full') => void;
+    onResetSwitches: () => void;
   } = $props();
 
   const formatPx = (value: number | undefined) => (value === undefined ? '-' : `${Math.round(value)}px`);
@@ -99,28 +113,91 @@
       <ChevronDown size={14} />
     </button>
 
-    <div class="debug-control-row">
-      <span>{t.debug.cardBg}</span>
-      <div class="debug-segmented" role="group" aria-label={t.debug.cardBackgroundMode}>
-        <button
-          class:debug-segment-active={cardBackgroundMode === 'simple'}
-          type="button"
-          onclick={() => onCardBackgroundModeChange('simple')}
-        >
-          {t.debug.simple}
-        </button>
-        <button
-          class:debug-segment-active={cardBackgroundMode === 'ambient'}
-          type="button"
-          onclick={() => onCardBackgroundModeChange('ambient')}
-        >
-          {t.debug.ambient}
-        </button>
+    <div class="debug-scroll-body">
+      <div class="debug-control-row">
+        <span>{t.debug.cardBg}</span>
+        <div class="debug-segmented" role="group" aria-label={t.debug.cardBackgroundMode}>
+          <button
+            class:debug-segment-active={cardBackgroundMode === 'simple'}
+            type="button"
+            onclick={() => onCardBackgroundModeChange('simple')}
+          >
+            {t.debug.simple}
+          </button>
+          <button
+            class:debug-segment-active={cardBackgroundMode === 'ambient'}
+            type="button"
+            onclick={() => onCardBackgroundModeChange('ambient')}
+          >
+            {t.debug.ambient}
+          </button>
+        </div>
       </div>
-    </div>
 
-    <div class="debug-section-title">{t.debug.window}</div>
-    <dl class="debug-grid">
+      <div class="debug-control-row">
+        <span>{t.debug.particles}</span>
+        <div class="debug-segmented" role="group" aria-label={t.debug.particles}>
+          <button
+            class:debug-segment-active={!backgroundParticlesEnabled}
+            type="button"
+            onclick={() => onBackgroundParticlesEnabledChange(false)}
+          >
+            {t.debug.off}
+          </button>
+          <button
+            class:debug-segment-active={backgroundParticlesEnabled}
+            type="button"
+            onclick={() => onBackgroundParticlesEnabledChange(true)}
+          >
+            {t.debug.on}
+          </button>
+        </div>
+      </div>
+
+      <div class="debug-control-row">
+        <span>{t.debug.asteroids}</span>
+        <div class="debug-segmented" role="group" aria-label={t.debug.asteroids}>
+          <button
+            class:debug-segment-active={!asteroidsEnabled}
+            type="button"
+            onclick={() => onAsteroidsEnabledChange(false)}
+          >
+            {t.debug.off}
+          </button>
+          <button
+            class:debug-segment-active={asteroidsEnabled}
+            type="button"
+            onclick={() => onAsteroidsEnabledChange(true)}
+          >
+            {t.debug.on}
+          </button>
+        </div>
+      </div>
+
+      <div class="debug-control-row">
+        <span>{t.debug.glass}</span>
+        <div class="debug-segmented" role="group" aria-label={t.debug.glass}>
+          <button
+            class:debug-segment-active={glassEffectsMode === 'off'}
+            type="button"
+            onclick={() => onGlassEffectsModeChange('off')}
+          >
+            {t.debug.off}
+          </button>
+          <button
+            class:debug-segment-active={glassEffectsMode === 'full'}
+            type="button"
+            onclick={() => onGlassEffectsModeChange('full')}
+          >
+            {t.debug.on}
+          </button>
+        </div>
+      </div>
+
+      <button class="debug-reset-button" type="button" onclick={onResetSwitches}>{t.debug.resetDefaults}</button>
+
+      <div class="debug-section-title">{t.debug.window}</div>
+      <dl class="debug-grid">
       <div>
         <dt>{t.debug.mode}</dt>
         <dd>{feedMode}</dd>
@@ -153,10 +230,10 @@
         <dt>{t.debug.overscan}</dt>
         <dd>{overscanRows}</dd>
       </div>
-    </dl>
+      </dl>
 
-    <div class="debug-section-title">{t.debug.feedIndexes}</div>
-    <dl class="debug-grid">
+      <div class="debug-section-title">{t.debug.feedIndexes}</div>
+      <dl class="debug-grid">
       <div>
         <dt>{t.debug.bounds}</dt>
         <dd>{formatNumber(firstFeedIndex)}-{formatNumber(lastFeedIndex)}</dd>
@@ -173,10 +250,10 @@
         <dt>{t.debug.preload}</dt>
         <dd>{preloadAheadPx}px</dd>
       </div>
-    </dl>
+      </dl>
 
-    <div class="debug-section-title">{t.debug.geometry}</div>
-    <dl class="debug-grid">
+      <div class="debug-section-title">{t.debug.geometry}</div>
+      <dl class="debug-grid">
       <div>
         <dt>{t.debug.viewport}</dt>
         <dd>{Math.round(viewportStart)}-{Math.round(viewportEnd)}</dd>
@@ -205,6 +282,7 @@
         <dt>{t.debug.sentinel}</dt>
         <dd>{formatPx(bottomSentinelTop)}</dd>
       </div>
-    </dl>
+      </dl>
+    </div>
   </aside>
 {/if}
