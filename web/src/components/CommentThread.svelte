@@ -423,7 +423,7 @@
     overflow: hidden;
     color: var(--color-text-primary);
     font-size: 0.82rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.15;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -179,7 +179,7 @@
     padding: 0.85rem 1rem;
     color: var(--color-text-secondary);
     font-size: 0.875rem;
-    font-weight: 800;
+    font-weight: 600;
     text-align: left;
     transition:
       background 140ms ease,
