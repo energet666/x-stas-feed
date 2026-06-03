@@ -1819,6 +1819,8 @@
     inset: 0;
     z-index: -2;
     background:
+      repeating-linear-gradient(45deg, rgb(226 232 240 / 0.08) 0 1px, transparent 1px 96px),
+      repeating-linear-gradient(-45deg, rgb(226 232 240 / 0.055) 0 1px, transparent 1px 96px),
       radial-gradient(circle at 18% 14%, rgb(100 116 139 / 0.48), transparent 30rem),
       radial-gradient(circle at 82% 18%, rgb(30 41 59 / 0.46), transparent 26rem),
       radial-gradient(circle at 70% 82%, rgb(148 163 184 / 0.26), transparent 30rem),

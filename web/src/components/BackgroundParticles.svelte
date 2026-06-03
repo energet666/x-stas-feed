@@ -38,6 +38,13 @@
     drawParticles();
   }
 
+  $effect(() => {
+    mode;
+    if (!canvas || width === 0 || height === 0) return;
+    initParticles();
+    drawParticles();
+  });
+
   function handleScroll() {
     const currentScrollY = window.scrollY;
     const delta = currentScrollY - lastScrollY;
@@ -47,6 +54,8 @@
 
   function initParticles() {
     particles = [];
+    if (mode === "daylight") return;
+
     // Reduced density for better performance during scrolling
     const numParticles = Math.min(Math.floor((width * height) / 10000), 100);
     for (let i = 0; i < numParticles; i++) {
@@ -72,10 +81,12 @@
     if (!ctx) return;
     if (mode === "daylight") {
       drawDaylightBase();
-    } else {
-      ctx.fillStyle = "rgb(0, 0, 0)";
-      ctx.fillRect(0, 0, width, height);
+      drawDaylightGeometry();
+      return;
     }
+
+    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.fillRect(0, 0, width, height);
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
@@ -87,16 +98,11 @@
       ctx.beginPath();
       ctx.arc(p.x, drawY, p.radius, 0, Math.PI * 2);
 
-      if (mode === "daylight") {
-        const hue = p.glow ? "226, 232, 240" : "148, 163, 184";
-        ctx.fillStyle = `rgba(${hue}, ${alphaClamped * 0.42})`;
+      // Removed expensive shadowBlur/shadowColor
+      if (p.glow) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped})`;
       } else {
-        // Removed expensive shadowBlur/shadowColor
-        if (p.glow) {
-          ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped})`;
-        } else {
-          ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.6})`;
-        }
+        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.6})`;
       }
 
       ctx.fill();
@@ -129,6 +135,51 @@
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  function drawDaylightGeometry() {
+    if (!ctx) return;
+    const grid = 96;
+    const drift = (time * 0.18) % grid;
+    const lineColor = "rgba(226, 232, 240, 0.14)";
+    const accentColor = "rgba(148, 163, 184, 0.18)";
+
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = lineColor;
+    ctx.beginPath();
+    for (let x = -grid * 2 + drift; x < width + grid * 2; x += grid) {
+      ctx.moveTo(x, -grid);
+      ctx.lineTo(x + height + grid, height + grid);
+    }
+    for (let x = -grid * 2 - drift; x < width + grid * 2; x += grid) {
+      ctx.moveTo(x, height + grid);
+      ctx.lineTo(x + height + grid, -grid);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 1.25;
+    drawPolygon(width * 0.18, height * 0.2, Math.min(width, height) * 0.18, 6, time * 0.0012);
+    drawPolygon(width * 0.78, height * 0.24, Math.min(width, height) * 0.16, 5, -time * 0.001);
+    drawPolygon(width * 0.58, height * 0.78, Math.min(width, height) * 0.22, 7, time * 0.0008);
+    ctx.restore();
+  }
+
+  function drawPolygon(x: number, y: number, radius: number, sides: number, rotation: number) {
+    if (!ctx) return;
+    ctx.beginPath();
+    for (let i = 0; i <= sides; i++) {
+      const angle = rotation + (i / sides) * Math.PI * 2;
+      const px = x + Math.cos(angle) * radius;
+      const py = y + Math.sin(angle) * radius;
+      if (i === 0) {
+        ctx.moveTo(px, py);
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
+    ctx.stroke();
   }
 
   function drawGlow(x: number, y: number, radius: number, color: string) {
