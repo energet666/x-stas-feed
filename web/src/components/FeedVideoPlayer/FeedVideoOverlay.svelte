@@ -58,7 +58,7 @@
     border: 1px solid var(--color-border-glass);
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-popover);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-size: 0.8rem;
     transform: translateY(-50%);
     backdrop-filter: blur(24px) saturate(170%);
@@ -92,7 +92,7 @@
     border: 1px solid var(--color-border-glass);
     background: var(--background-image-glass-strong);
     box-shadow: var(--shadow-seek);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.92rem;
     animation: video-seek-feedback-pop 420ms ease-out both;
     backdrop-filter: blur(22px) saturate(170%);
@@ -123,7 +123,7 @@
     border: 1px solid var(--color-border-glass);
     background: var(--background-image-glass-play);
     box-shadow: var(--shadow-play);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     transform: translate(-50%, -50%);
     backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
@@ -139,7 +139,7 @@
     border: 1px solid var(--color-border-glass);
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-popover);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     transform: translateX(-50%);
     backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);

@@ -26,9 +26,9 @@
 </script>
 
 <div class="ui-panel flex min-h-96 flex-col items-center justify-center p-8 text-center">
-  <Image class="mb-4 text-muted" size={42} />
-  <h2 class="text-lg font-semibold text-primary">{t.feed.emptyTitle}</h2>
-  <p class="mt-2 max-w-sm text-sm font-medium text-muted">
+  <Image class="mb-4 text-fg-muted" size={42} />
+  <h2 class="text-lg font-semibold text-fg-primary">{t.feed.emptyTitle}</h2>
+  <p class="mt-2 max-w-sm text-sm font-medium text-fg-muted">
     {t.feed.emptyDescription} <span class="font-mono">test-content</span>.
   </p>
   <div class="mt-5 flex flex-wrap justify-center gap-2">

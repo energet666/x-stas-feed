@@ -129,7 +129,7 @@
     display: grid;
     width: min(100%, 26rem);
     gap: 1rem;
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .file-card-icon-shell {
@@ -187,7 +187,7 @@
   }
 
   dt {
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -198,7 +198,7 @@
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.9rem;
     font-weight: 650;
   }
@@ -220,7 +220,7 @@
     border-radius: 999px;
     padding: 0.65rem 0.85rem;
     background: rgb(255 255 255 / 0.1);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.9rem;
     font-weight: 800;
     text-decoration: none;

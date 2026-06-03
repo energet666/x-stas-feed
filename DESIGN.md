@@ -13,14 +13,14 @@ Define shared tokens in the `@theme` block in `web/src/app.css`.
 Use semantic token names for new code:
 
 - Page and surfaces: `--color-page`, `--color-surface-media`, `--color-surface-overlay`
-- Text: `--color-text-primary`, `--color-text-secondary`, `--color-text-muted`, `--color-text-subtle`, `--color-text-danger`
+- Foreground text: `--color-fg-primary`, `--color-fg-secondary`, `--color-fg-muted`, `--color-fg-subtle`, `--color-fg-danger`
 - Borders: `--color-border-glass`, `--color-border-glass-soft`, `--color-border-glass-hover`
 - Actions: `--color-action-bg`, `--color-action-hover`, `--color-action-hover-strong`
 - Radii: `--radius-media-card`, `--radius-panel`, `--radius-overlay`, `--radius-control`, `--radius-toolbar`
 
-Historical aliases such as `--color-primary`, `--color-muted`, `--color-button-bg`, `--color-glass-border`, and `--radius-card` remain available for compatibility. Prefer the semantic names above when adding or refactoring code.
+Historical aliases such as `--color-primary`, `--color-muted`, `--color-button-bg`, `--color-glass-border`, and `--radius-card` have been removed. Use the semantic names above for new and existing shared styling.
 
-Tailwind utilities generated from these tokens are valid. In markup, concise compatibility utilities such as `text-primary`, `text-muted`, and `text-danger` are acceptable for readability. Prefer newer semantic utilities such as `bg-action-bg` and `border-border-glass-soft` when using action or border tokens directly.
+Tailwind utilities generated from these tokens are valid. Use semantic utilities such as `text-fg-primary`, `text-fg-secondary`, `text-fg-muted`, `text-fg-subtle`, `text-fg-danger`, `bg-action-bg`, and `border-border-glass-soft`.
 
 ## Primitives
 
@@ -38,7 +38,7 @@ Use the `ui-*` primitives for new shared UI:
 - `ui-overlay-panel`: overlay panel above media
 - `ui-overlay-panel-visible`: visible state for overlay panels
 
-Existing `glass-*` and `card-overlay*` classes are compatibility aliases for the same primitives. New component markup should use `ui-*` names. Local feature classes such as `feed-card-overlay` can keep their domain-specific names when they are not reusable design-system primitives.
+Legacy shared primitive aliases such as `glass-*`, `card-overlay`, and `side-glass-panel` have been removed. Component markup should use `ui-*` names. Local feature classes such as `feed-card-overlay` can keep their domain-specific names when they are not reusable design-system primitives.
 
 ## Component Styling Rules
 

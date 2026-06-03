@@ -1494,13 +1494,13 @@
       <div class="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-black/45 p-6 backdrop-blur-sm">
         <div class="ui-panel flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
           {#if uploadStatus === 'uploading'}
-            <LoaderCircle class="animate-spin text-primary" size={30} />
+            <LoaderCircle class="animate-spin text-fg-primary" size={30} />
           {:else if pageDragHasMultipleFiles}
-            <AlertCircle class="text-danger" size={30} />
+            <AlertCircle class="text-fg-danger" size={30} />
           {:else}
-            <Upload class="text-primary" size={30} />
+            <Upload class="text-fg-primary" size={30} />
           {/if}
-          <p class="text-sm font-bold text-primary">
+          <p class="text-sm font-bold text-fg-primary">
             {#if uploadStatus === 'uploading'}
               {t.upload.alreadyUploading}
             {:else if pageDragHasMultipleFiles}
@@ -1541,7 +1541,7 @@
       >
         {#if !initialLoaded && loading}
           <div class="flex min-h-96 items-center justify-center">
-            <LoaderCircle class="animate-spin text-primary" size={34} />
+            <LoaderCircle class="animate-spin text-fg-primary" size={34} />
           </div>
         {/if}
 
@@ -1551,12 +1551,12 @@
 
         {#if isEmpty && isFavoriteMode}
           <div class="ui-panel flex min-h-80 flex-col items-center justify-center gap-4 p-6 text-center">
-            <div class="grid size-12 place-items-center rounded-full border border-border-glass-soft bg-action-bg text-primary">
+            <div class="grid size-12 place-items-center rounded-full border border-border-glass-soft bg-action-bg text-fg-primary">
               <Star size={22} />
             </div>
             <div class="space-y-1">
-              <h2 class="text-base font-bold text-primary">{t.feed.noFavoritesTitle}</h2>
-              <p class="max-w-xs text-sm font-semibold text-muted">{t.feed.noFavoritesDescription}</p>
+              <h2 class="text-base font-bold text-fg-primary">{t.feed.noFavoritesTitle}</h2>
+              <p class="max-w-xs text-sm font-semibold text-fg-muted">{t.feed.noFavoritesDescription}</p>
             </div>
             <button class="ui-button gap-2" type="button" onclick={showAllMedia}>{t.feed.showAllMedia}</button>
           </div>
@@ -1619,9 +1619,9 @@
 
         <div bind:this={sentinel} class="flex min-h-20 items-center justify-center">
           {#if loading && initialLoaded}
-            <LoaderCircle class="animate-spin text-muted" size={26} />
+            <LoaderCircle class="animate-spin text-fg-muted" size={26} />
           {:else if initialLoaded && !hasMore && items.length > 0}
-            <p class="text-sm font-semibold text-muted">{t.feed.end}</p>
+            <p class="text-sm font-semibold text-fg-muted">{t.feed.end}</p>
           {/if}
         </div>
       </section>
@@ -1893,7 +1893,7 @@
     border-radius: 999px;
     background: var(--background-image-glass-strong);
     box-shadow: var(--shadow-control);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     transition:

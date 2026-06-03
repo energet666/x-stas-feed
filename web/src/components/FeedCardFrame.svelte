@@ -321,7 +321,7 @@
     border-radius: var(--radius-overlay);
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-overlay);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     backdrop-filter: blur(10px) saturate(140%);
     -webkit-backdrop-filter: blur(10px) saturate(140%);
   }

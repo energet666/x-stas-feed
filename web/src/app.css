@@ -7,21 +7,11 @@
   --color-page: rgb(0 0 0);
   --color-surface-media: rgb(0 0 0);
   --color-surface-overlay: rgb(0 0 0 / 0.86);
-  --color-text-primary: rgb(255 255 255);
-  --color-text-secondary: rgb(255 255 255 / 0.86);
-  --color-text-muted: rgb(255 255 255 / 0.72);
-  --color-text-subtle: rgb(255 255 255 / 0.54);
-  --color-text-danger: rgb(254 202 202);
-
-  /* Compatibility aliases. Prefer semantic names for new code. */
-  --color-background: var(--color-page);
-  --color-primary: var(--color-text-primary);
-  --color-secondary: var(--color-text-secondary);
-  --color-muted: var(--color-text-muted);
-  --color-subtle: var(--color-text-subtle);
-  --color-danger: var(--color-text-danger);
-  --color-media: var(--color-surface-media);
-  --color-overlay: var(--color-surface-overlay);
+  --color-fg-primary: rgb(255 255 255);
+  --color-fg-secondary: rgb(255 255 255 / 0.86);
+  --color-fg-muted: rgb(255 255 255 / 0.72);
+  --color-fg-subtle: rgb(255 255 255 / 0.54);
+  --color-fg-danger: rgb(254 202 202);
 
   /* Glass Colors */
   --color-border-glass: rgb(255 255 255 / 0.18);
@@ -29,11 +19,6 @@
   --color-border-glass-hover: rgb(255 255 255 / 0.3);
   --color-glass-highlight: rgb(255 255 255 / 0.16);
   --color-glass-fallback: rgb(17 19 24 / 0.96);
-
-  /* Compatibility aliases. Prefer semantic names for new code. */
-  --color-glass-border: var(--color-border-glass);
-  --color-glass-border-soft: var(--color-border-glass-soft);
-  --color-glass-border-hover: var(--color-border-glass-hover);
 
   /* UI Element Colors */
   --color-track-bg: rgb(255 255 255 / 0.2);
@@ -43,11 +28,6 @@
   --color-action-hover-strong: rgb(255 255 255 / 0.14);
   --color-action-bg: rgb(255 255 255 / 0.08);
   --color-debug-cell: rgb(255 255 255 / 0.05);
-
-  /* Compatibility aliases. Prefer semantic names for new code. */
-  --color-button-hover: var(--color-action-hover);
-  --color-button-hover-strong: var(--color-action-hover-strong);
-  --color-button-bg: var(--color-action-bg);
 
   /* Glass Backgrounds */
   --background-image-glass: rgb(0 0 0 / 0.04);
@@ -80,9 +60,6 @@
   --radius-control: 999px;
   --radius-toolbar: 1.5rem;
 
-  /* Compatibility alias. Prefer purpose-specific radii for new code. */
-  --radius-card: var(--radius-media-card);
-
   /* Patterns */
   --background-pattern-lines: repeating-linear-gradient(45deg,
       transparent,
@@ -109,7 +86,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--color-page);
-  color: var(--color-text-primary);
+  color: var(--color-fg-primary);
 }
 
 button,
@@ -125,7 +102,6 @@ video {
 
 
 @layer components {
-  .glass-nav,
   .ui-nav {
     border-bottom: 1px solid var(--color-border-glass-soft);
     background: var(--background-image-glass-nav);
@@ -134,8 +110,6 @@ video {
     -webkit-backdrop-filter: blur(30px) saturate(170%);
   }
 
-  .glass-card,
-  .glass-panel,
   .ui-media-card,
   .ui-panel {
     position: relative;
@@ -143,12 +117,11 @@ video {
     border-radius: var(--radius-media-card);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-card);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     backdrop-filter: blur(4px) saturate(140%);
     -webkit-backdrop-filter: blur(4px) saturate(140%);
   }
 
-  .glass-card,
   .ui-media-card {
     border-color: rgb(255 255 255 / 0.12);
     background: transparent;
@@ -157,7 +130,6 @@ video {
     -webkit-backdrop-filter: none;
   }
 
-  .glass-card::before,
   .ui-media-card::before {
     position: absolute;
     inset: 0;
@@ -166,25 +138,19 @@ video {
     content: '';
   }
 
-  .glass-card::after,
   .ui-media-card::after {
     content: none;
   }
 
-  .glass-card>*,
-  .glass-panel>*,
   .ui-media-card>*,
   .ui-panel>* {
     position: relative;
   }
 
-  .glass-card>*,
   .ui-media-card>* {
     z-index: 1;
   }
 
-  .side-glass-panel,
-  .glass-panel.side-glass-panel,
   .ui-panel-side,
   .ui-panel.ui-panel-side {
     isolation: isolate;
@@ -194,15 +160,10 @@ video {
     transform: translateZ(0);
   }
 
-  :root.no-glass-effects .glass-nav,
   :root.no-glass-effects .ui-nav,
-  :root.no-glass-effects .glass-panel,
   :root.no-glass-effects .ui-panel,
-  :root.no-glass-effects .side-glass-panel,
   :root.no-glass-effects .ui-panel-side,
   :root.no-glass-effects .debug-overlay,
-  :root.no-glass-effects .glass-button,
-  :root.no-glass-effects .glass-pill,
   :root.no-glass-effects .ui-button,
   :root.no-glass-effects .ui-pill {
     backdrop-filter: none !important;
@@ -213,8 +174,6 @@ video {
     background: linear-gradient(180deg, rgb(16 16 20 / 0.88), rgb(7 7 10 / 0.82)), rgb(0 0 0 / 0.74);
   }
 
-  .glass-button,
-  .glass-pill,
   .ui-button,
   .ui-pill {
     display: inline-flex;
@@ -225,7 +184,7 @@ video {
     border-radius: var(--radius-control);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-control);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-size: 0.75rem;
     font-weight: 700;
     line-height: 1;
@@ -233,7 +192,6 @@ video {
     -webkit-backdrop-filter: blur(28px) saturate(210%);
   }
 
-  .glass-button,
   .ui-button {
     padding: 0.45rem 0.85rem;
     transition:
@@ -242,7 +200,6 @@ video {
       transform 140ms ease;
   }
 
-  .glass-button:hover,
   .ui-button:hover {
     border-color: var(--color-border-glass-hover);
     box-shadow: var(--shadow-control-hover);
@@ -250,20 +207,19 @@ video {
   }
 
   .ui-button-danger {
-    border-color: color-mix(in srgb, var(--color-text-danger) 45%, transparent);
-    color: var(--color-text-danger);
+    border-color: color-mix(in srgb, var(--color-fg-danger) 45%, transparent);
+    color: var(--color-fg-danger);
   }
 
   .ui-button-danger:hover {
-    border-color: color-mix(in srgb, var(--color-text-danger) 70%, transparent);
-    background: color-mix(in srgb, var(--color-text-danger) 14%, transparent);
-    color: var(--color-text-primary);
+    border-color: color-mix(in srgb, var(--color-fg-danger) 70%, transparent);
+    background: color-mix(in srgb, var(--color-fg-danger) 14%, transparent);
+    color: var(--color-fg-primary);
   }
 
-  .glass-pill,
   .ui-pill {
     padding: 0.35rem 0.65rem;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
   }
 
   .media-frame {
@@ -273,7 +229,6 @@ video {
     overflow: hidden;
   }
 
-  .card-overlay,
   .ui-overlay-panel {
     position: absolute;
     top: 0.75rem;
@@ -298,24 +253,20 @@ video {
       transform 180ms ease;
   }
 
-  .card-overlay h2,
   .ui-overlay-panel h2 {
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     filter: drop-shadow(var(--drop-shadow-text));
   }
 
-  .card-overlay p,
   .ui-overlay-panel p {
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
   }
 
-  .card-overlay-visible,
   .ui-overlay-panel-visible {
     opacity: 1;
     transform: translateY(0);
   }
 
-  .glass-icon-button,
   .ui-icon-button {
     display: grid;
     width: 2.25rem;
@@ -325,7 +276,7 @@ video {
     border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
     background: var(--color-action-bg);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     transition:
       background 140ms ease,
       border-color 140ms ease,
@@ -333,23 +284,22 @@ video {
       transform 140ms ease;
   }
 
-  .glass-icon-button:hover,
   .ui-icon-button:hover {
     border-color: var(--color-border-glass-hover);
     background: var(--color-action-hover-strong);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     transform: scale(1.04);
   }
 
   .ui-icon-button-danger {
-    border-color: color-mix(in srgb, var(--color-text-danger) 42%, transparent);
-    color: var(--color-text-danger);
+    border-color: color-mix(in srgb, var(--color-fg-danger) 42%, transparent);
+    color: var(--color-fg-danger);
   }
 
   .ui-icon-button-danger:hover {
-    border-color: color-mix(in srgb, var(--color-text-danger) 70%, transparent);
-    background: color-mix(in srgb, var(--color-text-danger) 14%, transparent);
-    color: var(--color-text-primary);
+    border-color: color-mix(in srgb, var(--color-fg-danger) 70%, transparent);
+    background: color-mix(in srgb, var(--color-fg-danger) 14%, transparent);
+    color: var(--color-fg-primary);
   }
 
   .debug-overlay {
@@ -364,7 +314,7 @@ video {
     border-radius: var(--radius-toolbar);
     background: var(--background-image-glass);
     box-shadow: var(--shadow-debug);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.75rem;
     line-height: 1.2;
     backdrop-filter: blur(34px) saturate(210%);
@@ -378,7 +328,6 @@ video {
     scrollbar-gutter: stable;
   }
 
-  .debug-overlay.side-glass-panel,
   .debug-overlay.ui-panel-side {
     background: var(--background-image-glass-side);
     backdrop-filter: blur(6px) saturate(120%);
@@ -420,11 +369,11 @@ video {
     min-height: 100%;
     justify-content: center;
     padding: 0;
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
   }
 
   .debug-toggle-collapsed:hover {
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .debug-grid {
@@ -439,7 +388,7 @@ video {
     border-top: 1px solid var(--color-border-glass-soft);
     background: rgb(255 255 255 / 0.07);
     padding: 0.45rem 0.75rem 0.35rem;
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
     font-size: 0.62rem;
     font-weight: 800;
     letter-spacing: 0;
@@ -454,7 +403,7 @@ video {
     border-top: 1px solid var(--color-border-glass-soft);
     background: var(--color-debug-cell);
     padding: 0.5rem 0.75rem;
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -473,7 +422,7 @@ video {
   .debug-segmented button {
     min-width: 4rem;
     padding: 0.3rem 0.55rem;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.7rem;
     font-weight: 500;
   }
@@ -481,7 +430,7 @@ video {
   .debug-segmented button:hover,
   .debug-segment-active {
     background: var(--color-action-hover-strong);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-weight: 600;
   }
 
@@ -497,18 +446,18 @@ video {
     border: 1px solid var(--color-border-glass);
     border-radius: var(--radius-control);
     background: var(--color-action-bg);
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-size: 0.72rem;
     font-weight: 800;
   }
 
   .debug-reset-button:hover {
     background: var(--color-action-hover-strong);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .debug-grid dt {
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
     font-size: 0.68rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -517,7 +466,7 @@ video {
   .debug-grid dd {
     margin: 0.15rem 0 0;
     overflow-wrap: anywhere;
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
   }
@@ -565,7 +514,6 @@ video {
     box-shadow: none;
   }
 
-  .media-card-expanded .card-overlay,
   .media-card-expanded .feed-card-overlay {
     z-index: 82;
   }
@@ -586,21 +534,13 @@ video {
 
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
 
-    .glass-nav,
-    .glass-card,
-    .glass-panel,
-    .glass-button,
-    .glass-pill,
     .ui-media-card,
     .ui-panel,
     .ui-button,
     .ui-pill,
     .ui-icon-button,
     .ui-overlay-panel,
-    .glass-overlay,
-    .card-overlay,
     .feed-card-panel,
-    .side-glass-panel,
     .ui-panel-side,
     .debug-overlay {
       background: var(--color-glass-fallback);

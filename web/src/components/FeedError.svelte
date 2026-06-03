@@ -11,7 +11,7 @@
 	} = $props();
 </script>
 
-<div class="ui-panel flex items-start gap-3 p-4 text-danger">
+<div class="ui-panel flex items-start gap-3 p-4 text-fg-danger">
 	<CircleAlert
 		class="mt-0.5 shrink-0"
 		size={20}

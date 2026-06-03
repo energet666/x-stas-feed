@@ -141,7 +141,7 @@
 <header class="feed-toolbar ui-panel ui-panel-side" aria-label={t.feed.controls}>
   <div class="feed-toolbar-brand">
     <div class="min-w-0">
-      <h1 class="truncate text-base font-bold tracking-normal text-primary">Feed+AI</h1>
+      <h1 class="truncate text-base font-bold tracking-normal text-fg-primary">Feed+AI</h1>
     </div>
   </div>
   <div class="feed-toolbar-actions">
@@ -360,7 +360,7 @@
   }
 
   .upload-drop-in-error {
-    color: var(--color-text-danger);
+    color: var(--color-fg-danger);
   }
 
   .favorites-mode-button {
@@ -389,7 +389,7 @@
     border: 1px solid var(--color-border-glass-soft);
     background: rgb(0 0 0 / 0.22);
     padding: 0.55rem 0.7rem;
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.82rem;
     font-weight: 700;
     outline: none;
@@ -412,7 +412,7 @@
 
   .board-name-error {
     grid-column: 1 / -1;
-    color: var(--color-text-danger);
+    color: var(--color-fg-danger);
     font-size: 0.72rem;
     font-weight: 700;
     line-height: 1.2;

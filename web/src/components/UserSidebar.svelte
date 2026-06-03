@@ -140,7 +140,7 @@
 
   {#if !visitorPanelCollapsed}
     <div id="visitor-panel-body" class="user-sidebar-body">
-      <label class="mb-2 block text-xs font-semibold text-subtle" for="username-input">Тебя зовут:</label>
+      <label class="mb-2 block text-xs font-semibold text-fg-subtle" for="username-input">Тебя зовут:</label>
       <div class="flex gap-2">
         <input
           bind:this={usernameInput}
@@ -209,7 +209,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.85rem 1rem;
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-size: 0.875rem;
     font-weight: 600;
     text-align: left;
@@ -220,7 +220,7 @@
 
   .visitor-panel-toggle:hover {
     background: var(--color-action-hover);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .visitor-panel-toggle :global(svg) {
@@ -240,14 +240,14 @@
     border-radius: var(--radius-control);
     background: var(--color-action-bg);
     padding: 0 0.85rem;
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.875rem;
     font-weight: 700;
     outline: none;
   }
 
   .username-input::placeholder {
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
   }
 
   .username-input:focus {
@@ -261,7 +261,7 @@
   .background-label {
     display: block;
     margin-bottom: 0.45rem;
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
     font-size: 0.72rem;
     font-weight: 700;
   }
@@ -283,7 +283,7 @@
     justify-content: center;
     gap: 0.4rem;
     padding: 0 0.65rem;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.75rem;
     font-weight: 700;
     transition:
@@ -294,7 +294,7 @@
   .background-segmented button:hover,
   .background-segment-active {
     background: var(--color-action-hover-strong);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .background-segmented :global(svg) {

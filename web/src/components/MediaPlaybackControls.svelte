@@ -102,7 +102,7 @@
 </script>
 
 <div
-  class="media-playback-controls flex items-center text-primary"
+  class="media-playback-controls flex items-center text-fg-primary"
   onpointerenter={onEnterControls}
   onpointerleave={leaveControls}
   onmouseenter={onEnterControls}
@@ -184,7 +184,7 @@
 
   .media-playback-button,
   :global(.media-playback-button) {
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     transition:
       background 140ms ease,
       color 140ms ease,
@@ -194,13 +194,13 @@
   .media-playback-button:hover,
   :global(.media-playback-button:hover) {
     background: var(--color-action-hover);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     transform: scale(1.04);
   }
 
   .media-playback-time {
     width: 2.35rem;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }
@@ -244,7 +244,7 @@
     height: 0.72rem;
     appearance: none;
     border-radius: 999px;
-    background: var(--color-text-primary);
+    background: var(--color-fg-primary);
     box-shadow: var(--shadow-thumb);
   }
 
@@ -253,7 +253,7 @@
     height: 0.72rem;
     border: 0;
     border-radius: 999px;
-    background: var(--color-text-primary);
+    background: var(--color-fg-primary);
     box-shadow: var(--shadow-thumb);
   }
 

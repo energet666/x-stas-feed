@@ -422,7 +422,7 @@
     gap: 0.9rem;
     padding: 2rem 2rem 5.5rem;
     background: rgb(12 16 22);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .audio-card-surface::before {
@@ -563,11 +563,11 @@
   }
 
   .audio-artist {
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .audio-album {
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
   }
 
   .audio-error {

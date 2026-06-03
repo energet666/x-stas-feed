@@ -42,8 +42,8 @@
 <div class="activity-modal" role="dialog" aria-modal="true" aria-label={t.activity.mediaDialog}>
   <header class="activity-modal-header">
     <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase text-subtle">{item?.type === 'board' ? t.activity.boardActivity : t.activity.commentActivity}</p>
-      <h2 class="truncate text-base font-bold text-primary">{item?.displayName ?? t.common.loadingMedia}</h2>
+      <p class="text-xs font-semibold uppercase text-fg-subtle">{item?.type === 'board' ? t.activity.boardActivity : t.activity.commentActivity}</p>
+      <h2 class="truncate text-base font-bold text-fg-primary">{item?.displayName ?? t.common.loadingMedia}</h2>
     </div>
     <button class="ui-icon-button" type="button" aria-label={t.activity.closeMedia} onclick={onClose}>
       <X size={18} />
@@ -52,11 +52,11 @@
 
   {#if loading}
     <div class="activity-modal-loading">
-      <LoaderCircle class="animate-spin text-muted" size={30} />
+      <LoaderCircle class="animate-spin text-fg-muted" size={30} />
     </div>
   {:else if error}
     <div class="activity-modal-loading px-6 text-center">
-      <p class="text-sm font-semibold text-danger">{error}</p>
+      <p class="text-sm font-semibold text-fg-danger">{error}</p>
     </div>
   {:else if item}
     <div class="activity-modal-body">
@@ -116,7 +116,7 @@
     background:
       linear-gradient(180deg, rgb(0 0 0 / 0.66), rgb(0 0 0 / 0.5)),
       var(--background-image-glass-strong);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     backdrop-filter: blur(26px) saturate(170%);
     -webkit-backdrop-filter: blur(26px) saturate(170%);
   }

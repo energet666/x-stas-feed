@@ -21,8 +21,8 @@
 
 <div class="flex min-w-0 items-center justify-between gap-3">
   <div class="min-w-0">
-    <h2 class="truncate text-sm font-semibold text-primary">{item.displayName}</h2>
-    <p class="text-xs font-semibold text-muted">{formatMediaDate(item.modifiedAt)}</p>
+    <h2 class="truncate text-sm font-semibold text-fg-primary">{item.displayName}</h2>
+    <p class="text-xs font-semibold text-fg-muted">{formatMediaDate(item.modifiedAt)}</p>
   </div>
   <div class="flex shrink-0 items-center gap-2">
     <button

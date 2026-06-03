@@ -61,16 +61,16 @@
   <div class="activity-list">
     {#if loading && items.length === 0}
       <div class="activity-empty">
-        <LoaderCircle class="animate-spin text-muted" size={26} />
+        <LoaderCircle class="animate-spin text-fg-muted" size={26} />
       </div>
     {:else if error}
       <div class="activity-empty px-4 text-center">
-        <p class="text-sm font-semibold text-danger">{error}</p>
+        <p class="text-sm font-semibold text-fg-danger">{error}</p>
       </div>
     {:else if items.length === 0}
       <div class="activity-empty px-4 text-center">
-        <MessageCircle class="text-subtle" size={28} />
-        <p class="text-sm font-semibold text-muted">{t.activity.empty}</p>
+        <MessageCircle class="text-fg-subtle" size={28} />
+        <p class="text-sm font-semibold text-fg-muted">{t.activity.empty}</p>
       </div>
     {:else}
       {#each items as item (item.type === 'comment' ? `comment-${item.comment.id}` : `board-${item.mediaId}`)}
@@ -81,7 +81,7 @@
               <span class="truncate">{item.mediaDisplayName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="truncate font-semibold text-primary">{item.comment.author || t.common.guest}</span>
+              <span class="truncate font-semibold text-fg-primary">{item.comment.author || t.common.guest}</span>
               <time datetime={item.comment.createdAt}>{formatActivityTime(item.comment.createdAt)}</time>
               {#if item.comment.likeCount > 0}
                 <span class="activity-row-likes" aria-label={t.likes.count(item.comment.likeCount)}>
@@ -97,7 +97,7 @@
               <span class="truncate">{item.boardName}</span>
             </span>
             <span class="activity-row-author">
-              <span class="activity-row-author-name truncate font-semibold text-primary" title={item.authors.join(', ') || t.common.guest}>
+              <span class="activity-row-author-name truncate font-semibold text-fg-primary" title={item.authors.join(', ') || t.common.guest}>
                 {formatBoardAuthors(item.authors)}
               </span>
               <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
@@ -165,7 +165,7 @@
     gap: 0.42rem;
     border-radius: var(--radius-overlay);
     padding: 0.72rem 0.78rem;
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     text-align: left;
     transition:
       background 140ms ease,
@@ -192,15 +192,15 @@
     align-items: center;
     gap: 0.18rem;
     margin-left: auto;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.78rem;
     font-weight: 700;
     line-height: 1;
   }
 
   .activity-row-likes :global(svg) {
-    fill: color-mix(in srgb, var(--color-text-danger) 22%, transparent);
-    stroke: var(--color-text-danger);
+    fill: color-mix(in srgb, var(--color-fg-danger) 22%, transparent);
+    stroke: var(--color-fg-danger);
   }
 
   .activity-row-author-name {
@@ -221,7 +221,7 @@
     min-width: 0;
     align-items: center;
     gap: 0.4rem;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     font-size: 0.8rem;
     font-weight: 650;
     line-height: 1.28;
@@ -236,7 +236,7 @@
   .activity-row-text {
     display: -webkit-box;
     overflow: hidden;
-    color: var(--color-text-secondary);
+    color: var(--color-fg-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     line-height: 1.45;

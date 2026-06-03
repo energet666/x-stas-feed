@@ -220,12 +220,12 @@
 <div bind:this={commentListEl} class="comment-thread-list">
   {#if loading}
     <div class="flex h-40 items-center justify-center">
-      <LoaderCircle class="animate-spin text-muted" size={26} />
+      <LoaderCircle class="animate-spin text-fg-muted" size={26} />
     </div>
   {:else if comments.length === 0}
     <div class="flex h-40 flex-col items-center justify-center gap-3 text-center">
-      <MessageCircle class="text-subtle" size={30} />
-      <p class="text-sm font-semibold text-muted">{t.comments.empty}</p>
+      <MessageCircle class="text-fg-subtle" size={30} />
+      <p class="text-sm font-semibold text-fg-muted">{t.comments.empty}</p>
     </div>
   {:else}
     <div class="space-y-3">
@@ -260,7 +260,7 @@
               {/if}
             </button>
           </div>
-          <p class="comment-text text-sm leading-5 text-secondary">
+          <p class="comment-text text-sm leading-5 text-fg-secondary">
             {comment.text}
           </p>
         </article>
@@ -269,7 +269,7 @@
   {/if}
 
   {#if error}
-    <div class="comment-error-message text-sm font-semibold text-danger">
+    <div class="comment-error-message text-sm font-semibold text-fg-danger">
       {error}
     </div>
   {/if}
@@ -334,8 +334,8 @@
 
   .comment-error-message {
     margin-top: 1rem;
-    border-color: color-mix(in srgb, var(--color-text-danger) 30%, transparent);
-    background: color-mix(in srgb, var(--color-text-danger) 8%, transparent);
+    border-color: color-mix(in srgb, var(--color-fg-danger) 30%, transparent);
+    background: color-mix(in srgb, var(--color-fg-danger) 8%, transparent);
   }
 
   .comment-composer {
@@ -357,8 +357,8 @@
     border-radius: 1.25rem;
     background: rgb(255 255 255 / 0.075);
     padding: 0.7rem 0.9rem;
-    color: var(--color-text-primary);
-    caret-color: var(--color-text-primary);
+    color: var(--color-fg-primary);
+    caret-color: var(--color-fg-primary);
     font-size: 0.875rem;
     line-height: 1.35;
     outline: none;
@@ -381,7 +381,7 @@
     height: 1.9rem;
     place-items: center;
     border-radius: 999px;
-    color: var(--color-text-muted);
+    color: var(--color-fg-muted);
     transition:
       background 160ms ease,
       color 160ms ease,
@@ -391,7 +391,7 @@
   .emoji-toggle-button:hover,
   .emoji-toggle-button-active {
     background: var(--color-action-hover);
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
   }
 
   .emoji-toggle-button:hover {
@@ -421,7 +421,7 @@
   .comment-author {
     min-width: 0;
     overflow: hidden;
-    color: var(--color-text-primary);
+    color: var(--color-fg-primary);
     font-size: 0.82rem;
     font-weight: 600;
     line-height: 1.15;
@@ -431,7 +431,7 @@
 
   .comment-time {
     flex: 0 0 auto;
-    color: var(--color-text-subtle);
+    color: var(--color-fg-subtle);
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1.15;
@@ -445,7 +445,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 0.25rem;
-    color: color-mix(in srgb, var(--color-text-primary) 82%, #f43f5e 18%);
+    color: color-mix(in srgb, var(--color-fg-primary) 82%, #f43f5e 18%);
     font-size: 0.72rem;
     font-weight: 900;
     line-height: 1;
