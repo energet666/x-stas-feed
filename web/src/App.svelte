@@ -46,6 +46,7 @@
   const preloadAheadPx = 1600;
   const usernameStorageKey = 'feed-ai:comment-username';
   const cardBackgroundModeStorageKey = 'feed-ai:card-background-mode';
+  const pageBackgroundModeStorageKey = 'feed-ai:page-background-mode';
   const pageBackgroundEnabledStorageKey = 'feed-ai:page-background-enabled';
   const backgroundParticlesEnabledStorageKey = 'feed-ai:background-particles-enabled';
   const asteroidsEnabledStorageKey = 'feed-ai:asteroids-enabled';
@@ -57,6 +58,7 @@
   const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
 
   type CardBackgroundMode = 'simple' | 'ambient';
+  type PageBackgroundMode = 'cosmos' | 'daylight';
   type GlassEffectsMode = 'off' | 'full';
   type FeedMode = 'all' | 'favorites';
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
@@ -111,6 +113,7 @@
   let username = $state<string>(fallbackUsername);
   let usernameStorageReady = $state(false);
   let cardBackgroundMode = $state<CardBackgroundMode>('ambient');
+  let pageBackgroundMode = $state<PageBackgroundMode>('cosmos');
   let cardBackgroundModeStorageReady = $state(false);
   let backgroundParticlesEnabled = $state(true);
   let asteroidsEnabled = $state(true);
@@ -213,6 +216,7 @@
     username = readStoredUsername();
     usernameStorageReady = true;
     cardBackgroundMode = readStoredCardBackgroundMode();
+    pageBackgroundMode = readStoredPageBackgroundMode();
     cardBackgroundModeStorageReady = true;
     backgroundParticlesEnabled = readStoredBackgroundLayerEnabled(backgroundParticlesEnabledStorageKey);
     asteroidsEnabled = readStoredBackgroundLayerEnabled(asteroidsEnabledStorageKey);
@@ -293,6 +297,7 @@
   $effect(() => {
     if (!cardBackgroundModeStorageReady) return;
     persistCardBackgroundMode(cardBackgroundMode);
+    persistPageBackgroundMode(pageBackgroundMode);
   });
 
   $effect(() => {
@@ -726,6 +731,14 @@
     }
   }
 
+  function persistPageBackgroundMode(nextMode: PageBackgroundMode) {
+    try {
+      window.localStorage.setItem(pageBackgroundModeStorageKey, nextMode);
+    } catch {
+      // Ignore storage failures; the in-memory background setting still applies.
+    }
+  }
+
   function persistBackgroundLayerEnabled(storageKey: string, enabled: boolean) {
     try {
       window.localStorage.setItem(storageKey, String(enabled));
@@ -756,6 +769,14 @@
       return window.localStorage.getItem(cardBackgroundModeStorageKey) === 'simple' ? 'simple' : 'ambient';
     } catch {
       return 'ambient';
+    }
+  }
+
+  function readStoredPageBackgroundMode(): PageBackgroundMode {
+    try {
+      return window.localStorage.getItem(pageBackgroundModeStorageKey) === 'daylight' ? 'daylight' : 'cosmos';
+    } catch {
+      return 'cosmos';
     }
   }
 
@@ -792,6 +813,7 @@
 
   function resetDebugSwitches() {
     cardBackgroundMode = 'ambient';
+    pageBackgroundMode = 'cosmos';
     backgroundParticlesEnabled = true;
     asteroidsEnabled = true;
     glassEffectsMode = 'off';
@@ -1460,9 +1482,9 @@
   ondrop={handleWindowDrop}
 />
 
-<main class="app-shell min-h-screen">
+<main class="app-shell min-h-screen" class:app-shell-daylight={pageBackgroundMode === 'daylight'}>
   {#if backgroundParticlesEnabled}
-    <BackgroundParticles />
+    <BackgroundParticles mode={pageBackgroundMode} />
   {/if}
   {#if asteroidsEnabled}
     <AsteroidsShip username={commentUsername} />
@@ -1506,8 +1528,10 @@
         />
         <UserSidebar 
           bind:username 
+          {pageBackgroundMode}
           {debugToolsEnabled}
           onExpandMasterBoard={toggleMasterBoard}
+          onPageBackgroundModeChange={(mode) => (pageBackgroundMode = mode)}
         />
       </div>
 
@@ -1783,6 +1807,24 @@
     --desktop-left-rail-width: 18rem;
     --desktop-activity-rail-width: 19rem;
     --desktop-rail-gap: 0rem;
+    background: transparent;
+  }
+
+  .app-shell-daylight {
+    min-height: 100vh;
+  }
+
+  .app-shell-daylight::before {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(circle at 18% 14%, rgb(90 106 128 / 0.52), transparent 30rem),
+      radial-gradient(circle at 82% 18%, rgb(56 70 92 / 0.4), transparent 26rem),
+      radial-gradient(circle at 70% 82%, rgb(174 184 194 / 0.38), transparent 30rem),
+      linear-gradient(135deg, rgb(190 195 200), rgb(174 181 187) 48%, rgb(158 168 176));
+    content: '';
+    pointer-events: none;
   }
 
   .app-layout {

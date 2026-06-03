@@ -66,7 +66,10 @@ export const uiText = {
     visitor: 'Посетитель',
     expandVisitorPanel: 'Развернуть панель посетителя',
     collapseVisitorPanel: 'Свернуть панель посетителя',
-    randomNickname: 'Сгенерировать случайный никнейм'
+    randomNickname: 'Сгенерировать случайный никнейм',
+    background: 'Фон',
+    backgroundCosmos: 'Космос',
+    backgroundDaylight: 'Светлый'
   },
   activity: {
     open: 'Открыть активность',

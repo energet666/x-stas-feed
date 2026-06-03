@@ -1419,7 +1419,7 @@
   }
 
   .drawing-board-preview-fill {
-    background: #0f0f17;
+    background: transparent;
   }
 
   .drawing-canvas-wrap {

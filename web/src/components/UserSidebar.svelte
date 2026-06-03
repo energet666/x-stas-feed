@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { ChevronDown, ChevronUp, Dice5 } from 'lucide-svelte';
+  import { ChevronDown, ChevronUp, Dice5, Moon, Sun } from 'lucide-svelte';
   import { fallbackUsername, randomUsername } from '../lib/usernames';
   import { uiText as t } from '../lib/ui_text';
   import DrawingBoard from './DrawingBoard.svelte';
@@ -9,12 +9,16 @@
 
   let { 
     username = $bindable(fallbackUsername),
+    pageBackgroundMode = 'cosmos',
     debugToolsEnabled = false,
-    onExpandMasterBoard
+    onExpandMasterBoard,
+    onPageBackgroundModeChange
   }: { 
     username: string;
+    pageBackgroundMode?: 'cosmos' | 'daylight';
     debugToolsEnabled?: boolean;
     onExpandMasterBoard: () => void;
+    onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight') => void;
   } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
   let visitorPanelCollapsed = $state(false);
@@ -111,6 +115,10 @@
       // Ignore storage failures; the in-memory collapsed state still applies.
     }
   }
+
+  function selectPageBackground(mode: 'cosmos' | 'daylight') {
+    onPageBackgroundModeChange?.(mode);
+  }
 </script>
 
 <aside class="user-sidebar ui-panel ui-panel-side" aria-label={t.profile.settings}>
@@ -147,6 +155,30 @@
         <button class="ui-icon-button" type="button" aria-label={t.profile.randomNickname} onclick={randomizeUsername}>
           <Dice5 size={18} />
         </button>
+      </div>
+
+      <div class="background-field">
+        <span class="background-label">{t.profile.background}</span>
+        <div class="background-segmented" role="group" aria-label={t.profile.background}>
+          <button
+            class:background-segment-active={pageBackgroundMode === 'cosmos'}
+            type="button"
+            aria-pressed={pageBackgroundMode === 'cosmos'}
+            onclick={() => selectPageBackground('cosmos')}
+          >
+            <Moon size={15} />
+            <span>{t.profile.backgroundCosmos}</span>
+          </button>
+          <button
+            class:background-segment-active={pageBackgroundMode === 'daylight'}
+            type="button"
+            aria-pressed={pageBackgroundMode === 'daylight'}
+            onclick={() => selectPageBackground('daylight')}
+          >
+            <Sun size={15} />
+            <span>{t.profile.backgroundDaylight}</span>
+          </button>
+        </div>
       </div>
     </div>
   {/if}
@@ -222,22 +254,68 @@
     border-color: var(--color-border-glass-hover);
   }
 
+  .background-field {
+    margin-top: 0.85rem;
+  }
+
+  .background-label {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: var(--color-text-subtle);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .background-segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--color-border-glass-soft);
+    border-radius: var(--radius-control);
+    background: var(--color-action-bg);
+  }
+
+  .background-segmented button {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 2.15rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0 0.65rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .background-segmented button:hover,
+  .background-segment-active {
+    background: var(--color-action-hover-strong);
+    color: var(--color-text-primary);
+  }
+
+  .background-segmented :global(svg) {
+    flex-shrink: 0;
+  }
+
   .master-board-preview-container {
     position: relative;
     display: block;
     width: 100%;
     aspect-ratio: 3 / 2;
     border-radius: var(--radius-panel);
-    border: 1px solid var(--color-border-glass-soft);
+    border: 0;
     overflow: hidden;
     cursor: pointer;
     padding: 0;
     transition: all 0.2s ease;
-    background: #0f0f17;
+    background: transparent;
   }
 
   .master-board-preview-container:hover {
-    border-color: var(--color-border-glass-hover);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }

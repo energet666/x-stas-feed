@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
+  let { mode = "cosmos" }: { mode?: "cosmos" | "daylight" } = $props();
+
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null;
 
@@ -68,8 +70,12 @@
 
   function drawParticles() {
     if (!ctx) return;
-    ctx.fillStyle = "rgb(0, 0, 0)";
-    ctx.fillRect(0, 0, width, height);
+    if (mode === "daylight") {
+      drawDaylightBase();
+    } else {
+      ctx.fillStyle = "rgb(0, 0, 0)";
+      ctx.fillRect(0, 0, width, height);
+    }
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
@@ -81,15 +87,57 @@
       ctx.beginPath();
       ctx.arc(p.x, drawY, p.radius, 0, Math.PI * 2);
 
-      // Removed expensive shadowBlur/shadowColor
-      if (p.glow) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped})`;
+      if (mode === "daylight") {
+        const hue = p.glow ? "49, 70, 82" : "120, 101, 58";
+        ctx.fillStyle = `rgba(${hue}, ${alphaClamped * 0.34})`;
       } else {
-        ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.6})`;
+        // Removed expensive shadowBlur/shadowColor
+        if (p.glow) {
+          ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped})`;
+        } else {
+          ctx.fillStyle = `rgba(255, 255, 255, ${alphaClamped * 0.6})`;
+        }
       }
 
       ctx.fill();
     }
+  }
+
+  function drawDaylightBase() {
+    if (!ctx) return;
+    const drift = time * 0.0025;
+    const sky = ctx.createLinearGradient(0, 0, width, height);
+    sky.addColorStop(0, "rgb(190, 195, 200)");
+    sky.addColorStop(0.45, "rgb(174, 181, 187)");
+    sky.addColorStop(1, "rgb(158, 168, 176)");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+
+    drawGlow(width * (0.16 + Math.sin(drift) * 0.04), height * 0.14, Math.max(width, height) * 0.5, "rgba(90, 106, 128, 0.28)");
+    drawGlow(width * (0.86 + Math.cos(drift * 0.8) * 0.03), height * 0.22, Math.max(width, height) * 0.44, "rgba(56, 70, 92, 0.24)");
+    drawGlow(width * 0.62, height * (0.88 + Math.sin(drift * 1.2) * 0.025), Math.max(width, height) * 0.52, "rgba(174, 184, 194, 0.2)");
+
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "rgba(71, 85, 105, 0.14)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const y = height * (0.22 + i * 0.16) + Math.sin(time * 0.006 + i) * 10;
+      ctx.beginPath();
+      ctx.moveTo(-40, y);
+      ctx.bezierCurveTo(width * 0.25, y - 34, width * 0.55, y + 36, width + 40, y - 18);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGlow(x: number, y: number, radius: number, color: string) {
+    if (!ctx) return;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
   }
 
   function animate(now: number) {
