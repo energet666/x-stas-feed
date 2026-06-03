@@ -88,8 +88,8 @@
       ctx.arc(p.x, drawY, p.radius, 0, Math.PI * 2);
 
       if (mode === "daylight") {
-        const hue = p.glow ? "49, 70, 82" : "120, 101, 58";
-        ctx.fillStyle = `rgba(${hue}, ${alphaClamped * 0.34})`;
+        const hue = p.glow ? "226, 232, 240" : "148, 163, 184";
+        ctx.fillStyle = `rgba(${hue}, ${alphaClamped * 0.42})`;
       } else {
         // Removed expensive shadowBlur/shadowColor
         if (p.glow) {
@@ -107,19 +107,19 @@
     if (!ctx) return;
     const drift = time * 0.0025;
     const sky = ctx.createLinearGradient(0, 0, width, height);
-    sky.addColorStop(0, "rgb(190, 195, 200)");
-    sky.addColorStop(0.45, "rgb(174, 181, 187)");
-    sky.addColorStop(1, "rgb(158, 168, 176)");
+    sky.addColorStop(0, "rgb(82, 89, 96)");
+    sky.addColorStop(0.45, "rgb(65, 72, 79)");
+    sky.addColorStop(1, "rgb(48, 55, 63)");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, width, height);
 
-    drawGlow(width * (0.16 + Math.sin(drift) * 0.04), height * 0.14, Math.max(width, height) * 0.5, "rgba(90, 106, 128, 0.28)");
-    drawGlow(width * (0.86 + Math.cos(drift * 0.8) * 0.03), height * 0.22, Math.max(width, height) * 0.44, "rgba(56, 70, 92, 0.24)");
-    drawGlow(width * 0.62, height * (0.88 + Math.sin(drift * 1.2) * 0.025), Math.max(width, height) * 0.52, "rgba(174, 184, 194, 0.2)");
+    drawGlow(width * (0.16 + Math.sin(drift) * 0.04), height * 0.14, Math.max(width, height) * 0.5, "rgba(100, 116, 139, 0.32)");
+    drawGlow(width * (0.86 + Math.cos(drift * 0.8) * 0.03), height * 0.22, Math.max(width, height) * 0.44, "rgba(30, 41, 59, 0.34)");
+    drawGlow(width * 0.62, height * (0.88 + Math.sin(drift * 1.2) * 0.025), Math.max(width, height) * 0.52, "rgba(148, 163, 184, 0.18)");
 
     ctx.save();
-    ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "rgba(71, 85, 105, 0.14)";
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = "rgba(203, 213, 225, 0.12)";
     ctx.lineWidth = 1;
     for (let i = 0; i < 5; i++) {
       const y = height * (0.22 + i * 0.16) + Math.sin(time * 0.006 + i) * 10;

@@ -1819,10 +1819,10 @@
     inset: 0;
     z-index: -2;
     background:
-      radial-gradient(circle at 18% 14%, rgb(90 106 128 / 0.52), transparent 30rem),
-      radial-gradient(circle at 82% 18%, rgb(56 70 92 / 0.4), transparent 26rem),
-      radial-gradient(circle at 70% 82%, rgb(174 184 194 / 0.38), transparent 30rem),
-      linear-gradient(135deg, rgb(190 195 200), rgb(174 181 187) 48%, rgb(158 168 176));
+      radial-gradient(circle at 18% 14%, rgb(100 116 139 / 0.48), transparent 30rem),
+      radial-gradient(circle at 82% 18%, rgb(30 41 59 / 0.46), transparent 26rem),
+      radial-gradient(circle at 70% 82%, rgb(148 163 184 / 0.26), transparent 30rem),
+      linear-gradient(135deg, rgb(82 89 96), rgb(65 72 79) 48%, rgb(48 55 63));
     content: '';
     pointer-events: none;
   }
