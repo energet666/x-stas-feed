@@ -324,8 +324,22 @@
     border-color: transparent;
     background:
       linear-gradient(rgb(8 14 18 / 0.88), rgb(8 14 18 / 0.88)) padding-box,
-      linear-gradient(115deg, #22d3ee, #a78bfa, #f472b6, #facc15, #34d399, #22d3ee) border-box;
-    background-size: 100% 100%, 260% 260%;
+      linear-gradient(
+          115deg,
+          #22d3ee 0%,
+          #a78bfa 10%,
+          #f472b6 20%,
+          #facc15 30%,
+          #34d399 40%,
+          #22d3ee 50%,
+          #a78bfa 60%,
+          #f472b6 70%,
+          #facc15 80%,
+          #34d399 90%,
+          #22d3ee 100%
+        )
+        border-box;
+    background-size: 100% 100%, 200% 100%;
     color: white;
     animation: feed-refresh-border 2.8s linear infinite;
   }
@@ -349,7 +363,7 @@
     }
 
     to {
-      background-position: 0 0, 260% 50%;
+      background-position: 0 0, 100% 50%;
     }
   }
 
