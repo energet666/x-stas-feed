@@ -1412,6 +1412,7 @@
     position: fixed;
     inset: 0;
     z-index: 200; /* Ensure it's above FeedCardFrame overlays (z-index 6) */
+    background: transparent;
   }
 
   .drawing-board:not(.drawing-board-expanded) {
