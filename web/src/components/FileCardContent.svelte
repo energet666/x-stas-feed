@@ -118,11 +118,7 @@
     min-height: 34rem;
     place-items: center;
     padding: clamp(1.25rem, 4vw, 3rem);
-    background:
-      linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px),
-      linear-gradient(0deg, rgb(255 255 255 / 0.035) 1px, transparent 1px),
-      linear-gradient(135deg, rgb(10 14 20), rgb(29 35 44) 52%, rgb(16 22 28));
-    background-size: 34px 34px, 34px 34px, auto;
+    background: transparent;
   }
 
   .file-card-content {
