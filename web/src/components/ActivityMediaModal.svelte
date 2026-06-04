@@ -154,6 +154,12 @@
     background: var(--color-surface-media);
   }
 
+  .activity-modal-card :global(.feed-card-frame) {
+    height: 100%;
+    overflow: visible;
+    border-radius: 0;
+  }
+
   .activity-modal-card :global(.media-frame) {
     height: 100%;
     min-height: clamp(28rem, 72vh, 52rem);

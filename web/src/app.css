@@ -510,12 +510,27 @@ video {
     width: auto;
     border: 0;
     border-radius: 0;
-    background: var(--color-surface-media);
+    background: transparent;
     box-shadow: none;
   }
 
   .media-card-expanded .feed-card-frame {
+    position: fixed;
+    inset: 0;
     z-index: 79;
+    overflow: hidden;
+    border-radius: 0;
+    background: var(--color-surface-media);
+  }
+
+  .media-card-expanded > .feed-card-frame {
+    z-index: 79;
+  }
+
+  .media-card-expanded .feed-card-ambient-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
   }
 
   .media-card-expanded .feed-card-overlay {
