@@ -50,8 +50,9 @@
   } = $props();
 
   const showFeedChrome = $derived(!suppressOverlays && !suppressFeedChrome);
+  const showSocialChin = $derived(showFeedChrome && !expanded);
   const hasTopOverlay = $derived(showFeedChrome || topAccessory !== undefined);
-  const hasBottomOverlay = $derived(showFeedChrome || bottomAccessory !== undefined);
+  const hasBottomOverlay = $derived(bottomAccessory !== undefined);
   const showOverlayLayer = $derived(!suppressOverlays && (hasTopOverlay || hasBottomOverlay));
 
   function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
@@ -105,94 +106,94 @@
   }
 </script>
 
-<div
-  class="media-frame"
-  role="presentation"
-  class:media-frame-overlays-suppressed={suppressOverlays}
-  onpointermove={revealOverlay}
-  onpointerenter={revealOverlay}
-  onmousemove={revealOverlay}
-  onmouseenter={revealOverlay}
-  ontouchstart={revealOverlay}
-  onpointerdown={revealOverlay}
-  onclick={handleFrameClick}
-  onfocusin={keepOverlay}
-  onmouseleave={hideOverlay}
->
-  <div class="feed-card-ambient-bg" aria-hidden="true">
-    {#if ambientActive}
-      {#if ambientBackground}
-        {@render ambientBackground()}
-      {:else if item.type === 'image'}
-        <img
-          src={item.url}
-          alt=""
-          class="ambient-media"
-          decoding="async"
-        />
+<div class="feed-card-frame">
+  <div
+    class="media-frame"
+    role="presentation"
+    class:media-frame-overlays-suppressed={suppressOverlays}
+    onpointermove={revealOverlay}
+    onpointerenter={revealOverlay}
+    onmousemove={revealOverlay}
+    onmouseenter={revealOverlay}
+    ontouchstart={revealOverlay}
+    onpointerdown={revealOverlay}
+    onclick={handleFrameClick}
+    onfocusin={keepOverlay}
+    onmouseleave={hideOverlay}
+  >
+    <div class="feed-card-ambient-bg" aria-hidden="true">
+      {#if ambientActive}
+        {#if ambientBackground}
+          {@render ambientBackground()}
+        {:else if item.type === 'image'}
+          <img
+            src={item.url}
+            alt=""
+            class="ambient-media"
+            decoding="async"
+          />
+        {/if}
       {/if}
-    {/if}
-    <div class="feed-card-ambient-grid"></div>
-  </div>
-
-  <div class="feed-card-content">
-    {@render content()}
-  </div>
-
-  {#if contentOverlay}
-    <div class="feed-card-content-overlay">
-      {@render contentOverlay()}
+      <div class="feed-card-ambient-grid"></div>
     </div>
-  {/if}
 
-  {#if showOverlayLayer}
-    {#if hasTopOverlay}
-      <div
-        class="feed-card-top-stack feed-card-overlay"
-        class:feed-card-overlay-visible={overlayVisible}
-        class:feed-card-overlay-expanded={expanded}
-      >
-        {#if showFeedChrome}
-          <section
-            class="feed-card-panel"
-            aria-label={t.media.information}
-            onpointerenter={keepOverlayFromPanel}
-            onpointermove={keepOverlayFromPanel}
-            onpointerdown={keepOverlayFromPanel}
-            onpointerleave={releaseOverlayFromPanel}
-            onmouseenter={keepOverlayFromPanel}
-            onmousemove={keepOverlayFromPanel}
-            onmouseleave={releaseOverlayFromPanel}
-            ontouchstart={keepOverlayFromPanel}
-            onfocusin={keepOverlayFromPanel}
-          >
-            <FeedCardInfoPanel {item} {expanded} {favorite} {onToggleFavorite} {onToggleExpanded} />
-          </section>
-        {/if}
+    <div class="feed-card-content">
+      {@render content()}
+    </div>
 
-        {#if topAccessory}
-          <section
-            class="feed-card-panel"
-            aria-label={t.media.actions}
-            onpointerenter={keepOverlayFromPanel}
-            onpointermove={keepOverlayFromPanel}
-            onpointerdown={keepOverlayFromPanel}
-            onpointerleave={releaseOverlayFromPanel}
-            onmouseenter={keepOverlayFromPanel}
-            onmousemove={keepOverlayFromPanel}
-            onmouseleave={releaseOverlayFromPanel}
-            ontouchstart={keepOverlayFromPanel}
-            onfocusin={keepOverlayFromPanel}
-          >
-            {@render topAccessory()}
-          </section>
-        {/if}
+    {#if contentOverlay}
+      <div class="feed-card-content-overlay">
+        {@render contentOverlay()}
       </div>
     {/if}
 
-    {#if hasBottomOverlay}
-      <div class="feed-card-bottom-stack" class:feed-card-overlay-expanded={expanded}>
-        {#if bottomAccessory}
+    {#if showOverlayLayer}
+      {#if hasTopOverlay}
+        <div
+          class="feed-card-top-stack feed-card-overlay"
+          class:feed-card-overlay-visible={overlayVisible}
+          class:feed-card-overlay-expanded={expanded}
+        >
+          {#if showFeedChrome}
+            <section
+              class="feed-card-panel"
+              aria-label={t.media.information}
+              onpointerenter={keepOverlayFromPanel}
+              onpointermove={keepOverlayFromPanel}
+              onpointerdown={keepOverlayFromPanel}
+              onpointerleave={releaseOverlayFromPanel}
+              onmouseenter={keepOverlayFromPanel}
+              onmousemove={keepOverlayFromPanel}
+              onmouseleave={releaseOverlayFromPanel}
+              ontouchstart={keepOverlayFromPanel}
+              onfocusin={keepOverlayFromPanel}
+            >
+              <FeedCardInfoPanel {item} {expanded} {favorite} {onToggleFavorite} {onToggleExpanded} />
+            </section>
+          {/if}
+
+          {#if topAccessory}
+            <section
+              class="feed-card-panel"
+              aria-label={t.media.actions}
+              onpointerenter={keepOverlayFromPanel}
+              onpointermove={keepOverlayFromPanel}
+              onpointerdown={keepOverlayFromPanel}
+              onpointerleave={releaseOverlayFromPanel}
+              onmouseenter={keepOverlayFromPanel}
+              onmousemove={keepOverlayFromPanel}
+              onmouseleave={releaseOverlayFromPanel}
+              ontouchstart={keepOverlayFromPanel}
+              onfocusin={keepOverlayFromPanel}
+            >
+              {@render topAccessory()}
+            </section>
+          {/if}
+        </div>
+      {/if}
+
+      {#if bottomAccessory}
+        <div class="feed-card-bottom-stack" class:feed-card-overlay-expanded={expanded}>
           <div class="feed-card-bottom-accessory" class:feed-card-bottom-accessory-visible={overlayVisible}>
             <div class="feed-card-bottom-accessory-inner">
               <section
@@ -212,31 +213,24 @@
               </section>
             </div>
           </div>
-        {/if}
-
-        {#if showFeedChrome}
-          <section
-            class="feed-card-panel"
-            aria-label={t.media.commentSummary}
-            onpointerenter={keepOverlayFromPanel}
-            onpointermove={keepOverlayFromPanel}
-            onpointerdown={keepOverlayFromPanel}
-            onpointerleave={releaseOverlayFromPanel}
-            onmouseenter={keepOverlayFromPanel}
-            onmousemove={keepOverlayFromPanel}
-            onmouseleave={releaseOverlayFromPanel}
-            ontouchstart={keepOverlayFromPanel}
-            onfocusin={keepOverlayFromPanel}
-          >
-            <FeedCardCommentsPreview {item} {likePending} {onOpenComments} {onLike} />
-          </section>
-        {/if}
-      </div>
+        </div>
+      {/if}
     {/if}
+  </div>
+
+  {#if showSocialChin}
+    <section class="feed-card-social-chin" aria-label={t.media.commentSummary}>
+      <FeedCardCommentsPreview {item} {likePending} {onOpenComments} {onLike} />
+    </section>
   {/if}
 </div>
 
 <style>
+  .feed-card-frame {
+    --feed-card-overlay-inset: 0.75rem;
+    position: relative;
+  }
+
   .feed-card-content {
     position: absolute;
     inset: 0;
@@ -261,8 +255,8 @@
 
   .feed-card-overlay {
     position: absolute;
-    right: 0.75rem;
-    left: 0.75rem;
+    right: var(--feed-card-overlay-inset);
+    left: var(--feed-card-overlay-inset);
     z-index: 6;
     display: flex;
     flex-direction: column;
@@ -272,19 +266,21 @@
   }
 
   .feed-card-top-stack {
-    top: 0.75rem;
+    top: var(--feed-card-overlay-inset);
     transform: translateY(calc(-100% - 1.5rem));
   }
 
   .feed-card-bottom-stack {
     position: absolute;
-    right: 0.75rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 6;
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+    padding: 0 var(--feed-card-overlay-inset) var(--feed-card-overlay-inset);
+    pointer-events: none;
   }
 
   .feed-card-overlay-visible {
@@ -293,26 +289,19 @@
   }
 
   .feed-card-bottom-accessory {
-    display: grid;
-    grid-template-rows: 0fr;
-    overflow: hidden;
+    display: block;
     pointer-events: none;
-    transition: grid-template-rows 180ms ease;
+    transform: translateY(calc(100% + var(--feed-card-overlay-inset)));
+    transition: transform 180ms ease;
   }
 
   .feed-card-bottom-accessory-visible {
-    grid-template-rows: 1fr;
     pointer-events: auto;
+    transform: none;
   }
 
   .feed-card-bottom-accessory-inner {
     min-height: 0;
-    transform: translateY(0.75rem);
-    transition: transform 180ms ease;
-  }
-
-  .feed-card-bottom-accessory-visible .feed-card-bottom-accessory-inner {
-    transform: none;
   }
 
   .feed-card-panel {
@@ -326,23 +315,29 @@
     -webkit-backdrop-filter: blur(10px) saturate(140%);
   }
 
+  .feed-card-social-chin {
+    position: relative;
+    z-index: 3;
+    padding: 0.75rem 0.9rem 0.85rem;
+    border-top: 1px solid rgb(255 255 255 / 0.1);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.015)),
+      rgb(0 0 0 / 0.72);
+    color: var(--color-fg-primary);
+  }
+
   .feed-card-overlay-expanded {
     right: max(0.75rem, calc((100vw - 42rem) / 2));
     left: max(0.75rem, calc((100vw - 42rem) / 2));
   }
 
   @media (width < 520px) {
-    .feed-card-overlay {
-      right: 0.65rem;
-      left: 0.65rem;
+    .feed-card-frame {
+      --feed-card-overlay-inset: 0.65rem;
     }
 
-    .feed-card-top-stack {
-      top: 0.65rem;
-    }
-
-    .feed-card-bottom-stack {
-      bottom: 0.65rem;
+    .feed-card-social-chin {
+      padding: 0.7rem 0.75rem 0.8rem;
     }
   }
 </style>

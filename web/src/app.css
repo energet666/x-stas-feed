@@ -514,6 +514,10 @@ video {
     box-shadow: none;
   }
 
+  .media-card-expanded .feed-card-frame {
+    z-index: 79;
+  }
+
   .media-card-expanded .feed-card-overlay {
     z-index: 82;
   }

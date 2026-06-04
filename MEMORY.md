@@ -98,14 +98,17 @@ This file is for durable project decisions, constraints, and known risks. It is 
   - top overlay stack,
   - bottom overlay stack.
 - The top overlay stack contains the persistent media information panel and an optional future top accessory snippet.
-- The bottom overlay stack contains an optional bottom accessory snippet and the compact comments preview.
-- Compact comments preview is persistent and remains visible at the bottom of each card. Bottom accessory content such as video controls expands above it and does not control comment preview visibility.
+- The bottom overlay stack contains optional bottom accessory content such as audio/video controls. It no longer owns the compact comments preview, because floating social chrome can obscure media.
+- Compact comments preview now renders as a fixed lower card chin below the media frame for non-expanded feed cards. It still shows media likes, comment count, and the latest comment, but does not overlap photo/video/audio/file/board content.
+- Bottom accessory content keeps its visible inset through stack padding, but its hidden transform moves by its full height plus that inset so it slides below the actual media-frame content edge rather than disappearing into an interior offset.
+- Expanded cards must raise the `.feed-card-frame` wrapper above the card backdrop pseudo-element. The wrapper was introduced around `.media-frame`, so the old direct-child `.media-frame` z-index rule alone is not enough to keep fullscreen media above `.media-card-expanded::before`.
 - Top and bottom overlay stacks slide fully from outside the card bounds and do not animate opacity, because opacity animation interacts poorly with `backdrop-filter`. External shadows were removed from all UI components for a cleaner look in the dark theme, and a safe offset of 1.5rem is used when hidden to ensure no subpixel artifacts remain visible at the card edges.
 - Card overlay `onKeep` must clear the autohide timer instead of rescheduling it. Cursor/focus inside any `.feed-card-panel` stops event propagation and blocks autohide until the cursor leaves that panel, then normal delayed hiding resumes. Root media frame clicks from inside `.feed-card-panel` must call `onKeep` instead of `onReveal`, because panel clicks scheduling a stale hide timer after range interaction cause a brief one-off panel hide.
 - Shared audio/video range controls must call the controls enter/keep path on pointer/mouse down and up. Finishing a seek drag while the cursor is still over the controls panel must not schedule a one-off panel hide.
 - Shared audio/video seek clicks and pointer drags compute time from pointer coordinates across the visible `.media-playback-progress` bounds instead of trusting the native range value. Native range geometry can offset clicks by thumb width, especially in Safari.
 - Video controls are bottom accessory content. Their visibility and movement are owned by `FeedCardFrame`, not by the controls component.
 - Audio controls are also bottom accessory content and should match the video controls panel style and overlay motion.
+- Audio cards do not reserve permanent content clearance for transient overlay controls. Treat audio/video controls like the top info panel: they may overlap content while visible, so the main media layout can use the full frame.
 - Horizontal wheel/trackpad seeking must reveal the parent feed card overlay for both audio and video so the seek progress bar is visible during scrubbing. Video's local controls visibility alone is insufficient because `FeedCardFrame` owns bottom accessory visibility.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
 

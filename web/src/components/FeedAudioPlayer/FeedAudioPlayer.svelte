@@ -415,12 +415,12 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) min-content;
     align-content: stretch;
     justify-items: center;
-    align-items: start;
-    gap: 0.9rem;
-    padding: 2rem 2rem 5.5rem;
+    align-items: center;
+    gap: clamp(0.75rem, 2vh, 1.35rem);
+    padding: clamp(1.35rem, 3vh, 2.2rem) clamp(1.25rem, 3.5vw, 2.35rem);
     background: rgb(12 16 22);
     color: var(--color-fg-primary);
   }
@@ -479,7 +479,7 @@
     width: auto;
     max-width: 100%;
     height: 100%;
-    max-height: 34rem;
+    max-height: min(38rem, 100%);
     min-height: 0;
     aspect-ratio: 1;
     place-items: center;
@@ -527,7 +527,7 @@
     width: min(100%, 32rem);
     min-height: 0;
     justify-items: center;
-    gap: 0.3rem;
+    gap: 0.28rem;
     text-align: center;
   }
 
@@ -577,13 +577,14 @@
   @media (max-width: 520px) {
     .audio-card-surface {
       gap: 0.75rem;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
       padding-right: 1rem;
-      padding-bottom: 5.25rem;
       padding-left: 1rem;
     }
 
     .audio-art-wrap {
-      max-height: 100%;
+      max-height: min(100%, 31rem);
     }
 
     h3 {
