@@ -113,11 +113,12 @@
 
 <style>
   .file-card-surface {
+    container: file-card-surface / size;
     display: grid;
     height: 100%;
-    min-height: 34rem;
+    min-height: 0;
     place-items: center;
-    padding: clamp(1.25rem, 4vw, 3rem);
+    padding: clamp(0.9rem, 3.5vw, 3rem);
     background: transparent;
   }
 
@@ -230,5 +231,98 @@
     border-color: var(--color-border-glass-hover);
     background: rgb(255 255 255 / 0.16);
     transform: translateY(-1px);
+  }
+
+  @container file-card-surface (height < 34rem) {
+    .file-card-content {
+      width: min(100%, 28rem);
+      gap: 0.72rem;
+    }
+
+    .file-card-icon-shell {
+      width: 4.35rem;
+      height: 4.35rem;
+      border-radius: 1rem;
+    }
+
+    .file-card-icon-shell :global(svg) {
+      width: 2.3rem;
+      height: 2.3rem;
+    }
+
+    .file-card-details {
+      gap: 0.55rem;
+    }
+
+    h3 {
+      max-height: 3.45em;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      font-size: clamp(1.12rem, 5cqw, 1.55rem);
+      line-height: 1.15;
+    }
+
+    dl {
+      gap: 0.4rem;
+    }
+
+    dt {
+      font-size: 0.65rem;
+    }
+
+    dd {
+      font-size: 0.82rem;
+      line-height: 1.18;
+    }
+
+    .file-card-actions {
+      gap: 0.45rem;
+    }
+
+    .file-card-action {
+      padding: 0.55rem 0.72rem;
+      font-size: 0.82rem;
+    }
+  }
+
+  @container file-card-surface (height < 29rem) {
+    .file-card-content {
+      gap: 0.58rem;
+    }
+
+    .file-card-icon-shell {
+      width: 3.6rem;
+      height: 3.6rem;
+    }
+
+    .file-card-icon-shell :global(svg) {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    .file-card-kind {
+      padding: 0.2rem 0.48rem;
+      font-size: 0.66rem;
+    }
+
+    h3 {
+      max-height: 2.3em;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      font-size: clamp(1rem, 4.5cqw, 1.28rem);
+    }
+
+    dl {
+      gap: 0.32rem;
+    }
+
+    dl div {
+      gap: 0.08rem;
+    }
+
+    .file-card-action {
+      min-height: 2.15rem;
+      padding: 0.45rem 0.62rem;
+    }
   }
 </style>

@@ -113,6 +113,7 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Audio controls are also bottom accessory content and should match the video controls panel style and overlay motion.
 - Audio cards do not reserve permanent content clearance for transient overlay controls. Treat audio/video controls like the top info panel: they may overlap content while visible, so the main media layout can use the full frame.
 - Generic file cards keep their grid/gradient pattern in the FeedCardFrame ambient background only; the file content surface itself stays transparent so the same ambient field appears behind both the body and the glass social chin. Unlike media-derived ambient layers, this decorative file pattern stays sharp and does not use blur/scale.
+- Generic file card content must adapt to the media-frame height. Avoid fixed inner minimum heights; use height-based container queries to reduce icon size, title line count, metadata gaps, and button padding when the frame is near its minimum height.
 - Horizontal wheel/trackpad seeking must reveal the parent feed card overlay for both audio and video so the seek progress bar is visible during scrubbing. Video's local controls visibility alone is insufficient because `FeedCardFrame` owns bottom accessory visibility.
 - Video transient feedback such as play, blocked-play message, speed indicator, and seek feedback is rendered through `contentOverlay`. Video playback state remains owned by `FeedVideoPlayer`.
 
