@@ -107,6 +107,22 @@
 </script>
 
 <div class="feed-card-frame">
+  <div class="feed-card-ambient-bg" aria-hidden="true">
+    {#if ambientActive}
+      {#if ambientBackground}
+        {@render ambientBackground()}
+      {:else if item.type === 'image'}
+        <img
+          src={item.url}
+          alt=""
+          class="ambient-media"
+          decoding="async"
+        />
+      {/if}
+    {/if}
+    <div class="feed-card-ambient-grid"></div>
+  </div>
+
   <div
     class="media-frame"
     role="presentation"
@@ -121,22 +137,6 @@
     onfocusin={keepOverlay}
     onmouseleave={hideOverlay}
   >
-    <div class="feed-card-ambient-bg" aria-hidden="true">
-      {#if ambientActive}
-        {#if ambientBackground}
-          {@render ambientBackground()}
-        {:else if item.type === 'image'}
-          <img
-            src={item.url}
-            alt=""
-            class="ambient-media"
-            decoding="async"
-          />
-        {/if}
-      {/if}
-      <div class="feed-card-ambient-grid"></div>
-    </div>
-
     <div class="feed-card-content">
       {@render content()}
     </div>
@@ -229,6 +229,12 @@
   .feed-card-frame {
     --feed-card-overlay-inset: 0.75rem;
     position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-media-card);
+  }
+
+  .media-frame {
+    z-index: 2;
   }
 
   .feed-card-content {
@@ -272,14 +278,13 @@
 
   .feed-card-bottom-stack {
     position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: var(--feed-card-overlay-inset);
+    bottom: var(--feed-card-overlay-inset);
+    left: var(--feed-card-overlay-inset);
     z-index: 6;
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
-    padding: 0 var(--feed-card-overlay-inset) var(--feed-card-overlay-inset);
     pointer-events: none;
   }
 
@@ -291,7 +296,7 @@
   .feed-card-bottom-accessory {
     display: block;
     pointer-events: none;
-    transform: translateY(calc(100% + var(--feed-card-overlay-inset)));
+    transform: translateY(calc(100% + 1.5rem));
     transition: transform 180ms ease;
   }
 
@@ -319,11 +324,12 @@
     position: relative;
     z-index: 3;
     padding: 0.75rem 0.9rem 0.85rem;
-    border-top: 1px solid rgb(255 255 255 / 0.1);
     background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.015)),
-      rgb(0 0 0 / 0.72);
+      linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.035)),
+      rgb(0 0 0 / 0.24);
     color: var(--color-fg-primary);
+    backdrop-filter: blur(18px) saturate(155%);
+    -webkit-backdrop-filter: blur(18px) saturate(155%);
   }
 
   .feed-card-overlay-expanded {

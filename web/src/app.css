@@ -545,6 +545,7 @@ video {
     .ui-icon-button,
     .ui-overlay-panel,
     .feed-card-panel,
+    .feed-card-social-chin,
     .ui-panel-side,
     .debug-overlay {
       background: var(--color-glass-fallback);
