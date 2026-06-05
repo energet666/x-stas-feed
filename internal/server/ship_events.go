@@ -90,8 +90,13 @@ func (h *shipHub) update(ship shipState) shipSnapshot {
 	defer h.mu.Unlock()
 
 	ship.UpdatedAt = h.now().UTC()
+	suppressedDestroyedAsteroid := false
 	if ship.Asteroid != nil && h.isAsteroidDestroyedLocked(ship.ID, ship.Asteroid.ID) {
 		ship.Asteroid = nil
+		suppressedDestroyedAsteroid = true
+	}
+	if ship.Asteroid == nil && !suppressedDestroyedAsteroid {
+		delete(h.destroyedAsteroids, ship.ID)
 	}
 	h.ships[ship.ID] = ship
 	h.cleanupLocked()
@@ -138,6 +143,7 @@ func (h *shipHub) remove(id string) shipSnapshot {
 	defer h.mu.Unlock()
 
 	delete(h.ships, id)
+	delete(h.destroyedAsteroids, id)
 	h.cleanupLocked()
 	snapshot := h.snapshotLocked()
 	h.publishLocked(snapshot)
