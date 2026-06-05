@@ -84,6 +84,26 @@ func TestShipHubPublishesShipCrashEventWithVictimName(t *testing.T) {
 	}
 }
 
+func TestSanitizeShipStateKeepsInactiveAsteroid(t *testing.T) {
+	ship := testShipState("owner", testShipAsteroid(1))
+	ship.Active = false
+	ship.Thrusting = true
+	ship.Bullets = []shipBullet{{X: 1, Y: 2}}
+
+	if !sanitizeShipState(&ship) {
+		t.Fatal("expected ship state to be valid")
+	}
+	if ship.Asteroid == nil {
+		t.Fatal("expected inactive ship state to keep asteroid")
+	}
+	if ship.Bullets != nil {
+		t.Fatalf("expected inactive ship bullets to be cleared, got %#v", ship.Bullets)
+	}
+	if ship.Thrusting {
+		t.Fatal("expected inactive ship thrusting to be cleared")
+	}
+}
+
 func testShipState(id string, asteroid *shipAsteroid) shipState {
 	return shipState{
 		ID:       id,

@@ -150,7 +150,6 @@ func sanitizeShipState(ship *shipState) bool {
 	}
 	if !ship.Active {
 		ship.Bullets = nil
-		ship.Asteroid = nil
 		ship.Thrusting = false
 	}
 	return true

@@ -350,6 +350,8 @@
       detectRemoteAsteroidHit();
       detectRemoteBulletCollision();
       detectRemoteAsteroidCollision();
+    }
+    if (shipControlled || asteroid) {
       publishShipThrottled(now);
     }
 
@@ -700,7 +702,6 @@
     if (bullets.length === 0) return;
 
     for (const remoteShip of remoteShips) {
-      if (!isRemoteShipActive(remoteShip)) continue;
       const remoteAsteroid = remoteShip.asteroid;
       if (!remoteAsteroid) continue;
       const hitKey = `${remoteShip.id}:${remoteAsteroid.id}`;
@@ -737,7 +738,6 @@
   function detectRemoteAsteroidCollision() {
     const center = shipCenter();
     const hit = remoteShips.find((remoteShip) => {
-      if (!isRemoteShipActive(remoteShip)) return false;
       const remoteAsteroid = remoteShip.asteroid;
       return (
         remoteAsteroid &&
@@ -882,7 +882,7 @@
       }
     });
     shipSocket.addEventListener('open', () => {
-      if (shipControlled) {
+      if (shipControlled || asteroid) {
         publishShip();
       }
     });
@@ -910,7 +910,7 @@
             thrusting: ship.thrusting,
             active: shipControlled && roundStatus === 'playing',
             bullets: shipControlled ? bullets.map((bullet) => ({ x: bullet.x, y: bullet.y })) : [],
-            asteroid: shipControlled && asteroid
+            asteroid: asteroid
               ? {
                   id: asteroid.id,
                   x: asteroid.x,
@@ -1353,20 +1353,20 @@
 {/if}
 
 {#each remoteShips as remoteShip (remoteShip.id)}
+  {#if remoteShip.asteroid}
+    <svg
+      class="asteroids-rock asteroids-remote-rock"
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      style:width={`${remoteShip.asteroid.radius * 2}px`}
+      style:height={`${remoteShip.asteroid.radius * 2}px`}
+      style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
+    >
+      <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
+      <path class="remote-rock-line" d={remoteShip.asteroid.path} />
+    </svg>
+  {/if}
   {#if isRemoteShipActive(remoteShip)}
-    {#if remoteShip.asteroid}
-      <svg
-        class="asteroids-rock asteroids-remote-rock"
-        aria-hidden="true"
-        viewBox="0 0 100 100"
-        style:width={`${remoteShip.asteroid.radius * 2}px`}
-        style:height={`${remoteShip.asteroid.radius * 2}px`}
-        style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
-      >
-        <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
-        <path class="remote-rock-line" d={remoteShip.asteroid.path} />
-      </svg>
-    {/if}
     {#each remoteShip.bullets ?? [] as bullet, index (`${remoteShip.id}-${index}`)}
       <span
         class="asteroids-bullet asteroids-remote-bullet"
