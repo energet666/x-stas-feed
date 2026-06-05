@@ -152,9 +152,20 @@
           bind:value={username}
           placeholder={fallbackUsername}
         />
-        <button class="ui-icon-button" type="button" aria-label={t.profile.randomNickname} onclick={randomizeUsername}>
-          <Dice5 size={18} />
-        </button>
+        <span class="nickname-random-tooltip">
+          <button
+            class="ui-icon-button"
+            type="button"
+            aria-label={t.profile.randomNickname}
+            aria-describedby="random-nickname-tooltip"
+            onclick={randomizeUsername}
+          >
+            <Dice5 size={18} />
+          </button>
+          <span id="random-nickname-tooltip" class="nickname-random-tooltip-content" role="tooltip">
+            {t.profile.randomNicknameTooltip}
+          </span>
+        </span>
       </div>
 
       <div class="background-field">
@@ -252,6 +263,43 @@
 
   .username-input:focus {
     border-color: var(--color-border-glass-hover);
+  }
+
+  .nickname-random-tooltip {
+    position: relative;
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+  }
+
+  .nickname-random-tooltip-content {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 3;
+    width: max-content;
+    max-width: min(13rem, calc(100vw - 2rem));
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border-glass-soft);
+    border-radius: 0.625rem;
+    background: rgb(8 9 12 / 0.94);
+    color: var(--color-fg-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.25;
+    opacity: 0;
+    pointer-events: none;
+    text-align: left;
+    transform: translateY(-0.2rem);
+    transition:
+      opacity 140ms ease,
+      transform 140ms ease;
+  }
+
+  .nickname-random-tooltip:hover .nickname-random-tooltip-content,
+  .nickname-random-tooltip:focus-within .nickname-random-tooltip-content {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .background-field {
