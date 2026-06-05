@@ -40,11 +40,15 @@ type shipSnapshot struct {
 }
 
 type shipEvent struct {
-	Type       string  `json:"type"`
-	OwnerID    string  `json:"ownerId,omitempty"`
-	AsteroidID int     `json:"asteroidId,omitempty"`
-	X          float64 `json:"x,omitempty"`
-	Y          float64 `json:"y,omitempty"`
+	Type        string  `json:"type"`
+	OwnerID     string  `json:"ownerId,omitempty"`
+	AsteroidID  int     `json:"asteroidId,omitempty"`
+	ShooterID   string  `json:"shooterId,omitempty"`
+	ShooterName string  `json:"shooterName,omitempty"`
+	VictimID    string  `json:"victimId,omitempty"`
+	VictimName  string  `json:"victimName,omitempty"`
+	X           float64 `json:"x,omitempty"`
+	Y           float64 `json:"y,omitempty"`
 }
 
 type shipHub struct {
@@ -130,6 +134,57 @@ func (h *shipHub) hitAsteroid(shooterID, ownerID string, asteroidID int, bulletX
 	target.Asteroid = nil
 	h.ships[ownerID] = target
 	h.markAsteroidDestroyedLocked(ownerID, asteroidID)
+	h.cleanupLocked()
+	snapshot := h.snapshotLocked()
+	snapshot.Events = []shipEvent{event}
+	h.publishLocked(snapshot)
+
+	return snapshot, true
+}
+
+func (h *shipHub) killShip(shooterID, victimID string, x, y float64) (shipSnapshot, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	shooter, shooterOK := h.ships[shooterID]
+	victim, victimOK := h.ships[victimID]
+	if !shooterOK || !victimOK || shooterID == victimID {
+		return shipSnapshot{}, false
+	}
+
+	event := shipEvent{
+		Type:        "ship-kill",
+		ShooterID:   shooterID,
+		ShooterName: shooter.Name,
+		VictimID:    victimID,
+		VictimName:  victim.Name,
+		X:           x,
+		Y:           y,
+	}
+	h.cleanupLocked()
+	snapshot := h.snapshotLocked()
+	snapshot.Events = []shipEvent{event}
+	h.publishLocked(snapshot)
+
+	return snapshot, true
+}
+
+func (h *shipHub) crashShip(victimID string, x, y float64) (shipSnapshot, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	victim, victimOK := h.ships[victimID]
+	if !victimOK {
+		return shipSnapshot{}, false
+	}
+
+	event := shipEvent{
+		Type:       "ship-crash",
+		VictimID:   victimID,
+		VictimName: victim.Name,
+		X:          x,
+		Y:          y,
+	}
 	h.cleanupLocked()
 	snapshot := h.snapshotLocked()
 	snapshot.Events = []shipEvent{event}

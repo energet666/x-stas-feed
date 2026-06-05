@@ -41,6 +41,49 @@ func TestShipHubRemoveClearsDestroyedAsteroidHistory(t *testing.T) {
 	}
 }
 
+func TestShipHubPublishesShipKillEventWithNames(t *testing.T) {
+	hub := newShipHub()
+
+	hub.update(testShipState("shooter", nil))
+	hub.update(testShipState("victim", nil))
+
+	snapshot, ok := hub.killShip("shooter", "victim", 45, 67)
+	if !ok {
+		t.Fatal("expected ship kill to be accepted")
+	}
+	if len(snapshot.Events) != 1 {
+		t.Fatalf("expected one event, got %#v", snapshot.Events)
+	}
+	event := snapshot.Events[0]
+	if event.Type != "ship-kill" || event.ShooterID != "shooter" || event.ShooterName != "shooter" || event.VictimID != "victim" || event.VictimName != "victim" {
+		t.Fatalf("unexpected ship kill event: %#v", event)
+	}
+	if event.X != 45 || event.Y != 67 {
+		t.Fatalf("expected event position to be preserved, got %#v", event)
+	}
+}
+
+func TestShipHubPublishesShipCrashEventWithVictimName(t *testing.T) {
+	hub := newShipHub()
+
+	hub.update(testShipState("victim", nil))
+
+	snapshot, ok := hub.crashShip("victim", 12, 34)
+	if !ok {
+		t.Fatal("expected ship crash to be accepted")
+	}
+	if len(snapshot.Events) != 1 {
+		t.Fatalf("expected one event, got %#v", snapshot.Events)
+	}
+	event := snapshot.Events[0]
+	if event.Type != "ship-crash" || event.VictimID != "victim" || event.VictimName != "victim" {
+		t.Fatalf("unexpected ship crash event: %#v", event)
+	}
+	if event.X != 12 || event.Y != 34 {
+		t.Fatalf("expected event position to be preserved, got %#v", event)
+	}
+}
+
 func testShipState(id string, asteroid *shipAsteroid) shipState {
 	return shipState{
 		ID:       id,

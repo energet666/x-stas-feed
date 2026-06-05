@@ -61,6 +61,11 @@
   };
 
   type RoundStatus = 'idle' | 'playing' | 'finished';
+  type ShipKillCounter = {
+    id: string;
+    name: string;
+    kills: number;
+  };
 
   const shipWidth = 43.2;
   const shipHeight = 55.2;
@@ -119,13 +124,15 @@
   let videoActive = false;
   let backgroundKeyboardFocused = false;
   let shipControlled = $state(false);
-  let sessionID = '';
+  let sessionID = $state('');
   let lastShipPostAt = 0;
   let remoteShips = $state<NetworkShipState[]>([]);
   let roundStatus = $state<RoundStatus>('idle');
   let roundEndsAt = 0;
   let roundRemainingMs = $state(roundDurationMs);
   let score = $state(0);
+  let multiplayerRound = $state(false);
+  let shipKills = $state<Record<string, ShipKillCounter>>({});
   let leaderboard = $state<ShipScore[]>([]);
   let scoreSubmitStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
   let roundSaved = $state(false);
@@ -141,6 +148,14 @@
     `translate3d(${ship.x}px, ${ship.y}px, 0) rotate(${ship.angle + Math.PI / 2}rad)`
   );
   const roundSecondsLeft = $derived(Math.max(0, Math.ceil(roundRemainingMs / 1000)));
+  const shipKillRows = $derived(
+    Object.values(shipKills).sort((a, b) => {
+      if (a.id === sessionID) return -1;
+      if (b.id === sessionID) return 1;
+      if (b.kills !== a.kills) return b.kills - a.kills;
+      return a.name.localeCompare(b.name);
+    })
+  );
 
   function isTextEntryTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
@@ -170,6 +185,10 @@
       !videoActive &&
       !isTextEntryTarget(event.target)
     ) {
+      if (multiplayerRound) {
+        event.preventDefault();
+        return;
+      }
       finishRound(false);
       event.preventDefault();
       return;
@@ -368,6 +387,7 @@
     shipCollisionGraceUntil = performance.now() + shipSpawnGraceMs;
     window.dispatchEvent(new CustomEvent(gameStartedEvent));
     spawnAsteroid();
+    updateMultiplayerState();
     requestAnimationLoop();
   }
 
@@ -376,6 +396,8 @@
     roundEndsAt = performance.now() + roundDurationMs;
     roundRemainingMs = roundDurationMs;
     score = 0;
+    multiplayerRound = false;
+    resetShipKills();
     leaderboard = [];
     scoreSubmitStatus = 'idle';
     roundSaved = false;
@@ -397,6 +419,8 @@
     roundEndsAt = 0;
     roundRemainingMs = roundDurationMs;
     score = 0;
+    multiplayerRound = false;
+    resetShipKills();
     leaderboard = [];
     scoreSubmitStatus = 'idle';
     roundSaved = false;
@@ -416,6 +440,8 @@
     roundEndsAt = 0;
     roundRemainingMs = roundDurationMs;
     score = 0;
+    multiplayerRound = false;
+    resetShipKills();
     leaderboard = [];
     scoreSubmitStatus = 'idle';
     roundSaved = false;
@@ -426,7 +452,7 @@
   }
 
   function updateRoundTimer(now: number) {
-    if (roundStatus !== 'playing') return;
+    if (roundStatus !== 'playing' || multiplayerRound) return;
     roundRemainingMs = Math.max(0, roundEndsAt - now);
     if (roundRemainingMs <= 0) {
       finishRound(true);
@@ -435,8 +461,9 @@
 
   function finishRound(shouldSubmitScore: boolean) {
     if (roundStatus !== 'playing') return;
+    const saveSoloScore = shouldSubmitScore && !multiplayerRound;
     roundStatus = 'finished';
-    roundSaved = shouldSubmitScore;
+    roundSaved = saveSoloScore;
     roundRemainingMs = 0;
     keys.clear();
     bullets = [];
@@ -445,9 +472,9 @@
     shipControlled = false;
     clearTimeout(asteroidRespawnTimer);
     scoreSubmissionID += 1;
-    if (shouldSubmitScore) {
+    if (saveSoloScore) {
       void submitScore(scoreSubmissionID, score);
-    } else {
+    } else if (!multiplayerRound) {
       void loadLeaderboard(scoreSubmissionID);
     }
     void publishShip();
@@ -480,7 +507,7 @@
   }
 
   function addScore(delta: number) {
-    if (roundStatus !== 'playing') return;
+    if (roundStatus !== 'playing' || multiplayerRound) return;
     score += delta;
   }
 
@@ -632,9 +659,12 @@
 
     bullets = [];
     addScore(-collisionPenalty);
+    const crashX = asteroid.x;
+    const crashY = asteroid.y;
     resetShip();
-    destroyAsteroid(asteroid.x, asteroid.y);
+    destroyAsteroid(crashX, crashY);
     playShipDestroySound();
+    sendShipCrash(crashX, crashY);
     void publishShip();
   }
 
@@ -651,15 +681,18 @@
     bullets = [];
     addScore(-collisionPenalty);
     resetShip();
+    const crashX = (center.x + hit.x) / 2;
+    const crashY = (center.y + hit.y) / 2;
     explosion = {
       id: nextExplosionID++,
-      x: (center.x + hit.x) / 2,
-      y: (center.y + hit.y) / 2
+      x: crashX,
+      y: crashY
     };
     window.setTimeout(() => {
       explosion = undefined;
     }, 360);
     playShipDestroySound();
+    sendShipCrash(crashX, crashY);
     void publishShip();
   }
 
@@ -696,7 +729,7 @@
       );
       if (!hit) continue;
 
-      resetAfterRemoteHit((center.x + hit.x) / 2, (center.y + hit.y) / 2);
+      resetAfterRemoteHit((center.x + hit.x) / 2, (center.y + hit.y) / 2, remoteShip);
       return;
     }
   }
@@ -716,7 +749,7 @@
     resetAfterRemoteHit(hit.asteroid.x, hit.asteroid.y);
   }
 
-  function resetAfterRemoteHit(x: number, y: number) {
+  function resetAfterRemoteHit(x: number, y: number, shooter?: NetworkShipState) {
     bullets = [];
     addScore(-collisionPenalty);
     resetShip();
@@ -729,6 +762,11 @@
       explosion = undefined;
     }, 360);
     playShipDestroySound();
+    if (shooter) {
+      sendShipKill(shooter.id, x, y);
+    } else {
+      sendShipCrash(x, y);
+    }
     void publishShip();
   }
 
@@ -837,6 +875,7 @@
       try {
         const snapshot = JSON.parse(event.data) as ShipSnapshot;
         remoteShips = snapshot.ships.filter((remoteShip) => remoteShip.id !== sessionID);
+        updateMultiplayerState();
         handleShipEvents(snapshot);
       } catch {
         // Ignore malformed game messages; the next snapshot can recover state.
@@ -906,29 +945,126 @@
     }
   }
 
+  function sendShipKill(shooterId: string, x: number, y: number) {
+    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
+    try {
+      shipSocket.send(
+        JSON.stringify({
+          type: 'ship-kill',
+          shooterId,
+          x,
+          y
+        })
+      );
+    } catch {
+      // Kill counters are non-critical multiplayer UI.
+    }
+  }
+
+  function sendShipCrash(x: number, y: number) {
+    if (!multiplayerRound || !sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
+    try {
+      shipSocket.send(
+        JSON.stringify({
+          type: 'ship-crash',
+          x,
+          y
+        })
+      );
+    } catch {
+      // Crash counters are non-critical multiplayer UI.
+    }
+  }
+
   function handleShipEvents(snapshot: ShipSnapshot) {
     for (const event of snapshot.events ?? []) {
-      if (event.type !== 'asteroid-destroyed' || !event.ownerId || !event.asteroidId) continue;
-      pendingAsteroidHits.delete(`${event.ownerId}:${event.asteroidId}`);
-      if (event.ownerId === sessionID && asteroid?.id === event.asteroidId) {
-        asteroid = undefined;
-        clearTimeout(asteroidRespawnTimer);
-        asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
-      }
-      if (Number.isFinite(event.x) && Number.isFinite(event.y)) {
-        explosion = {
-          id: nextExplosionID++,
-          x: event.x ?? 0,
-          y: event.y ?? 0
-        };
-        window.setTimeout(() => {
-          explosion = undefined;
-        }, 360);
-        spawnExplosionParticles(event.x ?? 0, event.y ?? 0);
-        playExplosionSound();
-        requestAnimationLoop();
+      if (event.type === 'asteroid-destroyed' && event.ownerId && event.asteroidId) {
+        pendingAsteroidHits.delete(`${event.ownerId}:${event.asteroidId}`);
+        if (event.ownerId === sessionID && asteroid?.id === event.asteroidId) {
+          asteroid = undefined;
+          clearTimeout(asteroidRespawnTimer);
+          asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
+        }
+        if (Number.isFinite(event.x) && Number.isFinite(event.y)) {
+          explosion = {
+            id: nextExplosionID++,
+            x: event.x ?? 0,
+            y: event.y ?? 0
+          };
+          window.setTimeout(() => {
+            explosion = undefined;
+          }, 360);
+          spawnExplosionParticles(event.x ?? 0, event.y ?? 0);
+          playExplosionSound();
+          requestAnimationLoop();
+        }
+      } else if (event.type === 'ship-kill' && event.shooterId) {
+        recordShipKill(event.shooterId, event.shooterName);
+        if (event.victimId) {
+          recordShipCrash(event.victimId, event.victimName);
+        }
+      } else if (event.type === 'ship-crash' && event.victimId) {
+        recordShipCrash(event.victimId, event.victimName);
       }
     }
+  }
+
+  function updateMultiplayerState() {
+    const activeRemoteShips = remoteShips.filter(isRemoteShipActive);
+    if (roundStatus === 'playing' && shipControlled && activeRemoteShips.length > 0) {
+      multiplayerRound = true;
+      upsertShipKillParticipant(sessionID, username.trim() || t.common.guest);
+    }
+    for (const remoteShip of activeRemoteShips) {
+      upsertShipKillParticipant(remoteShip.id, remoteShip.name);
+    }
+  }
+
+  function resetShipKills() {
+    shipKills = {};
+    if (sessionID) {
+      upsertShipKillParticipant(sessionID, username.trim() || t.common.guest);
+    }
+  }
+
+  function upsertShipKillParticipant(id: string | undefined, name: string | undefined) {
+    if (!id) return;
+    const displayName = (name ?? '').trim() || t.common.guest;
+    const current = shipKills[id];
+    shipKills = {
+      ...shipKills,
+      [id]: {
+        id,
+        name: displayName,
+        kills: current?.kills ?? 0
+      }
+    };
+  }
+
+  function recordShipKill(shooterId: string, shooterName: string | undefined) {
+    if (!shooterId) return;
+    const current = shipKills[shooterId];
+    shipKills = {
+      ...shipKills,
+      [shooterId]: {
+        id: shooterId,
+        name: (shooterName ?? current?.name ?? '').trim() || t.common.guest,
+        kills: (current?.kills ?? 0) + 1
+      }
+    };
+  }
+
+  function recordShipCrash(victimId: string, victimName: string | undefined) {
+    if (!victimId) return;
+    const current = shipKills[victimId];
+    shipKills = {
+      ...shipKills,
+      [victimId]: {
+        id: victimId,
+        name: (victimName ?? current?.name ?? '').trim() || t.common.guest,
+        kills: (current?.kills ?? 0) - 1
+      }
+    };
   }
 
   function primeAudio() {
@@ -1126,10 +1262,24 @@
 </script>
 
 {#if roundStatus === 'playing'}
-  <div class="asteroids-hud" aria-live="polite">
-    <span>{roundSecondsLeft}s</span>
-    <strong>{score}</strong>
-  </div>
+  {#if multiplayerRound}
+    <div class="asteroids-hud asteroids-killboard" aria-live="polite">
+      <span class="asteroids-killboard-title">{t.game.kills}</span>
+      <ol>
+        {#each shipKillRows as player (player.id)}
+          <li class:asteroids-local-kill-row={player.id === sessionID}>
+            <span>{player.name}</span>
+            <strong>{player.kills}</strong>
+          </li>
+        {/each}
+      </ol>
+    </div>
+  {:else}
+    <div class="asteroids-hud" aria-live="polite">
+      <span>{roundSecondsLeft}s</span>
+      <strong>{score}</strong>
+    </div>
+  {/if}
 {/if}
 
 {#if roundStatus === 'finished'}
@@ -1288,6 +1438,51 @@
     color: rgb(253 224 71);
     font-size: 1.1rem;
     font-weight: 800;
+  }
+
+  .asteroids-killboard {
+    min-width: min(18rem, calc(100vw - 2rem));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .asteroids-killboard-title {
+    color: rgb(148 163 184);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .asteroids-killboard ol {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .asteroids-killboard li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.35rem;
+    padding: 0.32rem 0.45rem;
+    background: rgb(15 23 42 / 0.58);
+  }
+
+  .asteroids-killboard li span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asteroids-killboard li.asteroids-local-kill-row {
+    background: rgb(20 184 166 / 0.16);
+    color: rgb(153 246 228);
   }
 
   .asteroids-leaderboard {

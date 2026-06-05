@@ -203,6 +203,7 @@ export const uiText = {
   game: {
     time: 'Время',
     leaders: 'Лидеры',
+    kills: 'Попадания',
     resultNotSaved: 'Результат не сохранён',
     savingScore: 'Сохраняем счёт...',
     loadingLeaders: 'Загружаем лидеров...',

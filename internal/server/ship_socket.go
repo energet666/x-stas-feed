@@ -25,6 +25,7 @@ type shipSocketMessage struct {
 	Ship       *shipState `json:"ship,omitempty"`
 	OwnerID    string     `json:"ownerId,omitempty"`
 	AsteroidID int        `json:"asteroidId,omitempty"`
+	ShooterID  string     `json:"shooterId,omitempty"`
 	X          float64    `json:"x,omitempty"`
 	Y          float64    `json:"y,omitempty"`
 }
@@ -115,6 +116,16 @@ func (s *Server) handleShipSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			s.ships.hitAsteroid(shipID, strings.TrimSpace(message.OwnerID), message.AsteroidID, message.X, message.Y)
+		case "ship-kill":
+			if shipID == "" {
+				continue
+			}
+			s.ships.killShip(strings.TrimSpace(message.ShooterID), shipID, message.X, message.Y)
+		case "ship-crash":
+			if shipID == "" {
+				continue
+			}
+			s.ships.crashShip(shipID, message.X, message.Y)
 		}
 	}
 

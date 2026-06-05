@@ -74,9 +74,13 @@ export type ShipAsteroid = {
 };
 
 export type ShipEvent = {
-  type: 'asteroid-destroyed';
+  type: 'asteroid-destroyed' | 'ship-kill' | 'ship-crash';
   ownerId?: string;
   asteroidId?: number;
+  shooterId?: string;
+  shooterName?: string;
+  victimId?: string;
+  victimName?: string;
   x?: number;
   y?: number;
 };
