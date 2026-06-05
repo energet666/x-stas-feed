@@ -314,6 +314,7 @@
     overflow-wrap: anywhere;
     white-space: normal;
     -webkit-box-orient: vertical;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
   }
 

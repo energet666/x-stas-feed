@@ -304,5 +304,6 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Board default display-name fix verified on 2026-05-16 with `go test ./...` and `npm --prefix web run build`.
 - If `feed-ai:comment-username` is missing or blank, the frontend now assigns the same random Russian nickname format used by the sidebar dice button, then persists it through the existing username storage effect.
 - Comment composer submit-button change (SendHorizontal icon, blue enabled state) verified on 2026-06-05 with `npm run check` in `web`; `svelte-check` had 0 errors and one pre-existing CSS compatibility warning in `FeedHeader.svelte` about standard `line-clamp`.
+- Feed header line-clamp compatibility warning fixed on 2026-06-05 by adding standard `line-clamp`; `npm run check` in `web` now reports 0 errors and 0 warnings.
 - Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.
 - Favorites implementation verified on 2026-05-09 with `go test ./...`, `npm run check` in `web`, and `npm run build` in `web`.
