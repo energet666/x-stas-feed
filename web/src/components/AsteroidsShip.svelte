@@ -258,6 +258,7 @@
   }
 
   function animate(now: number) {
+    animationFrameID = undefined;
     const delta = lastFrameAt > 0 ? Math.min((now - lastFrameAt) / 16.67, 2.4) : 1;
     lastFrameAt = now;
     updateRoundTimer(now);
@@ -333,7 +334,28 @@
       publishShipThrottled(now);
     }
 
+    if (hasAnimationWork()) {
+      requestAnimationLoop();
+    } else {
+      lastFrameAt = 0;
+    }
+  }
+
+  function hasAnimationWork() {
+    return roundStatus === 'playing' || shipControlled || bullets.length > 0 || particles.length > 0 || asteroid !== undefined;
+  }
+
+  function requestAnimationLoop() {
+    if (animationFrameID !== undefined || document.visibilityState === 'hidden') return;
     animationFrameID = requestAnimationFrame(animate);
+  }
+
+  function cancelAnimationLoop() {
+    if (animationFrameID !== undefined) {
+      cancelAnimationFrame(animationFrameID);
+      animationFrameID = undefined;
+    }
+    lastFrameAt = 0;
   }
 
   function startAsteroidGame() {
@@ -346,6 +368,7 @@
     shipCollisionGraceUntil = performance.now() + shipSpawnGraceMs;
     window.dispatchEvent(new CustomEvent(gameStartedEvent));
     spawnAsteroid();
+    requestAnimationLoop();
   }
 
   function startRound() {
@@ -398,6 +421,7 @@
     roundSaved = false;
     scoreSubmissionID += 1;
     void publishShip();
+    cancelAnimationLoop();
     window.dispatchEvent(new CustomEvent(gameExitedEvent));
   }
 
@@ -902,6 +926,7 @@
         }, 360);
         spawnExplosionParticles(event.x ?? 0, event.y ?? 0);
         playExplosionSound();
+        requestAnimationLoop();
       }
     }
   }
@@ -1062,6 +1087,15 @@
         ship.thrusting = false;
       }
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cancelAnimationLoop();
+        return;
+      }
+      if (hasAnimationWork()) {
+        requestAnimationLoop();
+      }
+    };
 
     sessionID = readShipSessionID();
     resize();
@@ -1072,7 +1106,7 @@
     window.addEventListener(activeVideoEvent, markVideoActive);
     window.addEventListener(clearActiveVideoEvent, markVideoInactive);
     window.addEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
-    animationFrameID = requestAnimationFrame(animate);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       keys.clear();
@@ -1082,12 +1116,11 @@
       window.removeEventListener(activeVideoEvent, markVideoActive);
       window.removeEventListener(clearActiveVideoEvent, markVideoInactive);
       window.removeEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       shipSocket?.close();
       void audioContext?.close();
       clearTimeout(asteroidRespawnTimer);
-      if (animationFrameID !== undefined) {
-        cancelAnimationFrame(animationFrameID);
-      }
+      cancelAnimationLoop();
     };
   });
 </script>
