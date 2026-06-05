@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { Heart, LoaderCircle, MessageCircle, Smile } from 'lucide-svelte';
+  import { Heart, LoaderCircle, MessageCircle, SendHorizontal, Smile } from 'lucide-svelte';
   import EmojiPanel from './EmojiPanel.svelte';
   import { uiText as t } from '../lib/ui_text';
   import {
@@ -301,6 +301,18 @@
       >
         <Smile size={18} />
       </button>
+      <button
+        class="comment-submit-button"
+        type="submit"
+        aria-label={t.comments.send}
+        disabled={!canSubmit}
+      >
+        {#if submitting}
+          <LoaderCircle class="animate-spin" size={16} />
+        {:else}
+          <SendHorizontal size={16} />
+        {/if}
+      </button>
     </div>
 
     {#if emojiPanelOpen}
@@ -373,29 +385,50 @@
     display: flex;
     height: 2.75rem;
     align-items: center;
+    gap: 0.35rem;
   }
 
-  .emoji-toggle-button {
+  .emoji-toggle-button,
+  .comment-submit-button {
     display: inline-grid;
     width: 1.9rem;
     height: 1.9rem;
     place-items: center;
+    border: 1px solid var(--color-border-glass-soft);
     border-radius: 999px;
+    background: var(--color-action-bg);
     color: var(--color-fg-muted);
     transition:
       background 160ms ease,
+      border-color 160ms ease,
       color 160ms ease,
       transform 160ms ease;
   }
 
   .emoji-toggle-button:hover,
-  .emoji-toggle-button-active {
+  .emoji-toggle-button-active,
+  .comment-submit-button:hover:not(:disabled) {
     background: var(--color-action-hover);
     color: var(--color-fg-primary);
   }
 
-  .emoji-toggle-button:hover {
+  .comment-submit-button {
+    color: var(--color-fg-secondary);
+  }
+
+  .comment-submit-button:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-fg-primary) 24%, transparent);
+    background: rgb(37 99 235);
+    color: var(--color-fg-primary);
+  }
+
+  .emoji-toggle-button:hover,
+  .comment-submit-button:hover:not(:disabled) {
     transform: translateY(-1px);
+  }
+
+  .comment-submit-button:hover:not(:disabled) {
+    background: rgb(59 130 246);
   }
 
   .comment-text {
@@ -492,6 +525,10 @@
     cursor: not-allowed;
     opacity: 0.45;
     transform: none;
+  }
+
+  .comment-submit-button:disabled {
+    cursor: default;
   }
 
   @keyframes comment-like-heart-pulse {
