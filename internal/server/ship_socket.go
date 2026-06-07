@@ -11,6 +11,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
+
+	"feed-ai/internal/game"
 )
 
 const (
@@ -18,17 +21,8 @@ const (
 	websocketText     = 0x1
 	websocketClose    = 0x8
 	websocketMaxFrame = 8192
+	shipMessageLimit  = 120
 )
-
-type shipSocketMessage struct {
-	Type       string     `json:"type"`
-	Ship       *shipState `json:"ship,omitempty"`
-	OwnerID    string     `json:"ownerId,omitempty"`
-	AsteroidID int        `json:"asteroidId,omitempty"`
-	ShooterID  string     `json:"shooterId,omitempty"`
-	X          float64    `json:"x,omitempty"`
-	Y          float64    `json:"y,omitempty"`
-}
 
 func (s *Server) handleShipSocket(w http.ResponseWriter, r *http.Request) {
 	if !isWebSocketUpgrade(r) {
@@ -64,18 +58,23 @@ func (s *Server) handleShipSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := s.ships.subscribe()
-	defer s.ships.unsubscribe(events)
+	welcome, snapshots, lease := s.ships.Connect(r.URL.Query().Get("resumeToken"), r.URL.Query().Get("name"))
+	playerID := welcome.PlayerID
+	defer s.ships.Disconnect(playerID, lease)
 
 	done := make(chan struct{})
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
+		data, err := json.Marshal(welcome)
+		if err != nil || writeWebSocketText(conn, data) != nil {
+			return
+		}
 		for {
 			select {
 			case <-done:
 				return
-			case snapshot, ok := <-events:
+			case snapshot, ok := <-snapshots:
 				if !ok {
 					return
 				}
@@ -90,69 +89,33 @@ func (s *Server) handleShipSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	var shipID string
+	windowStarted := time.Now()
+	messageCount := 0
 	for {
 		payload, err := readWebSocketText(conn)
 		if err != nil {
 			break
 		}
+		now := time.Now()
+		if now.Sub(windowStarted) >= time.Second {
+			windowStarted = now
+			messageCount = 0
+		}
+		messageCount++
+		if messageCount > shipMessageLimit {
+			break
+		}
 
-		var message shipSocketMessage
-		if err := json.Unmarshal(payload, &message); err != nil {
+		var command game.Command
+		if err := json.Unmarshal(payload, &command); err != nil {
 			continue
 		}
-		switch message.Type {
-		case "state", "":
-			if message.Ship == nil {
-				continue
-			}
-			if !sanitizeShipState(message.Ship) {
-				continue
-			}
-			shipID = message.Ship.ID
-			s.ships.update(*message.Ship)
-		case "asteroid-hit":
-			if shipID == "" {
-				continue
-			}
-			s.ships.hitAsteroid(shipID, strings.TrimSpace(message.OwnerID), message.AsteroidID, message.X, message.Y)
-		case "ship-kill":
-			if shipID == "" {
-				continue
-			}
-			s.ships.killShip(strings.TrimSpace(message.ShooterID), shipID, message.X, message.Y)
-		case "ship-crash":
-			if shipID == "" {
-				continue
-			}
-			s.ships.crashShip(shipID, message.X, message.Y)
-		}
+		s.ships.Apply(playerID, command)
 	}
 
-	if shipID != "" {
-		s.ships.remove(shipID)
-	}
 	close(done)
+	_ = conn.Close()
 	<-writerDone
-}
-
-func sanitizeShipState(ship *shipState) bool {
-	ship.ID = strings.TrimSpace(ship.ID)
-	ship.Name = strings.TrimSpace(ship.Name)
-	if ship.ID == "" {
-		return false
-	}
-	if ship.Name == "" {
-		ship.Name = "Guest"
-	}
-	if nameRunes := []rune(ship.Name); len(nameRunes) > 40 {
-		ship.Name = string(nameRunes[:40])
-	}
-	if !ship.Active {
-		ship.Bullets = nil
-		ship.Thrusting = false
-	}
-	return true
 }
 
 func isWebSocketUpgrade(r *http.Request) bool {
@@ -182,7 +145,13 @@ func readWebSocketText(conn net.Conn) ([]byte, error) {
 	}
 
 	opcode := header[0] & 0x0f
+	if header[0]&0x80 == 0 || header[0]&0x70 != 0 {
+		return nil, errors.New("fragmented or reserved websocket frame")
+	}
 	masked := header[1]&0x80 != 0
+	if !masked {
+		return nil, errors.New("client websocket frame must be masked")
+	}
 	payloadLength := uint64(header[1] & 0x7f)
 	switch payloadLength {
 	case 126:

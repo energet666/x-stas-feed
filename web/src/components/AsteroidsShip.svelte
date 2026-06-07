@@ -1,51 +1,21 @@
 <script lang="ts">
+  import { RadioTower } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import {
-    createShipScore,
     fetchShipScores,
     shipSocketURL,
+    type ShipAsteroid,
+    type ShipBullet,
+    type ShipCommand,
+    type ShipInput,
     type ShipScore,
     type ShipSnapshot,
-    type ShipState as NetworkShipState
+    type ShipState,
+    type ShipWelcome
   } from '../lib/feed';
   import { uiText as t } from '../lib/ui_text';
 
-  type ShipState = {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    angle: number;
-    thrusting: boolean;
-  };
-
-  type Bullet = {
-    id: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    age: number;
-  };
-
-  type Asteroid = {
-    id: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    radius: number;
-    angle: number;
-    spin: number;
-    path: string;
-  };
-
-  type Explosion = {
-    id: number;
-    x: number;
-    y: number;
-  };
-
+  type ConnectionState = 'connecting' | 'connected' | 'disconnected';
   type Particle = {
     id: number;
     kind: 'smoke' | 'spark' | 'debris';
@@ -56,277 +26,375 @@
     age: number;
     lifetime: number;
     size: number;
-    angle?: number;
-    spin?: number;
+    angle: number;
+    spin: number;
   };
+  type Explosion = { id: number; x: number; y: number };
 
-  type RoundStatus = 'idle' | 'playing' | 'finished';
-  type ShipKillCounter = {
-    id: string;
-    name: string;
-    kills: number;
-  };
-
+  const arenaWidth = 1600;
+  const arenaHeight = 900;
   const shipWidth = 43.2;
   const shipHeight = 55.2;
-  const shipSize = Math.max(shipWidth, shipHeight);
-  const shipNoseOffset = 25;
-  const shipCollisionRadius = 18;
   const maxSpeed = 8.5;
   const turnSpeed = 0.105;
   const thrust = 0.18;
   const drag = 0.992;
-  const bulletSpeed = 11;
-  const bulletLifetime = 82;
   const smokeLifetime = 30;
-  const smokeSpawnInterval = 2.4;
-  const explosionSparkCount = 10;
-  const explosionDebrisCount = 4;
-  const explosionSmokeCount = 5;
-  const roundDurationMs = 60_000;
-  const asteroidHitScore = 100;
-  const collisionPenalty = 200;
-  const asteroidRespawnMs = 650;
-  const shipSpawnGraceMs = 1200;
-  const headerSafeHeight = 96;
+  const resumeTokenKey = 'feed-ai:ship-resume-token';
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
   const gameStartedEvent = 'feed-ai:game-started';
   const gameExitedEvent = 'feed-ai:game-exited';
-  const shipPostIntervalMs = 16;
-  const shipSessionStorageKey = 'feed-ai:ship-session-id';
-  const keys = new Set<string>();
 
   let { username = t.common.guest }: { username: string } = $props();
 
-  let ship = $state<ShipState>({
-    x: 8,
-    y: 4,
-    vx: 0,
-    vy: 0,
-    angle: 0,
-    thrusting: false
-  });
+  let socket: WebSocket | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  let reconnectAttempt = 0;
+  let connectionGeneration = 0;
+  let destroyed = false;
+  let seq = 0;
+  let playerId = $state('');
+  let resumeToken = '';
+  let connectionState = $state<ConnectionState>('connecting');
   let viewportWidth = $state(0);
   let viewportHeight = $state(0);
-  let bullets = $state<Bullet[]>([]);
+  let localShip = $state<ShipState | undefined>();
+  let remoteShips = $state<ShipState[]>([]);
+  let bullets = $state<ShipBullet[]>([]);
+  let asteroids = $state<ShipAsteroid[]>([]);
   let particles = $state<Particle[]>([]);
-  let asteroid = $state<Asteroid | undefined>(undefined);
-  let explosion = $state<Explosion | undefined>(undefined);
-  let animationFrameID: number | undefined = undefined;
-  let asteroidRespawnTimer: ReturnType<typeof setTimeout> | undefined = undefined;
-  let lastFrameAt = 0;
-  let nextBulletID = 1;
-  let nextSmokeID = 1;
-  let nextAsteroidID = 1;
-  let nextExplosionID = 1;
-  let videoActive = false;
-  let backgroundKeyboardFocused = false;
-  let shipControlled = $state(false);
-  let sessionID = $state('');
-  let lastShipPostAt = 0;
-  let remoteShips = $state<NetworkShipState[]>([]);
-  let roundStatus = $state<RoundStatus>('idle');
-  let roundEndsAt = 0;
-  let roundRemainingMs = $state(roundDurationMs);
-  let score = $state(0);
-  let multiplayerRound = $state(false);
-  let shipKills = $state<Record<string, ShipKillCounter>>({});
+  let explosions = $state<Explosion[]>([]);
+  let mode = $state<'idle' | 'solo' | 'multiplayer'>('idle');
+  let roundStatus = $state<'idle' | 'playing' | 'finished'>('idle');
+  let remainingMs = $state(60_000);
   let leaderboard = $state<ShipScore[]>([]);
-  let scoreSubmitStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  let leaderboardStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
   let roundSaved = $state(false);
-  let scoreSubmissionID = 0;
-  let shipSocket: WebSocket | undefined = undefined;
-  let audioContext: AudioContext | undefined = undefined;
+  let gameVisible = $state(false);
+  let gameDismissed = false;
+  let backgroundKeyboardFocused = false;
+  let videoActive = false;
+  let animationFrameId: number | undefined;
+  let lastFrameAt = 0;
+  let nextParticleId = 1;
+  let nextExplosionId = 1;
+  let audioContext: AudioContext | undefined;
+  let smokeAccumulator = 0;
   let lastThrustSoundAt = 0;
-  let smokeSpawnAccumulator = 0;
-  let shipCollisionGraceUntil = 0;
-  const pendingAsteroidHits = new Set<string>();
+  let lastEventId = 0;
+  let lastSentInput = '';
+  let lastPingEcho = 0;
+  let pingMs = $state<number | undefined>();
+  const keys = new Set<string>();
+  const pendingCommands: ShipCommand[] = [];
 
-  const shipTransform = $derived(
-    `translate3d(${ship.x}px, ${ship.y}px, 0) rotate(${ship.angle + Math.PI / 2}rad)`
+  const scale = $derived(Math.min(viewportWidth / arenaWidth, viewportHeight / arenaHeight));
+  const arenaLeft = $derived((viewportWidth - arenaWidth * scale) / 2);
+  const arenaTop = $derived((viewportHeight - arenaHeight * scale) / 2);
+  const score = $derived(localShip?.score ?? 0);
+  const secondsLeft = $derived(Math.max(0, Math.ceil(remainingMs / 1000)));
+  const pingLabel = $derived(pingMs === undefined ? '— ms' : `${Math.round(pingMs)} ms`);
+  const spectatorWorldVisible = $derived(
+    remoteShips.some((player) => player.active) ||
+      bullets.some((bullet) => bullet.ownerId !== playerId) ||
+      asteroids.some((asteroid) => asteroid.ownerId !== playerId)
   );
-  const roundSecondsLeft = $derived(Math.max(0, Math.ceil(roundRemainingMs / 1000)));
-  const shipKillRows = $derived(
-    Object.values(shipKills).sort((a, b) => {
-      if (a.id === sessionID) return -1;
-      if (b.id === sessionID) return 1;
-      if (b.kills !== a.kills) return b.kills - a.kills;
-      return a.name.localeCompare(b.name);
-    })
+  const worldVisible = $derived(gameVisible || spectatorWorldVisible);
+  const visibleBullets = $derived(gameVisible ? bullets : bullets.filter((bullet) => bullet.ownerId !== playerId));
+  const visibleAsteroids = $derived(
+    gameVisible ? asteroids : asteroids.filter((asteroid) => asteroid.ownerId !== playerId)
   );
+  const killRows = $derived(
+    [localShip, ...remoteShips]
+      .filter((player): player is ShipState => Boolean(player))
+      .sort((a, b) => {
+        if (a.id === playerId) return -1;
+        if (b.id === playerId) return 1;
+        if (b.kills !== a.kills) return b.kills - a.kills;
+        return a.name.localeCompare(b.name);
+      })
+  );
+
+  function screenX(value: number) {
+    return arenaLeft + value * scale;
+  }
+
+  function screenY(value: number) {
+    return arenaTop + value * scale;
+  }
+
+  function screenSize(value: number) {
+    return Math.max(1, value * scale);
+  }
 
   function isTextEntryTarget(target: EventTarget | null) {
-    if (!(target instanceof HTMLElement)) return false;
-    return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+    return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  function isShipKey(event: KeyboardEvent) {
+    return event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.code === 'Space';
+  }
+
+  function currentInput(): ShipInput {
+    return {
+      left: keys.has('ArrowLeft'),
+      right: keys.has('ArrowRight'),
+      thrust: keys.has('ArrowUp')
+    };
+  }
+
+  function sendCommand(command: Omit<ShipCommand, 'seq'>) {
+    const next: ShipCommand = { ...command, seq: ++seq };
+    pendingCommands.push(next);
+    if (pendingCommands.length > 64) pendingCommands.splice(0, pendingCommands.length - 64);
+    if (socket?.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify(next));
+      } catch {
+        socket.close();
+      }
+    }
+  }
+
+  function sendHeartbeat() {
+    if (socket?.readyState !== WebSocket.OPEN) return;
+    sendCommand({ type: 'heartbeat', sentAtMs: Date.now() });
+  }
+
+  function sendInput(force = false) {
+    const input = currentInput();
+    const serialized = JSON.stringify(input);
+    if (!force && serialized === lastSentInput) return;
+    lastSentInput = serialized;
+    sendCommand({ type: 'input', input });
+    if (input.left || input.right || input.thrust) showGame(true);
+  }
+
+  function showGame(explicitUserAction = false) {
+    if (explicitUserAction) {
+      gameDismissed = false;
+    } else if (gameDismissed) {
+      return;
+    }
+    if (gameVisible) return;
+    gameVisible = true;
+    window.dispatchEvent(new CustomEvent(gameStartedEvent));
+    requestAnimationLoop();
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && roundStatus !== 'idle' && !isTextEntryTarget(event.target)) {
-      exitGameMode();
+    if (event.key === 'Escape' && gameVisible) {
+      exitGame();
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (roundStatus === 'finished' && event.code === 'Enter' && backgroundKeyboardFocused && !videoActive) {
+      restartGame();
       event.preventDefault();
       return;
     }
-    if (roundStatus === 'finished') {
-      if (event.code === 'Enter' && backgroundKeyboardFocused && !videoActive && !isTextEntryTarget(event.target)) {
-        restartRound();
-        event.preventDefault();
-      }
-      if (backgroundKeyboardFocused && isShipKey(event)) {
-        event.preventDefault();
-      }
-      return;
-    }
-    if (
-      roundStatus === 'playing' &&
-      event.code === 'Enter' &&
-      backgroundKeyboardFocused &&
-      !videoActive &&
-      !isTextEntryTarget(event.target)
-    ) {
-      if (multiplayerRound) {
-        event.preventDefault();
-        return;
-      }
-      finishRound(false);
+    if (roundStatus === 'playing' && mode === 'solo' && event.code === 'Enter' && backgroundKeyboardFocused && !videoActive) {
+      sendCommand({ type: 'finish' });
       event.preventDefault();
-      return;
-    }
-    if ((videoActive || !backgroundKeyboardFocused) && isShipKey(event)) {
-      keys.delete(keyID(event));
-      ship.thrusting = false;
       return;
     }
     if (!isShipKey(event) || isTextEntryTarget(event.target)) return;
-    primeAudio();
-    if (event.code !== 'Space') {
-      startAsteroidGame();
+    if (videoActive || !backgroundKeyboardFocused || roundStatus === 'finished') {
+      event.preventDefault();
+      return;
     }
-    keys.add(keyID(event));
+    primeAudio();
     if (event.code === 'Space') {
-      shoot();
+      showGame(true);
+      sendCommand({ type: 'shoot' });
+      playShootSound();
+    } else {
+      keys.add(event.key);
+      sendInput();
     }
     event.preventDefault();
   }
 
   function handleKeyup(event: KeyboardEvent) {
-    if (roundStatus === 'finished' && backgroundKeyboardFocused && isShipKey(event)) {
-      keys.delete(keyID(event));
-      event.preventDefault();
-      return;
-    }
-    if ((videoActive || !backgroundKeyboardFocused) && isShipKey(event)) {
-      keys.delete(keyID(event));
-      ship.thrusting = false;
-      return;
-    }
     if (!isShipKey(event)) return;
-    keys.delete(keyID(event));
+    if (event.code !== 'Space') {
+      keys.delete(event.key);
+      sendInput();
+    }
     event.preventDefault();
   }
 
-  function isShipKey(event: KeyboardEvent) {
-    return (
-      event.key === 'ArrowUp' ||
-      event.key === 'ArrowLeft' ||
-      event.key === 'ArrowRight' ||
-      event.code === 'Space'
-    );
+  function clearInput() {
+    keys.clear();
+    lastSentInput = '';
+    sendInput(true);
   }
 
-  function keyID(event: KeyboardEvent) {
-    return event.code === 'Space' ? 'Space' : event.key;
+  function restartGame() {
+    leaderboard = [];
+    leaderboardStatus = 'idle';
+    roundSaved = false;
+    showGame(true);
+    sendCommand({ type: 'restart' });
   }
 
-  function shoot() {
-    startAsteroidGame();
-    if (roundStatus !== 'playing') return;
-    if (bullets.length > 0) return;
-
-    const centerX = ship.x + shipWidth / 2;
-    const centerY = ship.y + shipHeight / 2;
-    const noseX = centerX + Math.cos(ship.angle) * shipNoseOffset;
-    const noseY = centerY + Math.sin(ship.angle) * shipNoseOffset;
-    const bullet = {
-      id: nextBulletID++,
-      x: noseX,
-      y: noseY,
-      vx: ship.vx + Math.cos(ship.angle) * bulletSpeed,
-      vy: ship.vy + Math.sin(ship.angle) * bulletSpeed,
-      age: 0
-    };
-
-    bullets = [bullet];
-    playShootSound();
+  function exitGame() {
+    keys.clear();
+    lastSentInput = JSON.stringify(currentInput());
+    gameDismissed = true;
+    sendCommand({ type: 'leave' });
+    gameVisible = false;
+    particles = [];
+    explosions = [];
+    window.dispatchEvent(new CustomEvent(gameExitedEvent));
   }
 
-  function resize() {
-    viewportWidth = window.innerWidth;
-    viewportHeight = window.innerHeight;
-    if (!shipControlled) {
-      placeShipAtSpawn();
+  function connect() {
+    if (destroyed) return;
+    const generation = ++connectionGeneration;
+    clearTimeout(reconnectTimer);
+    connectionState = reconnectAttempt === 0 ? 'connecting' : 'disconnected';
+    socket?.close();
+    socket = new WebSocket(shipSocketURL(resumeToken, username));
+
+    socket.addEventListener('open', () => {
+      if (generation !== connectionGeneration) return;
+      connectionState = 'connected';
+      reconnectAttempt = 0;
+      sendHeartbeat();
+    });
+    socket.addEventListener('message', (event) => {
+      if (generation !== connectionGeneration) return;
+      try {
+        const message = JSON.parse(event.data) as ShipWelcome | ShipSnapshot;
+        if (message.type === 'welcome') {
+          playerId = message.playerId;
+          resumeToken = message.resumeToken;
+          try {
+            sessionStorage.setItem(resumeTokenKey, resumeToken);
+          } catch {
+            // Reconnect still works for the lifetime of this page.
+          }
+          applySnapshot(message.snapshot);
+          sendInput(true);
+          return;
+        }
+        applySnapshot(message);
+      } catch {
+        // A later authoritative snapshot can recover malformed data.
+      }
+    });
+    socket.addEventListener('close', () => {
+      if (generation !== connectionGeneration || destroyed) return;
+      connectionState = 'disconnected';
+      pingMs = undefined;
+      lastPingEcho = 0;
+      keys.clear();
+      lastSentInput = '';
+      const delay = Math.min(8000, 400 * 2 ** reconnectAttempt);
+      reconnectAttempt += 1;
+      reconnectTimer = setTimeout(connect, delay);
+    });
+    socket.addEventListener('error', () => socket?.close());
+  }
+
+  function applySnapshot(snapshot: ShipSnapshot) {
+    mode = snapshot.mode;
+    roundStatus = snapshot.status;
+    remainingMs = snapshot.remainingMs;
+    const authoritativeLocal = snapshot.players.find((player) => player.id === playerId);
+    if (authoritativeLocal) {
+      if (
+        authoritativeLocal.pingEcho &&
+        authoritativeLocal.pingEcho !== lastPingEcho &&
+        authoritativeLocal.pingEcho <= Date.now()
+      ) {
+        const measuredPing = Math.min(9999, Math.max(0, Date.now() - authoritativeLocal.pingEcho));
+        pingMs = measuredPing;
+        lastPingEcho = authoritativeLocal.pingEcho;
+      }
+      seq = Math.max(seq, authoritativeLocal.ackSeq);
+      while (pendingCommands[0]?.seq <= authoritativeLocal.ackSeq) pendingCommands.shift();
+      if (!localShip || localShip.active !== authoritativeLocal.active) {
+        localShip = { ...authoritativeLocal };
+      } else {
+        const dx = wrappedDelta(localShip.x, authoritativeLocal.x, arenaWidth);
+        const dy = wrappedDelta(localShip.y, authoritativeLocal.y, arenaHeight);
+        const distance = Math.hypot(dx, dy);
+        localShip = {
+          ...authoritativeLocal,
+          x: distance > 120 ? authoritativeLocal.x : wrap(localShip.x + dx * 0.45, arenaWidth),
+          y: distance > 120 ? authoritativeLocal.y : wrap(localShip.y + dy * 0.45, arenaHeight),
+          angle: localShip.angle + angleDelta(localShip.angle, authoritativeLocal.angle) * 0.45
+        };
+      }
+      if (authoritativeLocal.active) showGame();
+    }
+    remoteShips = snapshot.players.filter((player) => player.id !== playerId).map((player) => ({ ...player }));
+    bullets = (snapshot.bullets ?? []).map((bullet) => ({ ...bullet }));
+    asteroids = (snapshot.asteroids ?? []).map((asteroid) => ({ ...asteroid }));
+    for (const event of snapshot.events ?? []) {
+      if (event.id <= lastEventId) continue;
+      lastEventId = event.id;
+      handleServerEvent(event);
+    }
+    requestAnimationLoop();
+  }
+
+  function handleServerEvent(event: NonNullable<ShipSnapshot['events']>[number]) {
+    if (event.type === 'round-finished' && event.victimId === playerId) {
+      roundSaved = Boolean(event.saved);
+      void loadLeaderboard();
       return;
     }
-    ship.x = wrap(ship.x, -shipSize, viewportWidth + shipSize);
-    ship.y = wrap(ship.y, -shipSize, viewportHeight + shipSize);
-    if (asteroid) {
-      asteroid.x = wrap(asteroid.x, -asteroid.radius, viewportWidth + asteroid.radius);
-      asteroid.y = wrap(asteroid.y, -asteroid.radius, viewportHeight + asteroid.radius);
+    if (!Number.isFinite(event.x) || !Number.isFinite(event.y)) return;
+    const x = event.x ?? 0;
+    const y = event.y ?? 0;
+    explosions = [...explosions, { id: nextExplosionId++, x, y }].slice(-6);
+    window.setTimeout(() => {
+      explosions = explosions.filter((item) => item.x !== x || item.y !== y);
+    }, 360);
+    spawnExplosionParticles(x, y);
+    if (event.type === 'asteroid-destroyed') {
+      playExplosionSound();
+    } else {
+      playShipDestroySound();
+    }
+  }
+
+  async function loadLeaderboard() {
+    leaderboardStatus = 'loading';
+    try {
+      leaderboard = await fetchShipScores();
+      leaderboardStatus = 'ready';
+    } catch {
+      leaderboardStatus = 'error';
     }
   }
 
   function animate(now: number) {
-    animationFrameID = undefined;
-    const delta = lastFrameAt > 0 ? Math.min((now - lastFrameAt) / 16.67, 2.4) : 1;
+    animationFrameId = undefined;
+    const delta = lastFrameAt ? Math.min((now - lastFrameAt) / 16.67, 2.4) : 1;
     lastFrameAt = now;
-    updateRoundTimer(now);
-
-    if (keys.has('ArrowLeft')) {
-      ship.angle -= turnSpeed * delta;
-    }
-    if (keys.has('ArrowRight')) {
-      ship.angle += turnSpeed * delta;
-    }
-
-    ship.thrusting = keys.has('ArrowUp');
-    if (ship.thrusting && now - lastThrustSoundAt > 130) {
-      lastThrustSoundAt = now;
-      playThrustSound();
-    }
-    if (ship.thrusting) {
-      smokeSpawnAccumulator += delta;
-      while (smokeSpawnAccumulator >= smokeSpawnInterval) {
-        smokeSpawnAccumulator -= smokeSpawnInterval;
-        spawnSmokeParticle();
-      }
-    } else {
-      smokeSpawnAccumulator = 0;
-    }
-    if (ship.thrusting) {
-      ship.vx += Math.cos(ship.angle) * thrust * delta;
-      ship.vy += Math.sin(ship.angle) * thrust * delta;
-    }
-
-    const speed = Math.hypot(ship.vx, ship.vy);
-    if (speed > maxSpeed) {
-      const scale = maxSpeed / speed;
-      ship.vx *= scale;
-      ship.vy *= scale;
-    }
-
-    ship.vx *= Math.pow(drag, delta);
-    ship.vy *= Math.pow(drag, delta);
-    ship.x = wrap(ship.x + ship.vx * delta, -shipSize, viewportWidth + shipSize);
-    ship.y = wrap(ship.y + ship.vy * delta, -shipSize, viewportHeight + shipSize);
-    bullets = bullets
-      .map((bullet) => ({
-        ...bullet,
-        x: wrap(bullet.x + bullet.vx * delta, -8, viewportWidth + 8),
-        y: wrap(bullet.y + bullet.vy * delta, -8, viewportHeight + 8),
-        age: bullet.age + delta
-      }))
-      .filter((bullet) => bullet.age < bulletLifetime);
+    predictLocalShip(delta, now);
+    remoteShips = remoteShips.map((player) =>
+      player.active ? { ...player, x: wrap(player.x + player.vx * delta, arenaWidth), y: wrap(player.y + player.vy * delta, arenaHeight) } : player
+    );
+    bullets = bullets.map((bullet) => ({
+      ...bullet,
+      x: wrap(bullet.x + bullet.vx * delta, arenaWidth),
+      y: wrap(bullet.y + bullet.vy * delta, arenaHeight)
+    }));
+    asteroids = asteroids.map((asteroid) => ({
+      ...asteroid,
+      x: wrap(asteroid.x + asteroid.vx * delta, arenaWidth),
+      y: wrap(asteroid.y + asteroid.vy * delta, arenaHeight),
+      angle: asteroid.angle + asteroid.spin * delta
+    }));
     particles = particles
       .map((particle) => ({
         ...particle,
@@ -334,940 +402,240 @@
         y: particle.y + particle.vy * delta,
         vx: particle.vx * Math.pow(0.985, delta),
         vy: particle.vy * Math.pow(0.985, delta),
-        angle: (particle.angle ?? 0) + (particle.spin ?? 0) * delta,
+        angle: particle.angle + particle.spin * delta,
         age: particle.age + delta
       }))
       .filter((particle) => particle.age < particle.lifetime);
-    if (asteroid) {
-      asteroid.x = wrap(asteroid.x + asteroid.vx * delta, -asteroid.radius, viewportWidth + asteroid.radius);
-      asteroid.y = wrap(asteroid.y + asteroid.vy * delta, -asteroid.radius, viewportHeight + asteroid.radius);
-      asteroid.angle += asteroid.spin * delta;
-      detectAsteroidHit();
-      detectShipCollision();
-    }
-    if (shipControlled) {
-      detectRemoteShipCollision();
-      detectRemoteAsteroidHit();
-      detectRemoteBulletCollision();
-      detectRemoteAsteroidCollision();
-    }
-    if (shipControlled || asteroid) {
-      publishShipThrottled(now);
-    }
+    if (worldVisible || particles.length > 0 || explosions.length > 0) requestAnimationLoop();
+    else lastFrameAt = 0;
+  }
 
-    if (hasAnimationWork()) {
-      requestAnimationLoop();
+  function predictLocalShip(delta: number, now: number) {
+    if (!localShip?.active || connectionState !== 'connected') return;
+    const input = currentInput();
+    let angle = localShip.angle;
+    let vx = localShip.vx;
+    let vy = localShip.vy;
+    if (input.left) angle -= turnSpeed * delta;
+    if (input.right) angle += turnSpeed * delta;
+    if (input.thrust) {
+      vx += Math.cos(angle) * thrust * delta;
+      vy += Math.sin(angle) * thrust * delta;
+      smokeAccumulator += delta;
+      while (smokeAccumulator >= 2.4) {
+        smokeAccumulator -= 2.4;
+        spawnSmokeParticle(localShip, angle);
+      }
+      if (now - lastThrustSoundAt > 130) {
+        lastThrustSoundAt = now;
+        playThrustSound();
+      }
     } else {
-      lastFrameAt = 0;
+      smokeAccumulator = 0;
     }
-  }
-
-  function hasAnimationWork() {
-    return roundStatus === 'playing' || shipControlled || bullets.length > 0 || particles.length > 0 || asteroid !== undefined;
-  }
-
-  function requestAnimationLoop() {
-    if (animationFrameID !== undefined || document.visibilityState === 'hidden') return;
-    animationFrameID = requestAnimationFrame(animate);
-  }
-
-  function cancelAnimationLoop() {
-    if (animationFrameID !== undefined) {
-      cancelAnimationFrame(animationFrameID);
-      animationFrameID = undefined;
+    const speed = Math.hypot(vx, vy);
+    if (speed > maxSpeed) {
+      vx *= maxSpeed / speed;
+      vy *= maxSpeed / speed;
     }
-    lastFrameAt = 0;
-  }
-
-  function startAsteroidGame() {
-    if (roundStatus === 'finished') return;
-    if (roundStatus === 'idle') {
-      startRound();
-    }
-    if (shipControlled) return;
-    shipControlled = true;
-    shipCollisionGraceUntil = performance.now() + shipSpawnGraceMs;
-    window.dispatchEvent(new CustomEvent(gameStartedEvent));
-    spawnAsteroid();
-    updateMultiplayerState();
-    requestAnimationLoop();
-  }
-
-  function startRound() {
-    roundStatus = 'playing';
-    roundEndsAt = performance.now() + roundDurationMs;
-    roundRemainingMs = roundDurationMs;
-    score = 0;
-    multiplayerRound = false;
-    resetShipKills();
-    leaderboard = [];
-    scoreSubmitStatus = 'idle';
-    roundSaved = false;
-    scoreSubmissionID += 1;
-  }
-
-  function restartRound() {
-    resetShip();
-    bullets = [];
-    particles = [];
-    asteroid = undefined;
-    explosion = undefined;
-    remoteShips = [];
-    pendingAsteroidHits.clear();
-    clearTimeout(asteroidRespawnTimer);
-    nextBulletID = 1;
-    nextAsteroidID = 1;
-    roundStatus = 'idle';
-    roundEndsAt = 0;
-    roundRemainingMs = roundDurationMs;
-    score = 0;
-    multiplayerRound = false;
-    resetShipKills();
-    leaderboard = [];
-    scoreSubmitStatus = 'idle';
-    roundSaved = false;
-    scoreSubmissionID += 1;
-    startAsteroidGame();
-  }
-
-  function exitGameMode() {
-    resetShip();
-    bullets = [];
-    particles = [];
-    asteroid = undefined;
-    explosion = undefined;
-    pendingAsteroidHits.clear();
-    clearTimeout(asteroidRespawnTimer);
-    roundStatus = 'idle';
-    roundEndsAt = 0;
-    roundRemainingMs = roundDurationMs;
-    score = 0;
-    multiplayerRound = false;
-    resetShipKills();
-    leaderboard = [];
-    scoreSubmitStatus = 'idle';
-    roundSaved = false;
-    scoreSubmissionID += 1;
-    void publishShip();
-    cancelAnimationLoop();
-    window.dispatchEvent(new CustomEvent(gameExitedEvent));
-  }
-
-  function updateRoundTimer(now: number) {
-    if (roundStatus !== 'playing' || multiplayerRound) return;
-    roundRemainingMs = Math.max(0, roundEndsAt - now);
-    if (roundRemainingMs <= 0) {
-      finishRound(true);
-    }
-  }
-
-  function finishRound(shouldSubmitScore: boolean) {
-    if (roundStatus !== 'playing') return;
-    const saveSoloScore = shouldSubmitScore && !multiplayerRound;
-    roundStatus = 'finished';
-    roundSaved = saveSoloScore;
-    roundRemainingMs = 0;
-    keys.clear();
-    bullets = [];
-    asteroid = undefined;
-    ship.thrusting = false;
-    shipControlled = false;
-    clearTimeout(asteroidRespawnTimer);
-    scoreSubmissionID += 1;
-    if (saveSoloScore) {
-      void submitScore(scoreSubmissionID, score);
-    } else if (!multiplayerRound) {
-      void loadLeaderboard(scoreSubmissionID);
-    }
-    void publishShip();
-  }
-
-  async function submitScore(submissionID: number, finalScore: number) {
-    scoreSubmitStatus = 'saving';
-    try {
-      const scores = await createShipScore(username.trim() || t.common.guest, finalScore);
-      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
-      leaderboard = scores;
-      scoreSubmitStatus = 'saved';
-    } catch {
-      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
-      scoreSubmitStatus = 'error';
-    }
-  }
-
-  async function loadLeaderboard(submissionID: number) {
-    scoreSubmitStatus = 'saving';
-    try {
-      const scores = await fetchShipScores();
-      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
-      leaderboard = scores;
-      scoreSubmitStatus = 'saved';
-    } catch {
-      if (submissionID !== scoreSubmissionID || roundStatus !== 'finished') return;
-      scoreSubmitStatus = 'error';
-    }
-  }
-
-  function addScore(delta: number) {
-    if (roundStatus !== 'playing' || multiplayerRound) return;
-    score += delta;
-  }
-
-  function spawnAsteroid() {
-    if (roundStatus !== 'playing' || !viewportWidth || !viewportHeight || asteroid) return;
-    const radius = 28 + Math.random() * 16;
-    const position = randomAsteroidPosition(radius);
-    asteroid = {
-      id: nextAsteroidID++,
-      x: position.x,
-      y: position.y,
-      vx: randomSigned(0.45, 1.15),
-      vy: randomSigned(0.25, 0.85),
-      radius,
-      angle: Math.random() * Math.PI * 2,
-      spin: randomSigned(0.008, 0.025),
-      path: createAsteroidPath(14)
+    vx *= Math.pow(drag, delta);
+    vy *= Math.pow(drag, delta);
+    localShip = {
+      ...localShip,
+      x: wrap(localShip.x + vx * delta, arenaWidth),
+      y: wrap(localShip.y + vy * delta, arenaHeight),
+      vx,
+      vy,
+      angle,
+      thrusting: input.thrust
     };
   }
 
-  function randomAsteroidPosition(radius: number) {
-    const shipCenterX = ship.x + shipWidth / 2;
-    const shipCenterY = ship.y + shipHeight / 2;
-    let x = 0;
-    let y = 0;
-
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      x = radius + Math.random() * Math.max(1, viewportWidth - radius * 2);
-      y = headerSafeHeight + radius + Math.random() * Math.max(1, viewportHeight - headerSafeHeight - radius * 2);
-      if (Math.hypot(x - shipCenterX, y - shipCenterY) > 220) {
-        return { x, y };
-      }
-    }
-
-    return { x, y };
+  function requestAnimationLoop() {
+    if (animationFrameId !== undefined || document.visibilityState === 'hidden') return;
+    animationFrameId = requestAnimationFrame(animate);
   }
 
-  function createAsteroidPath(points: number) {
-    const commands: string[] = [];
-    for (let i = 0; i < points; i += 1) {
-      const angle = (i / points) * Math.PI * 2;
-      const radius = 34 + Math.random() * 15;
-      const x = 50 + Math.cos(angle) * radius;
-      const y = 50 + Math.sin(angle) * radius;
-      commands.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`);
-    }
-
-    return `${commands.join(' ')} Z`;
-  }
-
-  function randomSigned(min: number, max: number) {
-    const value = min + Math.random() * (max - min);
-    return Math.random() > 0.5 ? value : -value;
-  }
-
-  function spawnSmokeParticle() {
-    const center = shipCenter();
-    const tailX = center.x - Math.cos(ship.angle) * 20;
-    const tailY = center.y - Math.sin(ship.angle) * 20;
-    const spread = (Math.random() - 0.5) * 1.15;
-    const driftAngle = ship.angle + Math.PI + spread;
+  function spawnSmokeParticle(ship: ShipState, angle: number) {
+    const driftAngle = angle + Math.PI + (Math.random() - 0.5) * 1.15;
     particles = [
       ...particles.slice(-96),
       {
-        id: nextSmokeID++,
+        id: nextParticleId++,
         kind: 'smoke',
-        x: tailX + (Math.random() - 0.5) * 6,
-        y: tailY + (Math.random() - 0.5) * 6,
+        x: ship.x - Math.cos(angle) * 20,
+        y: ship.y - Math.sin(angle) * 20,
         vx: ship.vx * 0.28 + Math.cos(driftAngle) * (0.65 + Math.random() * 0.75),
         vy: ship.vy * 0.28 + Math.sin(driftAngle) * (0.65 + Math.random() * 0.75),
         age: 0,
         lifetime: smokeLifetime + Math.random() * 12,
-        size: 0.55 + Math.random() * 0.65
+        size: 0.55 + Math.random() * 0.65,
+        angle: 0,
+        spin: 0
       }
     ];
   }
 
   function spawnExplosionParticles(x: number, y: number) {
     const burst: Particle[] = [];
-
-    for (let i = 0; i < explosionSparkCount; i += 1) {
+    for (let index = 0; index < 19; index += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1.4 + Math.random() * 3.1;
+      const kind = index < 10 ? 'spark' : index < 14 ? 'debris' : 'smoke';
+      const speed = kind === 'spark' ? 1.4 + Math.random() * 3.1 : 0.4 + Math.random() * 1.6;
       burst.push({
-        id: nextSmokeID++,
-        kind: 'spark',
+        id: nextParticleId++,
+        kind,
         x,
         y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         age: 0,
-        lifetime: 14 + Math.random() * 10,
-        size: 0.45 + Math.random() * 0.75
+        lifetime: kind === 'spark' ? 14 + Math.random() * 10 : 26 + Math.random() * 16,
+        size: 0.5 + Math.random(),
+        angle,
+        spin: kind === 'debris' ? (Math.random() - 0.5) * 0.2 : 0
       });
     }
-
-    for (let i = 0; i < explosionDebrisCount; i += 1) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 0.6 + Math.random() * 1.7;
-      burst.push({
-        id: nextSmokeID++,
-        kind: 'debris',
-        x: x + (Math.random() - 0.5) * 10,
-        y: y + (Math.random() - 0.5) * 10,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        age: 0,
-        lifetime: 24 + Math.random() * 14,
-        size: 0.65 + Math.random() * 0.85,
-        angle: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * 0.2
-      });
-    }
-
-    for (let i = 0; i < explosionSmokeCount; i += 1) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 0.3 + Math.random() * 1;
-      burst.push({
-        id: nextSmokeID++,
-        kind: 'smoke',
-        x: x + (Math.random() - 0.5) * 12,
-        y: y + (Math.random() - 0.5) * 12,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        age: 0,
-        lifetime: 28 + Math.random() * 16,
-        size: 0.8 + Math.random() * 1.1
-      });
-    }
-
     particles = [...particles.slice(-40), ...burst];
   }
 
-  function detectAsteroidHit() {
-    if (!asteroid || bullets.length === 0) return;
-
-    const hit = bullets.find((bullet) => Math.hypot(bullet.x - asteroid!.x, bullet.y - asteroid!.y) <= asteroid!.radius + 5);
-    if (!hit) return;
-
-    bullets = bullets.filter((bullet) => bullet.id !== hit.id);
-    addScore(asteroidHitScore);
-    destroyAsteroid(asteroid.x, asteroid.y);
+  function wrap(value: number, size: number) {
+    return ((value % size) + size) % size;
   }
 
-  function detectShipCollision() {
-    if (!asteroid) return;
-    const center = shipCenter();
-    if (Math.hypot(center.x - asteroid.x, center.y - asteroid.y) > asteroid.radius + shipCollisionRadius) return;
-
-    bullets = [];
-    addScore(-collisionPenalty);
-    const crashX = asteroid.x;
-    const crashY = asteroid.y;
-    resetShip();
-    destroyAsteroid(crashX, crashY);
-    playShipDestroySound();
-    sendShipCrash(crashX, crashY);
-    void publishShip();
+  function wrappedDelta(from: number, to: number, size: number) {
+    let delta = to - from;
+    if (delta > size / 2) delta -= size;
+    if (delta < -size / 2) delta += size;
+    return delta;
   }
 
-  function detectRemoteShipCollision() {
-    if (performance.now() < shipCollisionGraceUntil) return;
-    const center = shipCenter();
-    const hit = remoteShips.find(
-      (remoteShip) =>
-        isRemoteShipActive(remoteShip) &&
-        Math.hypot(center.x - remoteShip.x, center.y - remoteShip.y) <= shipCollisionRadius * 2
-    );
-    if (!hit) return;
-
-    bullets = [];
-    addScore(-collisionPenalty);
-    resetShip();
-    const crashX = (center.x + hit.x) / 2;
-    const crashY = (center.y + hit.y) / 2;
-    explosion = {
-      id: nextExplosionID++,
-      x: crashX,
-      y: crashY
-    };
-    window.setTimeout(() => {
-      explosion = undefined;
-    }, 360);
-    playShipDestroySound();
-    sendShipCrash(crashX, crashY);
-    void publishShip();
+  function angleDelta(from: number, to: number) {
+    return Math.atan2(Math.sin(to - from), Math.cos(to - from));
   }
 
-  function detectRemoteAsteroidHit() {
-    if (bullets.length === 0) return;
-
-    for (const remoteShip of remoteShips) {
-      const remoteAsteroid = remoteShip.asteroid;
-      if (!remoteAsteroid) continue;
-      const hitKey = `${remoteShip.id}:${remoteAsteroid.id}`;
-      if (pendingAsteroidHits.has(hitKey)) continue;
-
-      const hit = bullets.find(
-        (bullet) => Math.hypot(bullet.x - remoteAsteroid.x, bullet.y - remoteAsteroid.y) <= remoteAsteroid.radius + 5
-      );
-      if (!hit) continue;
-
-      bullets = bullets.filter((bullet) => bullet.id !== hit.id);
-      pendingAsteroidHits.add(hitKey);
-      sendAsteroidHit(remoteShip.id, remoteAsteroid.id, hit.x, hit.y);
-      addScore(asteroidHitScore);
-      void publishShip();
-      return;
-    }
-  }
-
-  function detectRemoteBulletCollision() {
-    const center = shipCenter();
-    for (const remoteShip of remoteShips) {
-      if (!isRemoteShipActive(remoteShip)) continue;
-      const hit = remoteShip.bullets?.find(
-        (bullet) => Math.hypot(center.x - bullet.x, center.y - bullet.y) <= shipCollisionRadius + 5
-      );
-      if (!hit) continue;
-
-      resetAfterRemoteHit((center.x + hit.x) / 2, (center.y + hit.y) / 2, remoteShip);
-      return;
-    }
-  }
-
-  function detectRemoteAsteroidCollision() {
-    const center = shipCenter();
-    const hit = remoteShips.find((remoteShip) => {
-      const remoteAsteroid = remoteShip.asteroid;
-      return (
-        remoteAsteroid &&
-        Math.hypot(center.x - remoteAsteroid.x, center.y - remoteAsteroid.y) <= remoteAsteroid.radius + shipCollisionRadius
-      );
-    });
-    if (!hit?.asteroid) return;
-
-    resetAfterRemoteHit(hit.asteroid.x, hit.asteroid.y);
-  }
-
-  function resetAfterRemoteHit(x: number, y: number, shooter?: NetworkShipState) {
-    bullets = [];
-    addScore(-collisionPenalty);
-    resetShip();
-    explosion = {
-      id: nextExplosionID++,
-      x,
-      y
-    };
-    window.setTimeout(() => {
-      explosion = undefined;
-    }, 360);
-    playShipDestroySound();
-    if (shooter) {
-      sendShipKill(shooter.id, x, y);
-    } else {
-      sendShipCrash(x, y);
-    }
-    void publishShip();
-  }
-
-  function destroyAsteroid(x: number, y: number) {
-    explosion = {
-      id: nextExplosionID++,
-      x,
-      y
-    };
-    asteroid = undefined;
-    window.setTimeout(() => {
-      explosion = undefined;
-    }, 360);
-    spawnExplosionParticles(x, y);
-    playExplosionSound();
-    clearTimeout(asteroidRespawnTimer);
-    asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
-  }
-
-  function resetShip() {
-    keys.clear();
-    placeShipAtSpawn();
-    ship.vx = 0;
-    ship.vy = 0;
-    ship.angle = 0;
-    ship.thrusting = false;
-    shipControlled = false;
-    shipCollisionGraceUntil = 0;
-    particles = [];
-    smokeSpawnAccumulator = 0;
-  }
-
-  function placeShipAtSpawn() {
-    const point = selectSpawnPoint();
-    ship.x = point.x;
-    ship.y = point.y;
-  }
-
-  function selectSpawnPoint() {
-    const points = spawnPoints();
-    const start = sessionHash() % points.length;
-
-    for (let offset = 0; offset < points.length; offset += 1) {
-      const point = points[(start + offset) % points.length];
-      const centerX = point.x + shipWidth / 2;
-      const centerY = point.y + shipHeight / 2;
-      const blocked = remoteShips.some(
-        (remoteShip) =>
-          isRemoteShipActive(remoteShip) &&
-          Math.hypot(centerX - remoteShip.x, centerY - remoteShip.y) < shipCollisionRadius * 4
-      );
-      if (!blocked) return point;
-    }
-
-    return points[start];
-  }
-
-  function spawnPoints() {
-    const margin = 18;
-    const maxX = Math.max(margin, viewportWidth - shipWidth - margin);
-    const maxY = Math.max(margin, viewportHeight - shipHeight - margin);
-    const midX = Math.max(margin, viewportWidth / 2 - shipWidth / 2);
-    const midY = Math.max(margin, viewportHeight / 2 - shipHeight / 2);
-
-    return [
-      { x: margin, y: margin },
-      { x: maxX, y: margin },
-      { x: margin, y: maxY },
-      { x: maxX, y: maxY },
-      { x: midX, y: margin },
-      { x: midX, y: maxY },
-      { x: margin, y: midY },
-      { x: maxX, y: midY }
-    ];
-  }
-
-  function sessionHash() {
-    let hash = 0;
-    for (let i = 0; i < sessionID.length; i += 1) {
-      hash = (hash * 31 + sessionID.charCodeAt(i)) >>> 0;
-    }
-    return hash;
-  }
-
-  function isRemoteShipActive(remoteShip: NetworkShipState) {
-    return remoteShip.active !== false;
-  }
-
-  function shipCenter() {
-    return {
-      x: ship.x + shipWidth / 2,
-      y: ship.y + shipHeight / 2
-    };
-  }
-
-  function wrap(value: number, min: number, max: number) {
-    const range = max - min;
-    if (range <= 0) return value;
-    return ((((value - min) % range) + range) % range) + min;
-  }
-
-  function connectShipSocket() {
-    shipSocket?.close();
-    shipSocket = new WebSocket(shipSocketURL());
-    shipSocket.addEventListener('message', (event) => {
-      try {
-        const snapshot = JSON.parse(event.data) as ShipSnapshot;
-        remoteShips = snapshot.ships.filter((remoteShip) => remoteShip.id !== sessionID);
-        updateMultiplayerState();
-        handleShipEvents(snapshot);
-      } catch {
-        // Ignore malformed game messages; the next snapshot can recover state.
-      }
-    });
-    shipSocket.addEventListener('open', () => {
-      if (shipControlled || asteroid) {
-        publishShip();
-      }
-    });
-  }
-
-  function publishShipThrottled(now: number) {
-    if (now - lastShipPostAt < shipPostIntervalMs) return;
-    lastShipPostAt = now;
-    void publishShip();
-  }
-
-  function publishShip() {
-    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
-    try {
-      const center = shipCenter();
-      shipSocket.send(
-        JSON.stringify({
-          type: 'state',
-          ship: {
-            id: sessionID,
-            name: username.trim() || t.common.guest,
-            x: center.x,
-            y: center.y,
-            angle: ship.angle,
-            thrusting: ship.thrusting,
-            active: shipControlled && roundStatus === 'playing',
-            bullets: shipControlled ? bullets.map((bullet) => ({ x: bullet.x, y: bullet.y })) : [],
-            asteroid: asteroid
-              ? {
-                  id: asteroid.id,
-                  x: asteroid.x,
-                  y: asteroid.y,
-                  radius: asteroid.radius,
-                  angle: asteroid.angle,
-                  path: asteroid.path
-                }
-              : undefined
-          }
-        })
-      );
-    } catch {
-      // Multiplayer state is decorative; local ship controls should remain responsive.
-    }
-  }
-
-  function sendAsteroidHit(ownerId: string, asteroidId: number, x: number, y: number) {
-    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
-    try {
-      shipSocket.send(
-        JSON.stringify({
-          type: 'asteroid-hit',
-          ownerId,
-          asteroidId,
-          x,
-          y
-        })
-      );
-    } catch {
-      pendingAsteroidHits.delete(`${ownerId}:${asteroidId}`);
-    }
-  }
-
-  function sendShipKill(shooterId: string, x: number, y: number) {
-    if (!sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
-    try {
-      shipSocket.send(
-        JSON.stringify({
-          type: 'ship-kill',
-          shooterId,
-          x,
-          y
-        })
-      );
-    } catch {
-      // Kill counters are non-critical multiplayer UI.
-    }
-  }
-
-  function sendShipCrash(x: number, y: number) {
-    if (!multiplayerRound || !sessionID || shipSocket?.readyState !== WebSocket.OPEN) return;
-    try {
-      shipSocket.send(
-        JSON.stringify({
-          type: 'ship-crash',
-          x,
-          y
-        })
-      );
-    } catch {
-      // Crash counters are non-critical multiplayer UI.
-    }
-  }
-
-  function handleShipEvents(snapshot: ShipSnapshot) {
-    for (const event of snapshot.events ?? []) {
-      if (event.type === 'asteroid-destroyed' && event.ownerId && event.asteroidId) {
-        pendingAsteroidHits.delete(`${event.ownerId}:${event.asteroidId}`);
-        if (event.ownerId === sessionID && asteroid?.id === event.asteroidId) {
-          asteroid = undefined;
-          clearTimeout(asteroidRespawnTimer);
-          asteroidRespawnTimer = setTimeout(spawnAsteroid, asteroidRespawnMs);
-        }
-        if (Number.isFinite(event.x) && Number.isFinite(event.y)) {
-          explosion = {
-            id: nextExplosionID++,
-            x: event.x ?? 0,
-            y: event.y ?? 0
-          };
-          window.setTimeout(() => {
-            explosion = undefined;
-          }, 360);
-          spawnExplosionParticles(event.x ?? 0, event.y ?? 0);
-          playExplosionSound();
-          requestAnimationLoop();
-        }
-      } else if (event.type === 'ship-kill' && event.shooterId) {
-        recordShipKill(event.shooterId, event.shooterName);
-        if (event.victimId) {
-          recordShipCrash(event.victimId, event.victimName);
-        }
-      } else if (event.type === 'ship-crash' && event.victimId) {
-        recordShipCrash(event.victimId, event.victimName);
-      }
-    }
-  }
-
-  function updateMultiplayerState() {
-    const activeRemoteShips = remoteShips.filter(isRemoteShipActive);
-    if (roundStatus === 'playing' && shipControlled && activeRemoteShips.length > 0) {
-      multiplayerRound = true;
-      upsertShipKillParticipant(sessionID, username.trim() || t.common.guest);
-    }
-    for (const remoteShip of activeRemoteShips) {
-      upsertShipKillParticipant(remoteShip.id, remoteShip.name);
-    }
-  }
-
-  function resetShipKills() {
-    shipKills = {};
-    if (sessionID) {
-      upsertShipKillParticipant(sessionID, username.trim() || t.common.guest);
-    }
-  }
-
-  function upsertShipKillParticipant(id: string | undefined, name: string | undefined) {
-    if (!id) return;
-    const displayName = (name ?? '').trim() || t.common.guest;
-    const current = shipKills[id];
-    shipKills = {
-      ...shipKills,
-      [id]: {
-        id,
-        name: displayName,
-        kills: current?.kills ?? 0
-      }
-    };
-  }
-
-  function recordShipKill(shooterId: string, shooterName: string | undefined) {
-    if (!shooterId) return;
-    const current = shipKills[shooterId];
-    shipKills = {
-      ...shipKills,
-      [shooterId]: {
-        id: shooterId,
-        name: (shooterName ?? current?.name ?? '').trim() || t.common.guest,
-        kills: (current?.kills ?? 0) + 1
-      }
-    };
-  }
-
-  function recordShipCrash(victimId: string, victimName: string | undefined) {
-    if (!victimId) return;
-    const current = shipKills[victimId];
-    shipKills = {
-      ...shipKills,
-      [victimId]: {
-        id: victimId,
-        name: (victimName ?? current?.name ?? '').trim() || t.common.guest,
-        kills: (current?.kills ?? 0) - 1
-      }
-    };
+  function resize() {
+    viewportWidth = window.innerWidth;
+    viewportHeight = window.innerHeight;
   }
 
   function primeAudio() {
     audioContext ??= new AudioContext();
-    if (audioContext.state === 'suspended') {
-      void audioContext.resume();
-    }
+    if (audioContext.state === 'suspended') void audioContext.resume();
+  }
+
+  function playTone(type: OscillatorType, from: number, to: number, duration: number, volume: number) {
+    const audio = audioContext;
+    if (!audio) return;
+    const now = audio.currentTime;
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(from, now);
+    oscillator.frequency.exponentialRampToValueAtTime(to, now + duration);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(now);
+    oscillator.stop(now + duration + 0.01);
   }
 
   function playShootSound() {
-    const audio = audioContext;
-    if (!audio) return;
-    const now = audio.currentTime;
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-
-    oscillator.type = 'square';
-    oscillator.frequency.setValueAtTime(920, now);
-    oscillator.frequency.exponentialRampToValueAtTime(180, now + 0.09);
-    gain.gain.setValueAtTime(0.075, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-
-    oscillator.connect(gain).connect(audio.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.11);
+    playTone('square', 920, 180, 0.09, 0.075);
   }
 
   function playThrustSound() {
-    const audio = audioContext;
-    if (!audio) return;
-    const now = audio.currentTime;
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.setValueAtTime(72, now);
-    oscillator.frequency.linearRampToValueAtTime(54, now + 0.08);
-    gain.gain.setValueAtTime(0.028, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
-
-    oscillator.connect(gain).connect(audio.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.12);
+    playTone('sawtooth', 72, 54, 0.11, 0.028);
   }
 
   function playExplosionSound() {
-    const audio = audioContext;
-    if (!audio) return;
-    const now = audio.currentTime;
-    playExplosionThump(now, 112, 0.075);
-    playExplosionThump(now + 0.082, 78, 0.11);
-    playExplosionHiss(now + 0.12);
-  }
-
-  function playExplosionThump(startAt: number, startFrequency: number, volume: number) {
-    const audio = audioContext;
-    if (!audio) return;
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-    const filter = audio.createBiquadFilter();
-
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(startFrequency, startAt);
-    oscillator.frequency.exponentialRampToValueAtTime(42, startAt + 0.13);
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(520, startAt);
-    filter.frequency.exponentialRampToValueAtTime(180, startAt + 0.12);
-    gain.gain.setValueAtTime(volume, startAt);
-    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.15);
-
-    oscillator.connect(filter).connect(gain).connect(audio.destination);
-    oscillator.start(startAt);
-    oscillator.stop(startAt + 0.16);
-  }
-
-  function playExplosionHiss(startAt: number) {
-    const audio = audioContext;
-    if (!audio) return;
-    const noise = audio.createBufferSource();
-    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.16), audio.sampleRate);
-    const data = buffer.getChannelData(0);
-    const filter = audio.createBiquadFilter();
-    const gain = audio.createGain();
-
-    for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2.2);
-    }
-    noise.buffer = buffer;
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(950, startAt);
-    filter.frequency.exponentialRampToValueAtTime(420, startAt + 0.13);
-    gain.gain.setValueAtTime(0.035, startAt);
-    gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.16);
-
-    noise.connect(filter).connect(gain).connect(audio.destination);
-    noise.start(startAt);
-    noise.stop(startAt + 0.17);
+    playTone('triangle', 112, 42, 0.16, 0.075);
+    window.setTimeout(() => playTone('triangle', 78, 42, 0.16, 0.1), 80);
   }
 
   function playShipDestroySound() {
-    const audio = audioContext;
-    if (!audio) return;
-    const now = audio.currentTime;
-    const fall = audio.createOscillator();
-    const fallGain = audio.createGain();
-    const noise = audio.createBufferSource();
-    const buffer = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.16), audio.sampleRate);
-    const data = buffer.getChannelData(0);
-    const noiseGain = audio.createGain();
-
-    for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    }
-    noise.buffer = buffer;
-    fall.type = 'triangle';
-    fall.frequency.setValueAtTime(420, now);
-    fall.frequency.exponentialRampToValueAtTime(42, now + 0.28);
-    fallGain.gain.setValueAtTime(0.12, now);
-    fallGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-    noiseGain.gain.setValueAtTime(0.055, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-
-    fall.connect(fallGain).connect(audio.destination);
-    noise.connect(noiseGain).connect(audio.destination);
-    fall.start(now);
-    noise.start(now);
-    noise.stop(now + 0.16);
-    fall.stop(now + 0.31);
+    playTone('triangle', 420, 42, 0.3, 0.12);
   }
 
-  function readShipSessionID() {
-    try {
-      const existing = window.sessionStorage.getItem(shipSessionStorageKey);
-      if (existing) return existing;
-      const nextID = crypto.randomUUID();
-      window.sessionStorage.setItem(shipSessionStorageKey, nextID);
-      return nextID;
-    } catch {
-      return `ship-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-  }
+  $effect(() => {
+    const name = username.trim() || t.common.guest;
+    if (connectionState === 'connected' && playerId) sendCommand({ type: 'name', name });
+  });
 
   onMount(() => {
+    try {
+      resumeToken = sessionStorage.getItem(resumeTokenKey) ?? '';
+    } catch {
+      resumeToken = '';
+    }
+    resize();
+    connect();
+    heartbeatTimer = setInterval(sendHeartbeat, 2000);
+
     const markVideoActive = () => {
       videoActive = true;
-      keys.clear();
-      ship.thrusting = false;
+      clearInput();
     };
     const markVideoInactive = () => {
       videoActive = false;
     };
-    const markBackgroundKeyboardFocus = (event: Event) => {
+    const markBackgroundFocus = (event: Event) => {
       backgroundKeyboardFocused = Boolean((event as CustomEvent<{ focused?: boolean }>).detail?.focused);
-      if (!backgroundKeyboardFocused) {
-        keys.clear();
-        ship.thrusting = false;
-      }
+      if (!backgroundKeyboardFocused) clearInput();
     };
-    const handleVisibilityChange = () => {
+    const visibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        cancelAnimationLoop();
-        return;
-      }
-      if (hasAnimationWork()) {
+        if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+        clearInput();
+      } else {
         requestAnimationLoop();
       }
     };
 
-    sessionID = readShipSessionID();
-    resize();
-    connectShipSocket();
     window.addEventListener('resize', resize);
-    window.addEventListener('keydown', handleKeydown);
+    window.addEventListener('keydown', handleKeydown, { capture: true });
     window.addEventListener('keyup', handleKeyup);
     window.addEventListener(activeVideoEvent, markVideoActive);
     window.addEventListener(clearActiveVideoEvent, markVideoInactive);
-    window.addEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener(backgroundKeyboardFocusEvent, markBackgroundFocus);
+    document.addEventListener('visibilitychange', visibilityChange);
 
     return () => {
-      keys.clear();
+      destroyed = true;
+      connectionGeneration += 1;
+      clearTimeout(reconnectTimer);
+      clearInterval(heartbeatTimer);
+      if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId);
+      socket?.close();
+      void audioContext?.close();
       window.removeEventListener('resize', resize);
-      window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('keydown', handleKeydown, { capture: true });
       window.removeEventListener('keyup', handleKeyup);
       window.removeEventListener(activeVideoEvent, markVideoActive);
       window.removeEventListener(clearActiveVideoEvent, markVideoInactive);
-      window.removeEventListener(backgroundKeyboardFocusEvent, markBackgroundKeyboardFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      shipSocket?.close();
-      void audioContext?.close();
-      clearTimeout(asteroidRespawnTimer);
-      cancelAnimationLoop();
+      window.removeEventListener(backgroundKeyboardFocusEvent, markBackgroundFocus);
+      document.removeEventListener('visibilitychange', visibilityChange);
     };
   });
 </script>
 
-{#if roundStatus === 'playing'}
-  {#if multiplayerRound}
+{#if gameVisible && connectionState !== 'connected'}
+  <div class="asteroids-connection" aria-live="polite">
+    {connectionState === 'connecting' ? 'Подключение к игре...' : 'Связь потеряна, переподключаемся...'}
+  </div>
+{/if}
+
+{#if gameVisible && roundStatus === 'playing'}
+  {#if mode === 'multiplayer'}
     <div class="asteroids-hud asteroids-killboard" aria-live="polite">
-      <span class="asteroids-killboard-title">{t.game.kills}</span>
+      <div class="asteroids-hud-heading">
+        <span class="asteroids-killboard-title">{t.game.kills}</span>
+        <span class="asteroids-ping"><RadioTower size={11} strokeWidth={1.8} />{pingLabel}</span>
+      </div>
       <ol>
-        {#each shipKillRows as player (player.id)}
-          <li class:asteroids-local-kill-row={player.id === sessionID}>
+        {#each killRows as player (player.id)}
+          <li class:asteroids-local-kill-row={player.id === playerId}>
             <span>{player.name}</span>
             <strong>{player.kills}</strong>
           </li>
@@ -1276,34 +644,32 @@
     </div>
   {:else}
     <div class="asteroids-hud" aria-live="polite">
-      <span>{roundSecondsLeft}s</span>
+      <span>{secondsLeft}s</span>
       <strong>{score}</strong>
+      <span class="asteroids-ping"><RadioTower size={11} strokeWidth={1.8} />{pingLabel}</span>
     </div>
   {/if}
 {/if}
 
-{#if roundStatus === 'finished'}
+{#if gameVisible && roundStatus === 'finished'}
   <section class="asteroids-leaderboard" aria-live="polite">
     <div class="asteroids-leaderboard-header">
       <span>{t.game.time}</span>
       <strong>{score}</strong>
     </div>
     <div class="asteroids-leaderboard-title">{t.game.leaders}</div>
-    {#if !roundSaved}
-      <p>{t.game.resultNotSaved}</p>
-    {/if}
-    {#if scoreSubmitStatus === 'saving'}
-      <p>{roundSaved ? t.game.savingScore : t.game.loadingLeaders}</p>
-    {:else if scoreSubmitStatus === 'error'}
-      <p>{roundSaved ? t.game.scoreSaveFailed : t.game.leadersUnavailable}</p>
+    {#if !roundSaved}<p>{t.game.resultNotSaved}</p>{/if}
+    {#if leaderboardStatus === 'loading'}
+      <p>{t.game.loadingLeaders}</p>
+    {:else if leaderboardStatus === 'error'}
+      <p>{t.game.leadersUnavailable}</p>
     {:else if leaderboard.length === 0}
       <p>{t.game.noScores}</p>
     {:else}
       <ol>
         {#each leaderboard as item, index (`${item.createdAt}-${index}`)}
           <li class:currentScore={roundSaved && item.name === (username.trim() || t.common.guest) && item.score === score}>
-            <span>{index + 1}. {item.name}</span>
-            <strong>{item.score}</strong>
+            <span>{index + 1}. {item.name}</span><strong>{item.score}</strong>
           </li>
         {/each}
       </ol>
@@ -1312,132 +678,134 @@
   </section>
 {/if}
 
-{#each bullets as bullet (bullet.id)}
-  <span
-    class="asteroids-bullet"
+{#if worldVisible}
+  <div
+    class="asteroids-arena-boundary"
+    class:asteroids-arena-boundary-local={gameVisible}
     aria-hidden="true"
-    style:transform={`translate3d(${bullet.x}px, ${bullet.y}px, 0) translate(-50%, -50%)`}
-  ></span>
-{/each}
-
-{#each particles as particle (particle.id)}
-  <span
-    class={`asteroids-particle asteroids-${particle.kind}`}
-    aria-hidden="true"
-    style:--particle-alpha={1 - particle.age / particle.lifetime}
-    style:--particle-scale={particle.size + (particle.age / particle.lifetime) * (particle.kind === 'spark' ? 0.2 : 1.4)}
-    style:transform={`translate3d(${particle.x}px, ${particle.y}px, 0) translate(-50%, -50%) rotate(${particle.angle ?? 0}rad) scale(var(--particle-scale))`}
-  ></span>
-{/each}
-
-{#if asteroid}
-  <svg
-    class="asteroids-rock"
-    aria-hidden="true"
-    viewBox="0 0 100 100"
-    style:width={`${asteroid.radius * 2}px`}
-    style:height={`${asteroid.radius * 2}px`}
-    style:transform={`translate3d(${asteroid.x}px, ${asteroid.y}px, 0) translate(-50%, -50%) rotate(${asteroid.angle}rad)`}
+    style:left={`${arenaLeft}px`}
+    style:top={`${arenaTop}px`}
+    style:width={`${arenaWidth * scale}px`}
+    style:height={`${arenaHeight * scale}px`}
   >
-    <path class="asteroids-rock-fill" d={asteroid.path} />
-    <path class="asteroids-rock-line" d={asteroid.path} />
-  </svg>
-{/if}
+    <span class="asteroids-arena-corner asteroids-arena-corner-tl"></span>
+    <span class="asteroids-arena-corner asteroids-arena-corner-tr"></span>
+    <span class="asteroids-arena-corner asteroids-arena-corner-bl"></span>
+    <span class="asteroids-arena-corner asteroids-arena-corner-br"></span>
+  </div>
 
-{#if explosion}
-  <span
-    class="asteroids-explosion"
-    aria-hidden="true"
-    style:transform={`translate3d(${explosion.x}px, ${explosion.y}px, 0) translate(-50%, -50%)`}
-  ></span>
-{/if}
-
-{#each remoteShips as remoteShip (remoteShip.id)}
-  {#if remoteShip.asteroid}
+  {#each visibleAsteroids as asteroid (asteroid.id)}
     <svg
-      class="asteroids-rock asteroids-remote-rock"
+      class="asteroids-rock"
       aria-hidden="true"
       viewBox="0 0 100 100"
-      style:width={`${remoteShip.asteroid.radius * 2}px`}
-      style:height={`${remoteShip.asteroid.radius * 2}px`}
-      style:transform={`translate3d(${remoteShip.asteroid.x}px, ${remoteShip.asteroid.y}px, 0) translate(-50%, -50%) rotate(${remoteShip.asteroid.angle}rad)`}
+      style:width={`${screenSize(asteroid.radius * 2)}px`}
+      style:height={`${screenSize(asteroid.radius * 2)}px`}
+      style:transform={`translate3d(${screenX(asteroid.x)}px, ${screenY(asteroid.y)}px, 0) translate(-50%, -50%) rotate(${asteroid.angle}rad)`}
     >
-      <path class="remote-rock-fill" d={remoteShip.asteroid.path} />
-      <path class="remote-rock-line" d={remoteShip.asteroid.path} />
+      <path class="asteroids-rock-fill" d={asteroid.path} />
+      <path class="asteroids-rock-line" d={asteroid.path} />
     </svg>
-  {/if}
-  {#if isRemoteShipActive(remoteShip)}
-    {#each remoteShip.bullets ?? [] as bullet, index (`${remoteShip.id}-${index}`)}
-      <span
-        class="asteroids-bullet asteroids-remote-bullet"
-        aria-hidden="true"
-        style:transform={`translate3d(${bullet.x}px, ${bullet.y}px, 0) translate(-50%, -50%)`}
-      ></span>
-    {/each}
-    <div
-      class="asteroids-remote-ship"
+  {/each}
+
+  {#each visibleBullets as bullet (bullet.id)}
+    <span
+      class="asteroids-bullet"
+      class:asteroids-remote-bullet={bullet.ownerId !== playerId}
       aria-hidden="true"
-      style:transform={`translate3d(${remoteShip.x - shipWidth / 2}px, ${remoteShip.y - shipHeight / 2}px, 0) rotate(${remoteShip.angle + Math.PI / 2}rad)`}
+      style:transform={`translate3d(${screenX(bullet.x)}px, ${screenY(bullet.y)}px, 0) translate(-50%, -50%)`}
+    ></span>
+  {/each}
+
+  {#each remoteShips as remote (remote.id)}
+    {#if remote.active}
+      <div
+        class="asteroids-remote-ship"
+        aria-hidden="true"
+        style:width={`${screenSize(shipWidth)}px`}
+        style:height={`${screenSize(shipHeight)}px`}
+        style:transform={`translate3d(${screenX(remote.x) - screenSize(shipWidth) / 2}px, ${screenY(remote.y) - screenSize(shipHeight) / 2}px, 0) rotate(${remote.angle + Math.PI / 2}rad)`}
+      >
+        <svg viewBox="0 0 42 54">
+          <path class="remote-ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
+          <path class="remote-ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
+          <path class="remote-ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
+          <path class="remote-ship-flame" class:remote-ship-flame-active={remote.thrusting} d="M21 42 27 55 21 50 15 55 21 42Z" />
+        </svg>
+      </div>
+      <span
+        class="asteroids-remote-name"
+        aria-hidden="true"
+        style:transform={`translate3d(${screenX(remote.x)}px, ${screenY(remote.y) + screenSize(shipHeight) / 2 + 8}px, 0) translate(-50%, 0)`}
+      >{remote.name}</span>
+    {/if}
+  {/each}
+
+  {#if gameVisible && localShip?.active}
+    <div
+      class="asteroids-ship"
+      class:asteroids-ship-thrusting={localShip.thrusting}
+      aria-hidden="true"
+      style:width={`${screenSize(shipWidth)}px`}
+      style:height={`${screenSize(shipHeight)}px`}
+      style:transform={`translate3d(${screenX(localShip.x) - screenSize(shipWidth) / 2}px, ${screenY(localShip.y) - screenSize(shipHeight) / 2}px, 0) rotate(${localShip.angle + Math.PI / 2}rad)`}
     >
-      <svg viewBox="0 0 42 54" role="img">
-        <path class="remote-ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
-        <path class="remote-ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
-        <path class="remote-ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
-        <path class="remote-ship-flame" class:remote-ship-flame-active={remoteShip.thrusting} d="M21 42 27 55 21 50 15 55 21 42Z" />
+      <svg viewBox="0 0 42 54">
+        <path class="ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
+        <path class="ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
+        <path class="ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
+        <path class="ship-flame" d="M21 42 27 55 21 50 15 55 21 42Z" />
       </svg>
     </div>
-    <span
-      class="asteroids-remote-name"
-      aria-hidden="true"
-      style:transform={`translate3d(${remoteShip.x}px, ${remoteShip.y + shipHeight / 2 + 8}px, 0) translate(-50%, 0)`}
-    >
-      {remoteShip.name}
-    </span>
   {/if}
-{/each}
 
-{#if shipControlled}
-  <div
-    class="asteroids-ship"
-    class:asteroids-ship-thrusting={ship.thrusting}
-    aria-hidden="true"
-    style:transform={shipTransform}
-  >
-    <svg viewBox="0 0 42 54" role="img">
-      <path class="ship-glow" d="M21 3 39 49 21 39 3 49 21 3Z" />
-      <path class="ship-outline" d="M21 3 39 49 21 39 3 49 21 3Z" />
-      <path class="ship-window" d="M21 15 27 31 21 27 15 31 21 15Z" />
-      <path class="ship-flame" d="M21 42 27 55 21 50 15 55 21 42Z" />
-    </svg>
-  </div>
+  {#each particles as particle (particle.id)}
+    <span
+      class={`asteroids-particle asteroids-${particle.kind}`}
+      aria-hidden="true"
+      style:--particle-alpha={1 - particle.age / particle.lifetime}
+      style:--particle-scale={particle.size + (particle.age / particle.lifetime) * (particle.kind === 'spark' ? 0.2 : 1.4)}
+      style:transform={`translate3d(${screenX(particle.x)}px, ${screenY(particle.y)}px, 0) translate(-50%, -50%) rotate(${particle.angle}rad) scale(var(--particle-scale))`}
+    ></span>
+  {/each}
+
+  {#each explosions as explosion (explosion.id)}
+    <span
+      class="asteroids-explosion"
+      aria-hidden="true"
+      style:transform={`translate3d(${screenX(explosion.x)}px, ${screenY(explosion.y)}px, 0) translate(-50%, -50%)`}
+    ></span>
+  {/each}
 {/if}
 
 <style>
+  .asteroids-connection,
   .asteroids-hud {
     position: fixed;
     top: 1rem;
     left: 50%;
     z-index: 20;
-    display: flex;
-    min-width: 9rem;
     transform: translateX(-50%);
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.25rem;
     border: 1px solid rgb(226 232 240 / 0.18);
     border-radius: 0.5rem;
-    background: rgb(2 6 23 / 0.72);
+    background: rgb(2 6 23 / 0.78);
     padding: 0.55rem 0.8rem;
     color: rgb(226 232 240);
     font-size: 0.9rem;
-    line-height: 1;
     pointer-events: none;
   }
 
-  .asteroids-hud strong {
+  .asteroids-hud {
+    display: flex;
+    min-width: 9rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+  }
+
+  .asteroids-hud strong,
+  .asteroids-leaderboard strong {
     color: rgb(253 224 71);
-    font-size: 1.1rem;
-    font-weight: 800;
   }
 
   .asteroids-killboard {
@@ -1447,41 +815,55 @@
     gap: 0.45rem;
   }
 
-  .asteroids-killboard-title {
+  .asteroids-killboard-title,
+  .asteroids-leaderboard-title,
+  .asteroids-restart,
+  .asteroids-leaderboard p {
     color: rgb(148 163 184);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: uppercase;
+    font-size: 0.82rem;
   }
 
-  .asteroids-killboard ol {
-    display: grid;
+  .asteroids-hud-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .asteroids-ping {
+    display: inline-flex;
+    align-items: center;
     gap: 0.25rem;
+    color: rgb(148 163 184 / 0.88);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .asteroids-killboard ol,
+  .asteroids-leaderboard ol {
+    display: grid;
+    gap: 0.3rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .asteroids-killboard li {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+  .asteroids-killboard li,
+  .asteroids-leaderboard li {
+    display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: space-between;
+    gap: 1rem;
     border-radius: 0.35rem;
-    padding: 0.32rem 0.45rem;
-    background: rgb(15 23 42 / 0.58);
+    background: rgb(15 23 42 / 0.65);
+    padding: 0.4rem 0.5rem;
   }
 
-  .asteroids-killboard li span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .asteroids-killboard li.asteroids-local-kill-row {
-    background: rgb(20 184 166 / 0.16);
+  .asteroids-local-kill-row,
+  .asteroids-leaderboard li.currentScore {
+    background: rgb(20 184 166 / 0.16) !important;
     color: rgb(153 246 228);
   }
 
@@ -1494,7 +876,7 @@
     transform: translate(-50%, -50%);
     border: 1px solid rgb(226 232 240 / 0.18);
     border-radius: 0.5rem;
-    background: rgb(2 6 23 / 0.88);
+    background: rgb(2 6 23 / 0.9);
     padding: 1rem;
     color: rgb(226 232 240);
     box-shadow: 0 18px 48px rgb(0 0 0 / 0.32);
@@ -1504,63 +886,17 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 1rem;
     border-bottom: 1px solid rgb(226 232 240 / 0.14);
     padding-bottom: 0.75rem;
   }
 
-  .asteroids-leaderboard-header span,
-  .asteroids-leaderboard-title,
-  .asteroids-restart,
-  .asteroids-leaderboard p {
-    color: rgb(148 163 184);
-    font-size: 0.82rem;
-  }
-
   .asteroids-leaderboard-header strong {
-    color: rgb(253 224 71);
     font-size: 2rem;
-    line-height: 1;
   }
 
   .asteroids-leaderboard-title {
-    margin-top: 0.9rem;
+    margin: 0.9rem 0 0.65rem;
     text-transform: uppercase;
-  }
-
-  .asteroids-leaderboard ol {
-    display: grid;
-    gap: 0.35rem;
-    margin: 0.65rem 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .asteroids-leaderboard li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    border-radius: 0.35rem;
-    padding: 0.45rem 0.55rem;
-    background: rgb(15 23 42 / 0.72);
-    font-size: 0.92rem;
-  }
-
-  .asteroids-leaderboard li.currentScore {
-    background: rgb(253 224 71 / 0.14);
-    color: rgb(254 240 138);
-  }
-
-  .asteroids-leaderboard li span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .asteroids-leaderboard li strong {
-    color: rgb(253 224 71);
   }
 
   .asteroids-restart {
@@ -1568,98 +904,152 @@
     text-align: center;
   }
 
-  .asteroids-ship {
+  .asteroids-ship,
+  .asteroids-remote-ship,
+  .asteroids-arena-boundary,
+  .asteroids-rock,
+  .asteroids-bullet,
+  .asteroids-particle,
+  .asteroids-explosion,
+  .asteroids-remote-name {
     position: fixed;
     top: 0;
     left: 0;
     z-index: 0;
-    width: 2.7rem;
-    height: 3.45rem;
     pointer-events: none;
+    will-change: transform;
+  }
+
+  .asteroids-arena-boundary {
+    box-sizing: border-box;
+    border: 1px solid rgb(125 211 252 / 0.12);
+    box-shadow:
+      inset 0 0 2rem rgb(34 211 238 / 0.025),
+      0 0 0.75rem rgb(125 211 252 / 0.035);
+    opacity: 0.62;
+  }
+
+  .asteroids-arena-boundary-local {
+    border-color: rgb(125 211 252 / 0.2);
+    box-shadow:
+      inset 0 0 2.5rem rgb(34 211 238 / 0.04),
+      0 0 1rem rgb(125 211 252 / 0.055);
+    opacity: 1;
+  }
+
+  .asteroids-arena-corner {
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    border-color: rgb(165 243 252 / 0.42);
+    pointer-events: none;
+  }
+
+  .asteroids-arena-corner-tl {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+  }
+
+  .asteroids-arena-corner-tr {
+    top: -1px;
+    right: -1px;
+    border-top: 2px solid;
+    border-right: 2px solid;
+  }
+
+  .asteroids-arena-corner-bl {
+    bottom: -1px;
+    left: -1px;
+    border-bottom: 2px solid;
+    border-left: 2px solid;
+  }
+
+  .asteroids-arena-corner-br {
+    right: -1px;
+    bottom: -1px;
+    border-right: 2px solid;
+    border-bottom: 2px solid;
+  }
+
+  .asteroids-ship,
+  .asteroids-remote-ship {
     transform-origin: 50% 50%;
     filter: drop-shadow(0 0 10px rgb(125 211 252 / 0.5));
-    will-change: transform;
   }
 
   .asteroids-remote-ship {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
-    width: 2.7rem;
-    height: 3.45rem;
-    pointer-events: none;
-    transform-origin: 50% 50%;
     filter: drop-shadow(0 0 10px rgb(244 114 182 / 0.42));
     opacity: 0.86;
-    will-change: transform;
   }
 
-  .asteroids-bullet {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
-    width: 0.42rem;
-    height: 0.42rem;
-    border-radius: 999px;
-    background: rgb(253 224 71 / 0.96);
-    box-shadow:
-      0 0 6px rgb(253 224 71 / 0.92),
-      0 0 14px rgb(34 211 238 / 0.5);
-    pointer-events: none;
-    transform-origin: 50% 50%;
-    will-change: transform;
+  .asteroids-ship svg,
+  .asteroids-remote-ship svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
   }
 
-  .asteroids-particle {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
-    pointer-events: none;
-    will-change: transform, opacity;
+  .ship-glow,
+  .remote-ship-glow {
+    fill: rgb(125 211 252 / 0.12);
+    stroke: rgb(125 211 252 / 0.26);
+    stroke-width: 7;
   }
 
-  .asteroids-smoke {
-    width: 0.8rem;
-    height: 0.8rem;
-    border-radius: 999px;
-    background: rgb(148 163 184 / calc(var(--particle-alpha) * 0.28));
-    opacity: var(--particle-alpha);
+  .remote-ship-glow {
+    fill: rgb(244 114 182 / 0.12);
+    stroke: rgb(244 114 182 / 0.26);
   }
 
-  .asteroids-spark {
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 999px;
-    background: rgb(253 224 71 / calc(var(--particle-alpha) * 0.96));
-    box-shadow: 0 0 8px rgb(253 224 71 / calc(var(--particle-alpha) * 0.62));
-    opacity: var(--particle-alpha);
+  .ship-outline,
+  .remote-ship-outline {
+    fill: rgb(3 7 18 / 0.5);
+    stroke: rgb(255 255 255 / 0.88);
+    stroke-linejoin: round;
+    stroke-width: 2.25;
   }
 
-  .asteroids-debris {
-    width: 0.75rem;
-    height: 0.36rem;
-    border-radius: 0.16rem;
-    background: rgb(226 232 240 / calc(var(--particle-alpha) * 0.62));
-    opacity: var(--particle-alpha);
+  .remote-ship-outline {
+    stroke: rgb(251 207 232 / 0.88);
+  }
+
+  .ship-window,
+  .remote-ship-window {
+    fill: rgb(34 211 238 / 0.28);
+    stroke: rgb(165 243 252 / 0.74);
+    stroke-linejoin: round;
+    stroke-width: 1.4;
+  }
+
+  .remote-ship-window {
+    fill: rgb(244 114 182 / 0.26);
+    stroke: rgb(251 207 232 / 0.72);
+  }
+
+  .ship-flame,
+  .remote-ship-flame {
+    fill: transparent;
+    stroke: transparent;
+    transform-origin: 50% 84%;
+  }
+
+  .asteroids-ship-thrusting .ship-flame,
+  .remote-ship-flame-active {
+    animation: ship-thrust 120ms steps(2, end) infinite;
+    fill: rgb(251 146 60 / 0.84);
+    stroke: rgb(254 240 138 / 0.8);
   }
 
   .asteroids-rock {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
     overflow: visible;
-    pointer-events: none;
     filter: drop-shadow(0 0 12px rgb(148 163 184 / 0.28));
-    will-change: transform;
   }
 
   .asteroids-rock-fill {
     fill: rgb(15 23 42 / 0.72);
-    stroke: none;
   }
 
   .asteroids-rock-line {
@@ -1669,170 +1059,78 @@
     stroke-width: 4;
   }
 
-  .asteroids-remote-rock {
-    opacity: 0.76;
-    filter: drop-shadow(0 0 12px rgb(244 114 182 / 0.22));
-  }
-
-  .remote-rock-fill {
-    fill: rgb(39 7 24 / 0.48);
-    stroke: none;
-  }
-
-  .remote-rock-line {
-    fill: none;
-    stroke: rgb(251 207 232 / 0.62);
-    stroke-linejoin: round;
-    stroke-width: 4;
+  .asteroids-bullet {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: rgb(253 224 71 / 0.96);
+    box-shadow: 0 0 6px rgb(253 224 71 / 0.92), 0 0 14px rgb(34 211 238 / 0.5);
   }
 
   .asteroids-remote-bullet {
     background: rgb(244 114 182 / 0.96);
-    box-shadow:
-      0 0 6px rgb(244 114 182 / 0.86),
-      0 0 14px rgb(125 211 252 / 0.42);
+  }
+
+  .asteroids-remote-name {
+    max-width: 9rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.35);
+    padding: 0.12rem 0.42rem;
+    color: rgb(251 207 232);
+    font-size: 0.62rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asteroids-particle {
+    opacity: var(--particle-alpha);
+  }
+
+  .asteroids-smoke {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    background: rgb(148 163 184 / 0.28);
+  }
+
+  .asteroids-spark {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: rgb(253 224 71);
+    box-shadow: 0 0 8px rgb(253 224 71 / 0.62);
+  }
+
+  .asteroids-debris {
+    width: 0.75rem;
+    height: 0.36rem;
+    border-radius: 0.16rem;
+    background: rgb(226 232 240 / 0.62);
   }
 
   .asteroids-explosion {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
     width: 4.8rem;
     height: 4.8rem;
     border: 2px solid rgb(253 224 71 / 0.86);
     border-radius: 999px;
     background: radial-gradient(circle, rgb(254 240 138 / 0.65) 0 18%, rgb(251 146 60 / 0.34) 19% 42%, transparent 58%);
-    pointer-events: none;
     animation: asteroid-pop 260ms ease-out forwards;
   }
 
-  .asteroids-ship svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
-
-  .asteroids-remote-ship svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
-
-  .ship-glow {
-    fill: rgb(125 211 252 / 0.12);
-    stroke: rgb(125 211 252 / 0.26);
-    stroke-width: 7;
-  }
-
-  .ship-outline {
-    fill: rgb(3 7 18 / 0.5);
-    stroke: rgb(255 255 255 / 0.88);
-    stroke-linejoin: round;
-    stroke-width: 2.25;
-  }
-
-  .ship-window {
-    fill: rgb(34 211 238 / 0.28);
-    stroke: rgb(165 243 252 / 0.74);
-    stroke-linejoin: round;
-    stroke-width: 1.4;
-  }
-
-  .remote-ship-glow {
-    fill: rgb(244 114 182 / 0.12);
-    stroke: rgb(244 114 182 / 0.26);
-    stroke-width: 7;
-  }
-
-  .remote-ship-outline {
-    fill: rgb(3 7 18 / 0.48);
-    stroke: rgb(251 207 232 / 0.88);
-    stroke-linejoin: round;
-    stroke-width: 2.25;
-  }
-
-  .remote-ship-window {
-    fill: rgb(244 114 182 / 0.26);
-    stroke: rgb(251 207 232 / 0.72);
-    stroke-linejoin: round;
-    stroke-width: 1.4;
-  }
-
-  .remote-ship-flame {
-    fill: rgb(251 146 60 / 0);
-    stroke: rgb(251 191 36 / 0);
-    stroke-linejoin: round;
-    stroke-width: 1.7;
-    transform-origin: 50% 84%;
-  }
-
-  .remote-ship-flame-active {
-    animation: ship-thrust 120ms steps(2, end) infinite;
-    fill: rgb(251 146 60 / 0.78);
-    stroke: rgb(254 240 138 / 0.74);
-  }
-
-  .asteroids-remote-name {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 0;
-    max-width: 9rem;
-    overflow: hidden;
-    border: 1px solid rgb(251 207 232 / 0.24);
-    border-radius: 999px;
-    background: rgb(0 0 0 / 0.3);
-    padding: 0.12rem 0.42rem;
-    color: rgb(251 207 232 / 0.92);
-    font-size: 0.62rem;
-    font-weight: 800;
-    line-height: 1.15;
-    text-overflow: ellipsis;
-    text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
-    white-space: nowrap;
-  }
-
-  .ship-flame {
-    fill: rgb(251 146 60 / 0);
-    stroke: rgb(251 191 36 / 0);
-    stroke-linejoin: round;
-    stroke-width: 1.7;
-    transform-origin: 50% 84%;
-  }
-
-  .asteroids-ship-thrusting .ship-flame {
-    animation: ship-thrust 120ms steps(2, end) infinite;
-    fill: rgb(251 146 60 / 0.84);
-    stroke: rgb(254 240 138 / 0.8);
-  }
-
   @keyframes ship-thrust {
-    from {
-      transform: scaleY(0.72);
-      opacity: 0.74;
-    }
-
-    to {
-      transform: scaleY(1.08);
-      opacity: 1;
-    }
+    from { transform: scaleY(0.72); opacity: 0.74; }
+    to { transform: scaleY(1.08); opacity: 1; }
   }
 
   @keyframes asteroid-pop {
-    from {
-      opacity: 0.95;
-    }
-
-    to {
-      opacity: 0;
-    }
+    from { opacity: 0.95; }
+    to { opacity: 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .ship-flame {
+    .ship-flame,
+    .remote-ship-flame {
       animation: none;
     }
   }

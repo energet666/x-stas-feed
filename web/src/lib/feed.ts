@@ -46,43 +46,69 @@ export type BoardActivityItem = {
 
 export type ActivityItem = CommentActivityItem | BoardActivityItem;
 
+export type ShipInput = {
+  left: boolean;
+  right: boolean;
+  thrust: boolean;
+};
+
+export type ShipCommand = {
+  type: 'input' | 'shoot' | 'restart' | 'finish' | 'leave' | 'name' | 'heartbeat';
+  seq: number;
+  input?: ShipInput;
+  name?: string;
+  sentAtMs?: number;
+};
+
 export type ShipState = {
   id: string;
   name: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   angle: number;
   thrusting: boolean;
-  active?: boolean;
-  bullets?: ShipBullet[];
-  asteroid?: ShipAsteroid;
-  updatedAt?: string;
+  active: boolean;
+  score: number;
+  kills: number;
+  ackSeq: number;
+  pingEcho?: number;
 };
 
 export type ShipBullet = {
+  id: number;
+  ownerId: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
 };
 
 export type ShipAsteroid = {
   id: number;
+  ownerId: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   radius: number;
   angle: number;
+  spin: number;
   path: string;
 };
 
 export type ShipEvent = {
-  type: 'asteroid-destroyed' | 'ship-kill' | 'ship-crash';
+  id: number;
+  type: 'asteroid-destroyed' | 'ship-kill' | 'ship-crash' | 'round-finished';
   ownerId?: string;
-  asteroidId?: number;
   shooterId?: string;
   shooterName?: string;
   victimId?: string;
   victimName?: string;
   x?: number;
   y?: number;
+  saved?: boolean;
 };
 
 export type ShipScore = {
@@ -92,8 +118,23 @@ export type ShipScore = {
 };
 
 export type ShipSnapshot = {
-  ships: ShipState[];
+  type: 'snapshot';
+  tick: number;
+  mode: 'idle' | 'solo' | 'multiplayer';
+  status: 'idle' | 'playing' | 'finished';
+  remainingMs: number;
+  players: ShipState[];
+  bullets?: ShipBullet[];
+  asteroids?: ShipAsteroid[];
   events?: ShipEvent[];
+};
+
+export type ShipWelcome = {
+  type: 'welcome';
+  playerId: string;
+  resumeToken: string;
+  arena: { width: number; height: number };
+  snapshot: ShipSnapshot;
 };
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'file' | 'board';
@@ -255,22 +296,6 @@ export async function fetchShipScores() {
   return Array.isArray(data.scores) ? data.scores : [];
 }
 
-export async function createShipScore(name: string, score: number) {
-  const response = await fetch('/api/ships/scores', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, score })
-  });
-
-  if (!response.ok) {
-    const message = await responseErrorMessage(response);
-    throw new Error(message ?? uiText.errors.scoreSubmission(response.status));
-  }
-
-  const data = (await response.json()) as { scores: ShipScore[] };
-  return Array.isArray(data.scores) ? data.scores : [];
-}
-
 export function uploadMedia(file: File, onProgress?: (progress: UploadProgress) => void) {
   return new Promise<UploadResult>((resolve, reject) => {
     const form = new FormData();
@@ -315,9 +340,12 @@ export function commentEventsURL() {
   return '/api/comments/events';
 }
 
-export function shipSocketURL() {
+export function shipSocketURL(resumeToken: string, name: string) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/api/ships/socket`;
+  const params = new URLSearchParams();
+  if (resumeToken) params.set('resumeToken', resumeToken);
+  if (name.trim()) params.set('name', name.trim());
+  return `${protocol}//${window.location.host}/api/ships/socket?${params}`;
 }
 
 export function mediaPosterURL(mediaId: string, seconds: number) {

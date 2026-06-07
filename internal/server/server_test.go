@@ -163,6 +163,21 @@ func TestRequestLogIncludesQueryStatusRequestBytesResponseBytesAndDuration(t *te
 	}
 }
 
+func TestRequestLogRedactsShipResumeToken(t *testing.T) {
+	dir := t.TempDir()
+	var logs bytes.Buffer
+	handler := New(media.NewLibrary(dir), dir, "", log.New(&logs, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/ships/socket?resumeToken=secret-token&name=Pilot", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	output := logs.String()
+	if strings.Contains(output, "secret-token") || !strings.Contains(output, "resumeToken=%5Bredacted%5D") {
+		t.Fatalf("expected game resume token to be redacted, got %q", output)
+	}
+}
+
 func TestMediaRequestLogIncludesFilename(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.txt")
@@ -260,22 +275,19 @@ func TestFavoriteFeedEndpointCursorLimitAndStaleIDs(t *testing.T) {
 	}
 }
 
-func TestShipScoresEndpointKeepsTopFive(t *testing.T) {
+func TestShipScoresEndpointIsReadOnly(t *testing.T) {
 	dir := t.TempDir()
 	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
 
-	for _, score := range []int{100, 600, -200, 400, 800, 300} {
-		req := httptest.NewRequest(http.MethodPost, "/api/ships/scores", bytes.NewBufferString(`{"name":"Pilot","score":`+strconv.Itoa(score)+`}`))
-		req.Header.Set("Content-Type", "application/json")
-		res := httptest.NewRecorder()
-		handler.ServeHTTP(res, req)
-		if res.Code != http.StatusCreated {
-			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
-		}
+	req := httptest.NewRequest(http.MethodPost, "/api/ships/scores", bytes.NewBufferString(`{"name":"Cheater","score":999999}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d body=%s", res.Code, res.Body.String())
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/ships/scores", nil)
-	res := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/ships/scores", nil)
+	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusOK {
@@ -288,14 +300,8 @@ func TestShipScoresEndpointKeepsTopFive(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	want := []int{800, 600, 400, 300, 100}
-	if len(response.Scores) != len(want) {
-		t.Fatalf("expected scores %#v, got %#v", want, response.Scores)
-	}
-	for i, score := range response.Scores {
-		if score.Score != want[i] {
-			t.Fatalf("score %d: expected %d, got %#v", i, want[i], response.Scores)
-		}
+	if len(response.Scores) != 0 {
+		t.Fatalf("expected no client-submitted scores, got %#v", response.Scores)
 	}
 }
 

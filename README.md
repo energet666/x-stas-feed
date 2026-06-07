@@ -168,9 +168,16 @@ Drawing boards:
 
 Regular boards are feed media. They are discovered from root `.board` placeholder files, returned by the same `GET /api/feed?index=` flow as other media, and store their stroke history in `test-content/.boards/`. Image-backed boards also use their media ID with the board endpoints. `GET /api/boards/{id}` returns board metadata, strokes, and any background URL needed by the client; current image-backed boards point directly at the root media URL (`/media/{id}`), so the UI does not fetch a separate board background endpoint. The master board is the exception: it uses the fixed ID `master`, lives only in `test-content/.boards/master.jsonl`, and is shown from the sidebar rather than as a main-feed item. The older `GET /api/boards` list endpoint and `GET /api/boards/{id}/background` background endpoint still exist in the backend, but the current Svelte UI does not use them to render boards.
 
+Asteroids:
+
+- `GET /api/ships/socket` upgrades to the game WebSocket. The server owns the `1600x900` simulation and accepts only sequenced input/action commands.
+- `GET /api/ships/scores` returns the filesystem-backed solo leaderboard. Completed timed solo rounds are saved by the server; client score submission is not exposed.
+- The welcome message includes a resume token that restores the same player for up to 10 seconds after a disconnect.
+
 ## Notes for Contributors
 
 - Keep production as one Go server that serves the API, media files, and built SPA.
+- Keep WebSocket limited to Asteroids; other one-way live updates use SSE.
 - Keep comments and other v1 state filesystem-backed; do not add a database.
 - Keep UI work aligned with `DESIGN.md` and existing Svelte 5 rune patterns.
 - Record durable decisions, verification outcomes, and known issues in `MEMORY.md`.

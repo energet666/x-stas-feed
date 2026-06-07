@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"feed-ai/internal/game"
 	"feed-ai/internal/media"
 )
 
@@ -30,7 +31,7 @@ type Server struct {
 	mux       *http.ServeMux
 	library   *media.Library
 	comments  *commentHub
-	ships     *shipHub
+	ships     *game.World
 	scores    *media.GameScoreStore
 	boards    *media.BoardStore
 	boardHub  *boardHub
@@ -48,13 +49,16 @@ func New(library *media.Library, contentRoot string, staticDir string, logger *l
 		mux:       http.NewServeMux(),
 		library:   library,
 		comments:  newCommentHub(),
-		ships:     newShipHub(),
 		scores:    media.NewGameScoreStore(contentRoot),
 		boards:    boardStore,
 		boardHub:  newBoardHub(),
 		staticDir: staticDir,
 		logger:    logger,
 	}
+	s.ships = game.NewWorld(func(name string, score int) error {
+		_, err := s.scores.Add(name, score)
+		return err
+	})
 	s.routes()
 	return s
 }
@@ -71,7 +75,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/comments/events", s.handleCommentEvents)
 	s.mux.HandleFunc("GET /api/ships/socket", s.handleShipSocket)
 	s.mux.HandleFunc("GET /api/ships/scores", s.handleShipScores)
-	s.mux.HandleFunc("POST /api/ships/scores", s.handleCreateShipScore)
 	s.mux.HandleFunc("GET /api/media/{id}", s.handleMediaItem)
 	s.mux.HandleFunc("GET /api/media/{id}/comments", s.handleComments)
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
@@ -414,24 +417,6 @@ func (s *Server) handleShipScores(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]media.GameScore{"scores": scores})
 }
 
-func (s *Server) handleCreateShipScore(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Name  string `json:"name"`
-		Score int    `json:"score"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid score payload")
-		return
-	}
-
-	scores, err := s.scores.Add(request.Name, request.Score)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to save score")
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string][]media.GameScore{"scores": scores})
-}
-
 func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 	path, mimeType, err := s.library.PathForID(r.PathValue("id"))
 	if err != nil {
@@ -700,7 +685,7 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			r.Method,
 			clientIP(r),
 			r.URL.Path,
-			r.URL.RawQuery,
+			loggedQuery(r),
 			s.mediaRequestLogFields(r),
 			recorder.status,
 			r.ContentLength,
@@ -708,6 +693,15 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 			time.Since(started).Round(time.Millisecond),
 		)
 	})
+}
+
+func loggedQuery(r *http.Request) string {
+	if r.URL.Path != "/api/ships/socket" || r.URL.Query().Get("resumeToken") == "" {
+		return r.URL.RawQuery
+	}
+	query := r.URL.Query()
+	query.Set("resumeToken", "[redacted]")
+	return query.Encode()
 }
 
 func clientIP(r *http.Request) string {
