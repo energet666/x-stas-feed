@@ -268,7 +268,7 @@
     flex-direction: column;
     gap: 0.55rem;
     pointer-events: none;
-    transition: transform 180ms ease;
+    transition: transform 280ms ease;
   }
 
   .feed-card-top-stack {
@@ -297,7 +297,7 @@
     display: block;
     pointer-events: none;
     transform: translateY(calc(100% + 1.5rem));
-    transition: transform 180ms ease;
+    transition: transform 280ms ease;
   }
 
   .feed-card-bottom-accessory-visible {
@@ -316,8 +316,8 @@
     background: var(--background-image-glass-overlay);
     box-shadow: var(--shadow-overlay);
     color: var(--color-fg-primary);
-    backdrop-filter: blur(10px) saturate(140%);
-    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    backdrop-filter: blur(5px) saturate(140%);
+    -webkit-backdrop-filter: blur(5px) saturate(140%);
   }
 
   .feed-card-social-chin {
