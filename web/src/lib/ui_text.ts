@@ -71,7 +71,14 @@ export const uiText = {
     randomNicknameTooltip: 'Случайный никнейм',
     background: 'Фон',
     backgroundCosmos: 'Космос',
-    backgroundDaylight: 'Светлый'
+    backgroundDaylight: 'Светлый',
+    pageBackground: 'Фон страницы',
+    pageBackgroundAnimation: 'Анимация фона страницы',
+    backgroundStatic: 'Статичный',
+    backgroundAnimated: 'Анимированный',
+    cardBackground: 'Фон карточки',
+    cardBackgroundSimple: 'Простой',
+    cardBackgroundAmbient: 'Амбиент'
   },
   activity: {
     open: 'Открыть активность',

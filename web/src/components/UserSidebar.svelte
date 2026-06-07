@@ -10,15 +10,23 @@
   let { 
     username = $bindable(fallbackUsername),
     pageBackgroundMode = 'cosmos',
+    pageBackgroundAnimated = true,
+    cardBackgroundMode = 'ambient',
     debugToolsEnabled = false,
     onExpandMasterBoard,
-    onPageBackgroundModeChange
+    onPageBackgroundModeChange,
+    onPageBackgroundAnimatedChange,
+    onCardBackgroundModeChange
   }: { 
     username: string;
     pageBackgroundMode?: 'cosmos' | 'daylight';
+    pageBackgroundAnimated?: boolean;
+    cardBackgroundMode?: 'simple' | 'ambient';
     debugToolsEnabled?: boolean;
     onExpandMasterBoard: () => void;
     onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight') => void;
+    onPageBackgroundAnimatedChange?: (animated: boolean) => void;
+    onCardBackgroundModeChange?: (mode: 'simple' | 'ambient') => void;
   } = $props();
   let usernameInput = $state<HTMLInputElement | undefined>(undefined);
   let visitorPanelCollapsed = $state(false);
@@ -169,7 +177,7 @@
       </div>
 
       <div class="background-field">
-        <span class="background-label">{t.profile.background}</span>
+        <span class="background-label">{t.profile.pageBackground}</span>
         <div class="background-segmented" role="group" aria-label={t.profile.background}>
           <button
             class:background-segment-active={pageBackgroundMode === 'cosmos'}
@@ -188,6 +196,46 @@
           >
             <Sun size={15} />
             <span>{t.profile.backgroundDaylight}</span>
+          </button>
+        </div>
+        <div class="background-segmented background-segmented-secondary" role="group" aria-label={t.profile.pageBackgroundAnimation}>
+          <button
+            class:background-segment-active={!pageBackgroundAnimated}
+            type="button"
+            aria-pressed={!pageBackgroundAnimated}
+            onclick={() => onPageBackgroundAnimatedChange?.(false)}
+          >
+            {t.profile.backgroundStatic}
+          </button>
+          <button
+            class:background-segment-active={pageBackgroundAnimated}
+            type="button"
+            aria-pressed={pageBackgroundAnimated}
+            onclick={() => onPageBackgroundAnimatedChange?.(true)}
+          >
+            {t.profile.backgroundAnimated}
+          </button>
+        </div>
+      </div>
+
+      <div class="background-field">
+        <span class="background-label">{t.profile.cardBackground}</span>
+        <div class="background-segmented" role="group" aria-label={t.profile.cardBackground}>
+          <button
+            class:background-segment-active={cardBackgroundMode === 'simple'}
+            type="button"
+            aria-pressed={cardBackgroundMode === 'simple'}
+            onclick={() => onCardBackgroundModeChange?.('simple')}
+          >
+            {t.profile.cardBackgroundSimple}
+          </button>
+          <button
+            class:background-segment-active={cardBackgroundMode === 'ambient'}
+            type="button"
+            aria-pressed={cardBackgroundMode === 'ambient'}
+            onclick={() => onCardBackgroundModeChange?.('ambient')}
+          >
+            {t.profile.cardBackgroundAmbient}
           </button>
         </div>
       </div>
@@ -343,6 +391,10 @@
   .background-segment-active {
     background: var(--color-action-hover-strong);
     color: var(--color-fg-primary);
+  }
+
+  .background-segmented-secondary {
+    margin-top: 0.45rem;
   }
 
   .background-segmented :global(svg) {

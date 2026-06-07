@@ -1,7 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  let { mode = "cosmos" }: { mode?: "cosmos" | "daylight" } = $props();
+  let {
+    mode = "cosmos",
+    animated = true
+  }: {
+    mode?: "cosmos" | "daylight";
+    animated?: boolean;
+  } = $props();
 
   const idleFrameMs = 1000 / 24;
   const scrollFrameMs = 1000 / 60;
@@ -79,8 +85,22 @@
     drawParticles();
   });
 
+  $effect(() => {
+    animated;
+    if (!canvas || width === 0 || height === 0) return;
+    if (!animated) {
+      cancelScheduledFrame();
+      drawParticles();
+      return;
+    }
+
+    lastFrameAt = 0;
+    lastScrollY = window.scrollY;
+    requestNextFrame();
+  });
+
   function handleScroll() {
-    if (reducedMotion) return;
+    if (!animated || reducedMotion) return;
     const currentScrollY = window.scrollY;
     const delta = currentScrollY - lastScrollY;
     lastScrollY = currentScrollY;
@@ -328,7 +348,7 @@
   }
 
   function requestImmediateFrame() {
-    if (animationFrameId !== undefined || reducedMotion || document.visibilityState === "hidden") return;
+    if (!animated || animationFrameId !== undefined || reducedMotion || document.visibilityState === "hidden") return;
     if (frameTimerId !== undefined) {
       clearTimeout(frameTimerId);
       frameTimerId = undefined;
@@ -340,6 +360,7 @@
     if (
       animationFrameId !== undefined ||
       frameTimerId !== undefined ||
+      !animated ||
       reducedMotion ||
       document.visibilityState === "hidden"
     ) return;
@@ -348,7 +369,7 @@
     if (delay > 4) {
       frameTimerId = window.setTimeout(() => {
         frameTimerId = undefined;
-        if (animationFrameId === undefined && !reducedMotion && document.visibilityState !== "hidden") {
+        if (animationFrameId === undefined && animated && !reducedMotion && document.visibilityState !== "hidden") {
           animationFrameId = requestAnimationFrame(animate);
         }
       }, delay);
@@ -378,7 +399,7 @@
     lastFrameAt = 0;
     lastScrollY = window.scrollY;
     drawParticles();
-    requestNextFrame();
+    if (animated) requestNextFrame();
   }
 
   function syncMotionPreference() {
@@ -394,7 +415,7 @@
 
     lastFrameAt = 0;
     lastScrollY = window.scrollY;
-    requestNextFrame();
+    if (animated) requestNextFrame();
   }
 
   onMount(() => {
@@ -407,7 +428,7 @@
     window.addEventListener("scroll", handleScroll, { passive: true });
     document.addEventListener("visibilitychange", handleVisibilityChange);
     motionMediaQuery.addEventListener("change", syncMotionPreference);
-    requestNextFrame();
+    if (animated) requestNextFrame();
 
     return () => {
       window.removeEventListener("resize", resize);

@@ -1482,10 +1482,11 @@
   ondrop={handleWindowDrop}
 />
 
-<main class="app-shell min-h-screen" class:app-shell-daylight={pageBackgroundMode === 'daylight'}>
-  {#if backgroundParticlesEnabled}
-    <BackgroundParticles mode={pageBackgroundMode} />
-  {/if}
+<main
+  class="app-shell min-h-screen"
+  class:app-shell-daylight={pageBackgroundMode === 'daylight'}
+>
+  <BackgroundParticles mode={pageBackgroundMode} animated={backgroundParticlesEnabled} />
   {#if asteroidsEnabled}
     <AsteroidsShip username={commentUsername} />
   {/if}
@@ -1529,9 +1530,13 @@
         <UserSidebar 
           bind:username 
           {pageBackgroundMode}
+          pageBackgroundAnimated={backgroundParticlesEnabled}
+          {cardBackgroundMode}
           {debugToolsEnabled}
           onExpandMasterBoard={toggleMasterBoard}
           onPageBackgroundModeChange={(mode) => (pageBackgroundMode = mode)}
+          onPageBackgroundAnimatedChange={(animated) => (backgroundParticlesEnabled = animated)}
+          onCardBackgroundModeChange={(mode) => (cardBackgroundMode = mode)}
         />
       </div>
 
