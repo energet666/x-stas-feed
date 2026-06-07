@@ -3,6 +3,7 @@
   import type { MediaItem } from '../lib/feed';
   import FeedCardCommentsPreview from './FeedCardCommentsPreview.svelte';
   import FeedCardInfoPanel from './FeedCardInfoPanel.svelte';
+  import { pointerPositionChanged } from '../lib/pointer_movement';
   import { uiText as t } from '../lib/ui_text';
 
   let {
@@ -55,32 +56,14 @@
   const hasBottomOverlay = $derived(bottomAccessory !== undefined);
   const showOverlayLayer = $derived(!suppressOverlays && (hasTopOverlay || hasBottomOverlay));
 
-  function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
-    const target = event.currentTarget;
-    if (!(target instanceof HTMLElement)) return false;
-    const bounds = target.getBoundingClientRect();
-    return (
-      event.clientX >= bounds.left &&
-      event.clientX <= bounds.right &&
-      event.clientY >= bounds.top &&
-      event.clientY <= bounds.bottom
-    );
+  function revealOverlayFromPointer(event: PointerEvent) {
+    if (pointerPositionChanged(event)) revealOverlay();
   }
 
   function keepOverlayFromPanel(event: PointerEvent | MouseEvent | TouchEvent | FocusEvent) {
     if (suppressOverlays) return;
     event.stopPropagation();
     onKeep();
-  }
-
-  function releaseOverlayFromPanel(event: PointerEvent | MouseEvent) {
-    if (suppressOverlays) return;
-    event.stopPropagation();
-    if (eventIsInsideCurrentTarget(event)) {
-      onKeep();
-      return;
-    }
-    onReveal();
   }
 
   function handleFrameClick(event: MouseEvent) {
@@ -127,15 +110,12 @@
     class="media-frame"
     role="presentation"
     class:media-frame-overlays-suppressed={suppressOverlays}
-    onpointermove={revealOverlay}
-    onpointerenter={revealOverlay}
-    onmousemove={revealOverlay}
-    onmouseenter={revealOverlay}
+    onpointermove={revealOverlayFromPointer}
     ontouchstart={revealOverlay}
     onpointerdown={revealOverlay}
     onclick={handleFrameClick}
     onfocusin={keepOverlay}
-    onmouseleave={hideOverlay}
+    onpointerleave={hideOverlay}
   >
     <div class="feed-card-content">
       {@render content()}
@@ -158,13 +138,8 @@
             <section
               class="feed-card-panel"
               aria-label={t.media.information}
-              onpointerenter={keepOverlayFromPanel}
               onpointermove={keepOverlayFromPanel}
               onpointerdown={keepOverlayFromPanel}
-              onpointerleave={releaseOverlayFromPanel}
-              onmouseenter={keepOverlayFromPanel}
-              onmousemove={keepOverlayFromPanel}
-              onmouseleave={releaseOverlayFromPanel}
               ontouchstart={keepOverlayFromPanel}
               onfocusin={keepOverlayFromPanel}
             >
@@ -176,13 +151,8 @@
             <section
               class="feed-card-panel"
               aria-label={t.media.actions}
-              onpointerenter={keepOverlayFromPanel}
               onpointermove={keepOverlayFromPanel}
               onpointerdown={keepOverlayFromPanel}
-              onpointerleave={releaseOverlayFromPanel}
-              onmouseenter={keepOverlayFromPanel}
-              onmousemove={keepOverlayFromPanel}
-              onmouseleave={releaseOverlayFromPanel}
               ontouchstart={keepOverlayFromPanel}
               onfocusin={keepOverlayFromPanel}
             >
@@ -199,13 +169,8 @@
               <section
                 class="feed-card-panel"
                 aria-label={t.media.controls}
-                onpointerenter={keepOverlayFromPanel}
                 onpointermove={keepOverlayFromPanel}
                 onpointerdown={keepOverlayFromPanel}
-                onpointerleave={releaseOverlayFromPanel}
-                onmouseenter={keepOverlayFromPanel}
-                onmousemove={keepOverlayFromPanel}
-                onmouseleave={releaseOverlayFromPanel}
                 ontouchstart={keepOverlayFromPanel}
                 onfocusin={keepOverlayFromPanel}
               >

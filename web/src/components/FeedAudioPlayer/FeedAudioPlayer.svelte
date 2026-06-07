@@ -314,10 +314,6 @@
       aria-label={t.playback.audioPlayer(item.displayName)}
       aria-pressed={!paused}
       tabindex="0"
-      onpointermove={onReveal}
-      onpointerenter={onReveal}
-      onmousemove={onReveal}
-      onmouseenter={onReveal}
       onclick={handleCardClick}
       onkeydown={handleKeyboard}
       ontouchstart={onReveal}

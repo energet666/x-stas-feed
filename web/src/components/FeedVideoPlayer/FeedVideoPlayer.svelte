@@ -33,6 +33,7 @@
     supportsPictureInPicture,
     type SafariVideoElement
   } from './utils';
+  import { pointerPositionChanged } from '../../lib/pointer_movement';
 
   const KEYBOARD_FAST_FORWARD_RATE = 5;
 
@@ -139,6 +140,10 @@
     showControls = true;
     showCursor = true;
     scheduleControlsHide();
+  }
+
+  function revealControlsFromPointer(event: PointerEvent) {
+    if (pointerPositionChanged(event)) revealControls();
   }
 
   function scheduleControlsHide() {
@@ -793,13 +798,10 @@
       class:video-cursor-hidden={!showCursor && !isOverControls && !isDragging}
       role="presentation"
       aria-label={t.playback.videoPlayer(item.displayName)}
-      onpointermove={revealControls}
-      onpointerenter={revealControls}
-      onmousemove={revealControls}
-      onmouseenter={revealControls}
+      onpointermove={revealControlsFromPointer}
       ontouchstart={handleContainerTouch}
       onfocusin={keepControls}
-      onmouseleave={hideControls}
+      onpointerleave={hideControls}
     >
       <!-- svelte-ignore a11y_media_has_caption -->
       <video
