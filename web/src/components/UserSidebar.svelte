@@ -407,7 +407,7 @@
     width: 100%;
     aspect-ratio: 3 / 2;
     border-radius: var(--radius-panel);
-    border: 0;
+    border: 1px solid var(--color-border-glass);
     overflow: hidden;
     cursor: pointer;
     padding: 0;
