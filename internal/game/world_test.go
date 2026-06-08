@@ -272,6 +272,43 @@ func TestFinishedSoloRoundStaysFinishedUntilRestart(t *testing.T) {
 	}
 }
 
+func TestFinishedSoloRoundIgnoresLateGameplayCommands(t *testing.T) {
+	w, _ := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(welcome.PlayerID, Command{Type: "finish", Seq: 2})
+
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 3, Input: Input{Left: true, Thrust: true}})
+	w.Apply(welcome.PlayerID, Command{Type: "shoot", Seq: 4})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	if w.status != "finished" || p.active || p.input != (Input{}) {
+		t.Fatalf("late gameplay command restarted finished round: status=%q player=%#v", w.status, p)
+	}
+	if len(w.bullets) != 0 {
+		t.Fatalf("late shoot created bullets in finished round: %#v", w.bullets)
+	}
+}
+
+func TestFinishedSoloRoundCanRestartAfterLeavingLeaderboard(t *testing.T) {
+	w, _ := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(welcome.PlayerID, Command{Type: "finish", Seq: 2})
+	w.Apply(welcome.PlayerID, Command{Type: "leave", Seq: 3})
+	w.Apply(welcome.PlayerID, Command{Type: "restart", Seq: 4})
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 5, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	if w.status != "playing" || w.mode != "solo" || !p.active || !p.input.Thrust || !p.awaySince.IsZero() {
+		t.Fatalf("expected gameplay input to resume after explicit restart, status=%q mode=%q player=%#v", w.status, w.mode, p)
+	}
+}
+
 func TestLeavingFinishedSoloRoundResetsWorldAfterGrace(t *testing.T) {
 	w, now := newTestWorld(t)
 	welcome, _, _ := w.Connect("", "Pilot")

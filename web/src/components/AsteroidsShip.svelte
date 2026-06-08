@@ -192,9 +192,10 @@
       event.stopImmediatePropagation();
       return;
     }
-    if (roundStatus === 'finished' && event.code === 'Enter' && backgroundKeyboardFocused && !videoActive) {
-      restartGame();
+    if (roundStatus === 'finished' && gameVisible) {
+      if (event.code === 'Enter' && !event.repeat) restartGame();
       event.preventDefault();
+      event.stopImmediatePropagation();
       return;
     }
     if (roundStatus === 'playing' && mode === 'solo' && event.code === 'Enter' && backgroundKeyboardFocused && !videoActive) {
@@ -203,10 +204,11 @@
       return;
     }
     if (!isShipKey(event) || isTextEntryTarget(event.target)) return;
-    if (videoActive || !backgroundKeyboardFocused || roundStatus === 'finished') {
+    if (videoActive || !backgroundKeyboardFocused) {
       event.preventDefault();
       return;
     }
+    if (roundStatus === 'finished') restartGame();
     primeAudio();
     if (event.code === 'Space') {
       showGame(true);
@@ -220,6 +222,13 @@
   }
 
   function handleKeyup(event: KeyboardEvent) {
+    if (roundStatus === 'finished' && gameVisible) {
+      if (event.code !== 'Space') keys.delete(event.key);
+      lastSentInput = JSON.stringify(currentInput());
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (!isShipKey(event)) return;
     if (event.code !== 'Space') {
       keys.delete(event.key);
@@ -303,9 +312,14 @@
   }
 
   function applySnapshot(snapshot: ShipSnapshot) {
+    const previousRoundStatus = roundStatus;
     mode = snapshot.mode;
     roundStatus = snapshot.status;
     remainingMs = snapshot.remainingMs;
+    if (snapshot.status === 'finished' && previousRoundStatus !== 'finished') {
+      keys.clear();
+      lastSentInput = JSON.stringify(currentInput());
+    }
     const authoritativeLocal = snapshot.players.find((player) => player.id === playerId);
     if (authoritativeLocal) {
       if (

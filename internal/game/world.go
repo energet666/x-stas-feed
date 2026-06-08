@@ -277,11 +277,18 @@ func (w *World) Apply(playerID string, command Command) bool {
 
 	switch command.Type {
 	case "input":
+		if w.status == "finished" {
+			p.input = Input{}
+			break
+		}
 		p.input = command.Input
 		if command.Input.Left || command.Input.Right || command.Input.Thrust {
 			w.activateLocked(p, now)
 		}
 	case "shoot":
+		if w.status == "finished" {
+			break
+		}
 		w.activateLocked(p, now)
 		if p.active && !hasBulletForOwner(w.bullets, p.id) {
 			w.spawnBulletLocked(p)
