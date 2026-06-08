@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, History, Minus, Palette, Pencil, Plus, X } from 'lucide-svelte';
+  import { Activity, Hand, HandGrab, History, Minus, Palette, Pencil, Plus, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -99,6 +99,7 @@
   const MAX_ZOOM = 6;
   const ZOOM_STEP = 0.25;
   const WHEEL_ZOOM_SENSITIVITY = 0.002;
+  const ZOOM_WHEEL_MOMENTUM_TIMEOUT_MS = 180;
 
   let zoom = $state(MIN_ZOOM);
   let panX = $state(0);
@@ -109,6 +110,16 @@
   let panStartClientY = $state(0);
   let panStartX = $state(0);
   let panStartY = $state(0);
+  let panCursorVisible = $state(false);
+  let panCursorX = $state(0);
+  let panCursorY = $state(0);
+  let lastPointerClientX = $state(0);
+  let lastPointerClientY = $state(0);
+  let hasPointerPosition = $state(false);
+  let zoomWheelMomentumTimer: ReturnType<typeof setTimeout> | null = null;
+  const canvasCursor = $derived(
+    panPointerId !== null || spacePressed || (!historyMode && brushCursorVisible) ? 'none' : 'default'
+  );
 
   onMount(() => {
     loadBrushSettings();
@@ -123,6 +134,7 @@
       window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
       window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
       window.removeEventListener('resize', clampPanToViewport);
+      clearZoomWheelMomentum();
       hideCancelHint();
     };
   });
@@ -303,8 +315,13 @@
     );
   }
 
-  function updateBrushCursor(event: Pick<MouseEvent, 'clientX' | 'clientY' | 'currentTarget'>) {
+  function updateBrushCursor(event: Pick<MouseEvent, 'clientX' | 'clientY'>) {
     if (!expanded) return;
+    updatePanCursorPosition(event);
+    if (spacePressed || panPointerId !== null) {
+      brushCursorVisible = false;
+      return;
+    }
 
     const metrics = getCanvasMetrics();
     if (!metrics) return;
@@ -318,18 +335,36 @@
     if (!wrap) return;
 
     const wrapRect = wrap.getBoundingClientRect();
-    const displayScale = metrics.renderedWidth / canvasWidth;
 
     brushCursorVisible = true;
     brushCursorX = event.clientX - wrapRect.left;
     brushCursorY = event.clientY - wrapRect.top;
-    updateBrushCursorSize(metrics);
+    updateBrushCursorSize();
   }
 
-  function updateBrushCursorSize(metrics = getCanvasMetrics()) {
-    brushCursorSize = metrics
-      ? Math.max(2, currentSize * (metrics.renderedWidth / canvasWidth))
-      : currentSize;
+  function updatePanCursorPosition(event: Pick<MouseEvent, 'clientX' | 'clientY'>) {
+    const wrap = canvasEl?.parentElement?.parentElement;
+    if (!wrap) return;
+
+    lastPointerClientX = event.clientX;
+    lastPointerClientY = event.clientY;
+    hasPointerPosition = true;
+    const wrapRect = wrap.getBoundingClientRect();
+    panCursorX = event.clientX - wrapRect.left;
+    panCursorY = event.clientY - wrapRect.top;
+    panCursorVisible =
+      panCursorX >= 0 &&
+      panCursorX <= wrapRect.width &&
+      panCursorY >= 0 &&
+      panCursorY <= wrapRect.height;
+  }
+
+  function updateBrushCursorSize() {
+    const stageWidth = canvasEl?.parentElement?.offsetWidth;
+    brushCursorSize =
+      stageWidth && canvasWidth > 0
+        ? Math.max(2, currentSize * (stageWidth / canvasWidth) * zoom)
+        : currentSize;
   }
 
   function updateCancelHint(pointerInsideCanvas: boolean) {
@@ -365,6 +400,10 @@
     if (!isDrawing) {
       brushCursorVisible = false;
       hideCancelHint();
+    }
+    if (panPointerId === null) {
+      panCursorVisible = false;
+      hasPointerPosition = false;
     }
   }
 
@@ -847,9 +886,16 @@
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
       event.stopPropagation();
+      extendZoomWheelMomentum();
       const nextZoom = zoom * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
       setZoom(nextZoom, event.clientX, event.clientY);
       updateBrushCursor(event);
+      return;
+    }
+    if (zoomWheelMomentumTimer) {
+      event.preventDefault();
+      event.stopPropagation();
+      extendZoomWheelMomentum();
       return;
     }
     if (historyMode) return;
@@ -861,8 +907,22 @@
     updateBrushCursor(event);
   }
 
+  function extendZoomWheelMomentum() {
+    clearZoomWheelMomentum();
+    zoomWheelMomentumTimer = setTimeout(() => {
+      zoomWheelMomentumTimer = null;
+    }, ZOOM_WHEEL_MOMENTUM_TIMEOUT_MS);
+  }
+
+  function clearZoomWheelMomentum() {
+    if (!zoomWheelMomentumTimer) return;
+    clearTimeout(zoomWheelMomentumTimer);
+    zoomWheelMomentumTimer = null;
+  }
+
   function beginPan(event: PointerEvent) {
     clearActiveStroke();
+    updatePanCursorPosition(event);
     panPointerId = event.pointerId;
     panStartClientX = event.clientX;
     panStartClientY = event.clientY;
@@ -875,6 +935,7 @@
   }
 
   function updatePan(event: PointerEvent) {
+    updatePanCursorPosition(event);
     panX = panStartX + event.clientX - panStartClientX;
     panY = panStartY + event.clientY - panStartClientY;
     clampPanToViewport();
@@ -1081,6 +1142,7 @@
 
     if (event.code === 'Space' && !isEditableKeyboardTarget(event.target)) {
       spacePressed = true;
+      brushCursorVisible = false;
       event.preventDefault();
     }
 
@@ -1115,6 +1177,12 @@
   function handleWindowKeyup(event: KeyboardEvent) {
     if (event.code === 'Space') {
       spacePressed = false;
+      if (!historyMode && panPointerId === null && hasPointerPosition) {
+        updateBrushCursor({
+          clientX: lastPointerClientX,
+          clientY: lastPointerClientY
+        });
+      }
     }
   }
 
@@ -1261,11 +1329,9 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions - the focused drawing surface needs keyboard shortcuts while the canvas handles pointer input. -->
     <div
       class="drawing-canvas-wrap"
-      class:drawing-canvas-panning={panPointerId !== null}
-      class:drawing-canvas-pan-ready={spacePressed}
       role="application"
       aria-label={t.board.drawingBoardNamed(boardName)}
-      style="--drawing-canvas-aspect: {canvasWidth / canvasHeight};"
+      style="--drawing-canvas-aspect: {canvasWidth / canvasHeight}; cursor: {canvasCursor};"
       onkeydown={handleKeyDown}
       onwheel={handleBoardWheel}
       tabindex="-1"
@@ -1288,7 +1354,7 @@
           onpointercancel={handlePointerCancel}
           onpointerenter={handlePointerEnter}
           onpointerleave={handlePointerLeave}
-          style="cursor: {!historyMode && brushCursorVisible ? 'none' : 'default'}; touch-action: none;"
+          style="touch-action: none;"
         ></canvas>
         <div class="drawing-canvas-boundary" aria-hidden="true"></div>
       </div>
@@ -1303,7 +1369,7 @@
       {#if !historyMode}
         <div
           class="drawing-brush-cursor"
-          class:drawing-brush-cursor-visible={brushCursorVisible}
+          class:drawing-brush-cursor-visible={brushCursorVisible && !spacePressed && panPointerId === null}
           style="
             width: {brushCursorSize}px;
             height: {brushCursorSize}px;
@@ -1311,6 +1377,19 @@
             border-color: {currentColor};
           "
         ></div>
+      {/if}
+      {#if panCursorVisible && (spacePressed || panPointerId !== null)}
+        <div
+          class="drawing-pan-cursor"
+          style="transform: translate3d({panCursorX}px, {panCursorY}px, 0) translate(-50%, -50%);"
+          aria-hidden="true"
+        >
+          {#if panPointerId !== null}
+            <HandGrab size={24} strokeWidth={2.2} />
+          {:else}
+            <Hand size={24} strokeWidth={2.2} />
+          {/if}
+        </div>
       {/if}
 
       {#if onClose}
@@ -1629,6 +1708,7 @@
     width: 100%;
     height: 100%;
     display: block;
+    cursor: inherit;
   }
 
   .drawing-canvas-boundary {
@@ -1646,16 +1726,6 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-  }
-
-  .drawing-canvas-pan-ready .drawing-canvas,
-  .drawing-canvas-pan-ready .drawing-brush-cursor {
-    cursor: grab !important;
-  }
-
-  .drawing-canvas-panning .drawing-canvas,
-  .drawing-canvas-panning .drawing-brush-cursor {
-    cursor: grabbing !important;
   }
 
   .drawing-brush-cursor {
@@ -1676,6 +1746,23 @@
 
   .drawing-brush-cursor-visible {
     opacity: 1;
+  }
+
+  .drawing-pan-cursor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    display: grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    place-items: center;
+    color: #fff;
+    filter:
+      drop-shadow(0 0 1px rgba(0, 0, 0, 0.95))
+      drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72));
+    pointer-events: none;
+    will-change: transform;
   }
 
   .drawing-cancel-hint {
