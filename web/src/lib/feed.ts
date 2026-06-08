@@ -63,6 +63,7 @@ export type ShipCommand = {
 export type ShipState = {
   id: string;
   name: string;
+  state: 'spectator' | 'active' | 'inactive' | 'away';
   x: number;
   y: number;
   vx: number;

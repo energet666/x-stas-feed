@@ -78,6 +78,7 @@ type Snapshot struct {
 type PlayerState struct {
 	ID        string  `json:"id"`
 	Name      string  `json:"name"`
+	State     string  `json:"state"`
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	VX        float64 `json:"vx"`
@@ -136,10 +137,12 @@ type player struct {
 	vy              float64
 	angle           float64
 	input           Input
+	inGame          bool
 	active          bool
 	awaitingRespawn bool
 	connected       bool
 	disconnectedAt  time.Time
+	awaySince       time.Time
 	collisionAfter  time.Time
 	score           int
 	kills           int
@@ -221,7 +224,6 @@ func (w *World) Connect(resumeToken, name string) (Welcome, <-chan Snapshot, str
 	}
 	p.connected = true
 	p.disconnectedAt = time.Time{}
-	p.collisionAfter = now.Add(shipCollisionGrace)
 	p.lease = randomID(12)
 	if normalized := normalizeName(name); normalized != "Guest" || p.name == "" {
 		p.name = normalized
@@ -247,10 +249,12 @@ func (w *World) Disconnect(playerID, lease string) {
 	p.connected = false
 	p.disconnectedAt = w.now()
 	p.input = Input{}
-	p.active = false
+	if p.inGame {
+		p.active = false
+		p.awaySince = p.disconnectedAt
+	}
 	deleteBulletsForOwner(w.bullets, p.id)
 	p.sub = nil
-	w.resetEmptyWorldLocked()
 	w.publishLocked(nil)
 }
 
@@ -269,6 +273,7 @@ func (w *World) Apply(playerID string, command Command) bool {
 	}
 	p.ackSeq = command.Seq
 	now := w.now()
+	w.cleanupLocked(now)
 
 	switch command.Type {
 	case "input":
@@ -290,13 +295,10 @@ func (w *World) Apply(playerID string, command Command) bool {
 	case "leave":
 		p.input = Input{}
 		p.active = false
-		p.awaitingRespawn = false
-		p.asteroid = nil
-		deleteBulletsForOwner(w.bullets, p.id)
-		if w.mode == "solo" {
-			w.status = "idle"
+		if p.inGame {
+			p.awaySince = now
 		}
-		w.resetEmptyWorldLocked()
+		deleteBulletsForOwner(w.bullets, p.id)
 	case "name":
 		p.name = normalizeName(command.Name)
 	case "heartbeat":
@@ -336,7 +338,7 @@ func (w *World) step() {
 	}
 	if w.mode == "solo" && !w.roundEndsAt.IsZero() && !now.Before(w.roundEndsAt) {
 		for _, p := range w.players {
-			if p.active {
+			if p.inGame {
 				w.finishSoloLocked(p, true)
 				break
 			}
@@ -345,10 +347,12 @@ func (w *World) step() {
 	}
 
 	for _, p := range w.players {
-		if !p.connected || !p.active {
+		if p.connected && p.active {
+			w.movePlayerLocked(p)
+		}
+		if !p.inGame {
 			continue
 		}
-		w.movePlayerLocked(p)
 		if p.asteroid == nil && (p.respawnAt.IsZero() || !now.Before(p.respawnAt)) {
 			w.spawnAsteroidLocked(p)
 		}
@@ -376,6 +380,9 @@ func (w *World) activateLocked(p *player, now time.Time) {
 	if p.active {
 		return
 	}
+	joining := !p.inGame
+	p.inGame = true
+	p.awaySince = time.Time{}
 	if w.status != "playing" {
 		w.mode = "solo"
 		w.status = "playing"
@@ -384,16 +391,13 @@ func (w *World) activateLocked(p *player, now time.Time) {
 			other.score = 0
 			other.kills = 0
 		}
-	} else if w.mode == "solo" {
-		for _, other := range w.players {
-			if other.active && other.id != p.id {
-				w.mode = "multiplayer"
-				w.roundEndsAt = time.Time{}
-				for _, reset := range w.players {
-					reset.score = 0
-					reset.kills = 0
-				}
-				break
+	} else if joining && w.mode == "solo" && w.gamePlayerCountLocked() > 1 {
+		w.mode = "multiplayer"
+		w.roundEndsAt = time.Time{}
+		for _, reset := range w.players {
+			if reset.inGame {
+				reset.score = 0
+				reset.kills = 0
 			}
 		}
 	}
@@ -403,19 +407,6 @@ func (w *World) activateLocked(p *player, now time.Time) {
 	p.respawnAt = time.Time{}
 	if p.asteroid == nil {
 		w.spawnAsteroidLocked(p)
-	}
-	if w.mode == "solo" {
-		for _, other := range w.players {
-			if other.active && other.id != p.id {
-				w.mode = "multiplayer"
-				w.roundEndsAt = time.Time{}
-				for _, reset := range w.players {
-					reset.score = 0
-					reset.kills = 0
-				}
-				break
-			}
-		}
 	}
 }
 
@@ -487,7 +478,7 @@ func (w *World) detectCollisionsLocked(now time.Time) {
 	for bulletID, b := range w.bullets {
 		hit := false
 		for _, owner := range w.players {
-			if owner.asteroid == nil || !owner.connected || !owner.active {
+			if owner.asteroid == nil || !owner.inGame {
 				continue
 			}
 			if toroidalDistance(b.X, b.Y, owner.asteroid.X, owner.asteroid.Y) <= owner.asteroid.Radius+5 {
@@ -523,7 +514,7 @@ func (w *World) detectCollisionsLocked(now time.Time) {
 			continue
 		}
 		for _, owner := range w.players {
-			if owner.asteroid == nil || !owner.connected || !owner.active {
+			if owner.asteroid == nil || !owner.inGame {
 				continue
 			}
 			if toroidalDistance(p.x, p.y, owner.asteroid.X, owner.asteroid.Y) <= shipRadius+owner.asteroid.Radius {
@@ -567,7 +558,6 @@ func (w *World) crashPlayerLocked(victim, shooter *player, x, y float64, now tim
 	victim.input = Input{}
 	victim.vx = 0
 	victim.vy = 0
-	victim.asteroid = nil
 	deleteBulletsForOwner(w.bullets, victim.id)
 	victim.x, victim.y = spawnPoint(victim.id, w.players)
 	if w.mode == "solo" {
@@ -603,21 +593,57 @@ func (w *World) finishSoloLocked(p *player, save bool) {
 
 func (w *World) cleanupLocked(now time.Time) {
 	for id, p := range w.players {
-		if p.connected || p.disconnectedAt.IsZero() || now.Sub(p.disconnectedAt) <= reconnectGrace {
-			continue
+		if p.inGame && !p.awaySince.IsZero() && now.Sub(p.awaySince) > reconnectGrace {
+			p.inGame = false
+			p.active = false
+			p.awaitingRespawn = false
+			p.awaySince = time.Time{}
+			p.asteroid = nil
+			p.respawnAt = time.Time{}
+			p.score = 0
+			p.kills = 0
+			deleteBulletsForOwner(w.bullets, id)
 		}
-		delete(w.tokens, p.token)
-		delete(w.players, id)
-		deleteBulletsForOwner(w.bullets, id)
+		if !p.connected && !p.disconnectedAt.IsZero() && now.Sub(p.disconnectedAt) > reconnectGrace {
+			delete(w.tokens, p.token)
+			delete(w.players, id)
+			deleteBulletsForOwner(w.bullets, id)
+		}
 	}
-	w.resetEmptyWorldLocked()
+	w.reconcileModeLocked(now)
 }
 
-func (w *World) resetEmptyWorldLocked() {
+func (w *World) gamePlayerCountLocked() int {
+	count := 0
 	for _, p := range w.players {
-		if p.active || p.awaitingRespawn || (w.status == "finished" && p.connected) || (!p.connected && !p.disconnectedAt.IsZero()) {
-			return
+		if p.inGame {
+			count++
 		}
+	}
+	return count
+}
+
+func (w *World) reconcileModeLocked(now time.Time) {
+	count := w.gamePlayerCountLocked()
+	if count > 1 {
+		if w.status == "playing" {
+			w.mode = "multiplayer"
+			w.roundEndsAt = time.Time{}
+		}
+		return
+	}
+	if count == 1 {
+		if w.status == "playing" && w.mode == "multiplayer" {
+			w.mode = "solo"
+			w.roundEndsAt = now.Add(roundDuration)
+			for _, p := range w.players {
+				if p.inGame {
+					p.score = 0
+					p.kills = 0
+				}
+			}
+		}
+		return
 	}
 	w.mode = "idle"
 	w.status = "idle"
@@ -642,11 +668,11 @@ func (w *World) snapshotLocked(events []Event) Snapshot {
 	players := make([]PlayerState, 0, len(w.players))
 	asteroids := make([]Asteroid, 0, len(w.players))
 	for _, p := range w.players {
-		if !p.connected {
+		if !p.connected && !p.inGame {
 			continue
 		}
 		players = append(players, PlayerState{
-			ID: p.id, Name: p.name, X: p.x, Y: p.y, VX: p.vx, VY: p.vy, Angle: p.angle,
+			ID: p.id, Name: p.name, State: playerState(p), X: p.x, Y: p.y, VX: p.vx, VY: p.vy, Angle: p.angle,
 			Thrusting: p.input.Thrust && p.active, Active: p.active, Score: p.score, Kills: p.kills, AckSeq: p.ackSeq,
 			PingEcho: p.pingEcho,
 		})
@@ -669,6 +695,19 @@ func (w *World) snapshotLocked(events []Event) Snapshot {
 		Type: "snapshot", Tick: w.tick, Mode: w.mode, Status: w.status, RemainingMS: remaining,
 		Players: players, Bullets: bullets, Asteroids: asteroids, Events: events,
 	}
+}
+
+func playerState(p *player) string {
+	if !p.inGame {
+		return "spectator"
+	}
+	if !p.awaySince.IsZero() {
+		return "away"
+	}
+	if p.active {
+		return "active"
+	}
+	return "inactive"
 }
 
 func (w *World) publishLocked(events []Event) {

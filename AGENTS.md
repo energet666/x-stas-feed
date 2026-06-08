@@ -13,6 +13,7 @@ Build a modern Instagram-like infinite media feed for local photos, videos, audi
   - `internal/server` for HTTP routing, handlers, middleware, and static serving.
 - Use the standard Go `net/http` server.
 - Agents may start the local server only for their own short verification checks and must stop it immediately afterward, unless the user explicitly asks to keep or start the server.
+- In the sandbox, run Go commands with `GOCACHE=/tmp/feed-ai-go-cache`; the default macOS Go cache under `~/Library/Caches/go-build` is not writable and causes `operation not permitted`.
 - Do not use WebSocket for regular application features. Asteroids is the explicit exception: its bidirectional real-time protocol uses WebSocket for input commands and authoritative snapshots. Use SSE for other server-to-client async communication.
 - The app does not need a database, auth, or personalization for v1. Uploads, media likes, and comment likes are filesystem-backed.
 - Comments are required for v1, but must remain filesystem-backed; do not add a database.

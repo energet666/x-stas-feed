@@ -109,7 +109,7 @@
   );
   const killRows = $derived(
     [localShip, ...remoteShips]
-      .filter((player): player is ShipState => Boolean(player))
+      .filter((player): player is ShipState => player !== undefined && player.state !== 'spectator')
       .sort((a, b) => {
         if (a.id === playerId) return -1;
         if (b.id === playerId) return 1;

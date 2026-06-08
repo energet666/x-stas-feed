@@ -115,6 +115,26 @@ func TestSecondActivePlayerSwitchesSoloToMultiplayer(t *testing.T) {
 	}
 }
 
+func TestConnectedSpectatorDoesNotSwitchSoloToMultiplayer(t *testing.T) {
+	w, _ := newTestWorld(t)
+	spectator, _, _ := w.Connect("", "Spectator")
+	player, _, _ := w.Connect("", "Pilot")
+
+	w.Apply(player.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.mode != "solo" || w.players[spectator.PlayerID].inGame {
+		t.Fatalf("spectator changed game membership: mode=%q spectator=%#v", w.mode, w.players[spectator.PlayerID])
+	}
+	snapshot := w.snapshotLocked(nil)
+	for _, state := range snapshot.Players {
+		if state.ID == spectator.PlayerID && state.State != "spectator" {
+			t.Fatalf("expected explicit spectator state, got %#v", state)
+		}
+	}
+}
+
 func TestInactiveSpectatorReceivesActiveRemoteWorld(t *testing.T) {
 	w, _ := newTestWorld(t)
 	spectator, snapshots, _ := w.Connect("", "Spectator")
@@ -140,10 +160,10 @@ func TestInactiveSpectatorReceivesActiveRemoteWorld(t *testing.T) {
 			playerState = &snapshot.Players[index]
 		}
 	}
-	if spectatorState == nil || spectatorState.Active {
+	if spectatorState == nil || spectatorState.Active || spectatorState.State != "spectator" {
 		t.Fatalf("expected connected inactive spectator, got %#v", spectatorState)
 	}
-	if playerState == nil || !playerState.Active {
+	if playerState == nil || !playerState.Active || playerState.State != "active" {
 		t.Fatalf("expected active remote player, got %#v", playerState)
 	}
 	if len(snapshot.Asteroids) != 1 || snapshot.Asteroids[0].OwnerID != player.PlayerID {
@@ -151,16 +171,50 @@ func TestInactiveSpectatorReceivesActiveRemoteWorld(t *testing.T) {
 	}
 }
 
-func TestLeaveResetsEmptyWorld(t *testing.T) {
-	w, _ := newTestWorld(t)
+func TestLeaveKeepsPlayerForGraceThenResetsEmptyWorld(t *testing.T) {
+	w, now := newTestWorld(t)
 	welcome, _, _ := w.Connect("", "Pilot")
 	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.mu.Lock()
+	w.players[welcome.PlayerID].score = 300
+	w.mu.Unlock()
 	w.Apply(welcome.PlayerID, Command{Type: "leave", Seq: 2})
 
 	w.mu.Lock()
+	p := w.players[welcome.PlayerID]
+	if w.mode != "solo" || w.status != "playing" || !p.inGame || p.active || p.score != 300 || playerState(p) != "away" {
+		t.Fatalf("expected away player to retain the round during grace, mode=%q status=%q player=%#v", w.mode, w.status, p)
+	}
+	w.mu.Unlock()
+
+	*now = now.Add(reconnectGrace + time.Millisecond)
+	w.step()
+
+	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.mode != "idle" || w.status != "idle" || !w.roundEndsAt.IsZero() {
-		t.Fatalf("expected empty world to reset, mode=%q status=%q end=%v", w.mode, w.status, w.roundEndsAt)
+	if w.mode != "idle" || w.status != "idle" || p.inGame || playerState(p) != "spectator" {
+		t.Fatalf("expected expired player to leave the game, mode=%q status=%q player=%#v", w.mode, w.status, p)
+	}
+}
+
+func TestExpiredAwayPlayerReturnsRemainingParticipantToSolo(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "leave", Seq: 2})
+
+	*now = now.Add(reconnectGrace + time.Millisecond)
+	w.step()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.mode != "solo" || w.status != "playing" || w.roundEndsAt.IsZero() {
+		t.Fatalf("expected remaining participant to continue in solo, mode=%q status=%q end=%v", w.mode, w.status, w.roundEndsAt)
+	}
+	if !w.players[first.PlayerID].inGame || w.players[second.PlayerID].inGame {
+		t.Fatalf("unexpected game membership after grace: first=%#v second=%#v", w.players[first.PlayerID], w.players[second.PlayerID])
 	}
 }
 
@@ -218,17 +272,25 @@ func TestFinishedSoloRoundStaysFinishedUntilRestart(t *testing.T) {
 	}
 }
 
-func TestLeavingFinishedSoloRoundResetsWorld(t *testing.T) {
-	w, _ := newTestWorld(t)
+func TestLeavingFinishedSoloRoundResetsWorldAfterGrace(t *testing.T) {
+	w, now := newTestWorld(t)
 	welcome, _, _ := w.Connect("", "Pilot")
 	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
 	w.Apply(welcome.PlayerID, Command{Type: "finish", Seq: 2})
 	w.Apply(welcome.PlayerID, Command{Type: "leave", Seq: 3})
 
 	w.mu.Lock()
+	if w.status != "finished" || w.mode != "solo" {
+		t.Fatalf("expected finished round during grace, mode=%q status=%q", w.mode, w.status)
+	}
+	w.mu.Unlock()
+
+	*now = now.Add(reconnectGrace + time.Millisecond)
+	w.step()
+	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.status != "idle" || w.mode != "idle" {
-		t.Fatalf("expected leave to reset finished world, mode=%q status=%q", w.mode, w.status)
+		t.Fatalf("expected expired leave to reset finished world, mode=%q status=%q", w.mode, w.status)
 	}
 }
 
@@ -240,6 +302,8 @@ func TestSoloCrashRespawnsInsideSameRound(t *testing.T) {
 	w.mu.Lock()
 	p := w.players[welcome.PlayerID]
 	p.score = 300
+	asteroidID := p.asteroid.ID
+	asteroidX := p.asteroid.X
 	roundEndsAt := w.roundEndsAt
 	w.crashPlayerLocked(p, nil, p.x, p.y, *now)
 	w.mu.Unlock()
@@ -259,6 +323,9 @@ func TestSoloCrashRespawnsInsideSameRound(t *testing.T) {
 	if p.score != 100 || !p.awaitingRespawn || p.active {
 		t.Fatalf("unexpected crashed player state: score=%d awaiting=%v active=%v", p.score, p.awaitingRespawn, p.active)
 	}
+	if p.asteroid == nil || p.asteroid.ID != asteroidID || p.asteroid.X == asteroidX {
+		t.Fatalf("expected crashed player's asteroid to remain simulated, got %#v", p.asteroid)
+	}
 	w.mu.Unlock()
 
 	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 2, Input: Input{Thrust: true}})
@@ -272,15 +339,67 @@ func TestSoloCrashRespawnsInsideSameRound(t *testing.T) {
 	}
 }
 
+func TestDisconnectKeepsAwayPlayerAndAsteroidVisibleDuringGrace(t *testing.T) {
+	w, now := newTestWorld(t)
+	player, _, lease := w.Connect("", "Pilot")
+	spectator, snapshots, _ := w.Connect("", "Spectator")
+	w.Apply(player.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	w.players[player.PlayerID].score = 400
+	asteroidX := w.players[player.PlayerID].asteroid.X
+	w.mu.Unlock()
+	w.Disconnect(player.PlayerID, lease)
+	for range snapshotEveryTicks {
+		*now = now.Add(time.Second / tickRate)
+		w.step()
+	}
+
+	var snapshot Snapshot
+	for len(snapshots) > 0 {
+		snapshot = <-snapshots
+	}
+	var away *PlayerState
+	for index := range snapshot.Players {
+		if snapshot.Players[index].ID == player.PlayerID {
+			away = &snapshot.Players[index]
+			break
+		}
+	}
+	if away == nil || away.State != "away" || away.Score != 400 {
+		t.Fatalf("expected away player in spectator snapshot, got %#v for spectator %s", away, spectator.PlayerID)
+	}
+	if len(snapshot.Asteroids) != 1 || snapshot.Asteroids[0].X == asteroidX {
+		t.Fatalf("expected away player's asteroid to keep moving, got %#v", snapshot.Asteroids)
+	}
+}
+
 func TestReconnectWithinGraceRestoresPlayer(t *testing.T) {
 	w, now := newTestWorld(t)
 	first, _, lease := w.Connect("", "Pilot")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.mu.Lock()
+	w.players[first.PlayerID].score = 250
+	w.mu.Unlock()
 	w.Disconnect(first.PlayerID, lease)
 	*now = now.Add(9 * time.Second)
 
 	resumed, _, _ := w.Connect(first.ResumeToken, "Pilot")
 	if resumed.PlayerID != first.PlayerID || resumed.ResumeToken != first.ResumeToken {
 		t.Fatalf("expected resumed session, got %#v", resumed)
+	}
+	w.mu.Lock()
+	p := w.players[first.PlayerID]
+	if p.score != 250 || playerState(p) != "away" {
+		t.Fatalf("expected reconnect to preserve away state and score, got %#v", p)
+	}
+	w.mu.Unlock()
+
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 2, Input: Input{Thrust: true}})
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !p.active || playerState(p) != "active" || p.score != 250 {
+		t.Fatalf("expected control to resume the preserved player, got %#v", p)
 	}
 }
 
