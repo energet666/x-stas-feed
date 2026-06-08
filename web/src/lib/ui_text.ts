@@ -165,7 +165,11 @@ export const uiText = {
     color: 'Цвет',
     customColor: 'Свой цвет',
     history: 'История',
-    openHistory: 'Открыть историю'
+    openHistory: 'Открыть историю',
+    zoomControls: 'Масштаб доски',
+    zoomIn: 'Увеличить масштаб',
+    zoomOut: 'Уменьшить масштаб',
+    resetZoom: 'Сбросить масштаб'
   },
   emoji: {
     panel: 'Панель эмодзи'

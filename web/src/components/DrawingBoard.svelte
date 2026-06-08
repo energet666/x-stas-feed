@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, History, Palette, Pencil, X } from 'lucide-svelte';
+  import { Activity, History, Minus, Palette, Pencil, Plus, X } from 'lucide-svelte';
   import {
     createStroke,
     fetchBoard,
@@ -95,16 +95,34 @@
   const SIZE_DRAG_START_THRESHOLD_PX = 3;
   const NUMBER_INPUT_STEPPER_HIT_WIDTH = 18;
   const BOARD_WHEEL_SIZE_STEP_DELTA = 28;
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 6;
+  const ZOOM_STEP = 0.25;
+  const WHEEL_ZOOM_SENSITIVITY = 0.002;
+
+  let zoom = $state(MIN_ZOOM);
+  let panX = $state(0);
+  let panY = $state(0);
+  let spacePressed = $state(false);
+  let panPointerId = $state<number | null>(null);
+  let panStartClientX = $state(0);
+  let panStartClientY = $state(0);
+  let panStartX = $state(0);
+  let panStartY = $state(0);
 
   onMount(() => {
     loadBrushSettings();
     setupCanvasBuffers(canvasWidth, canvasHeight);
 
     window.addEventListener('keydown', handleWindowKeydown, { capture: true });
+    window.addEventListener('keyup', handleWindowKeyup, { capture: true });
+    window.addEventListener('resize', clampPanToViewport);
     void loadBoard();
 
     return () => {
       window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
+      window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
+      window.removeEventListener('resize', clampPanToViewport);
       hideCancelHint();
     };
   });
@@ -252,32 +270,12 @@
     if (!canvas) return null;
     
     const rect = canvas.getBoundingClientRect();
-    const containerWidth = rect.width;
-    const containerHeight = rect.height;
-    
-    const canvasAspect = canvasWidth / canvasHeight;
-    const containerAspect = containerWidth / containerHeight;
-    
-    let renderedWidth, renderedHeight;
-    let offsetX = 0;
-    let offsetY = 0;
-    
-    if (containerAspect > canvasAspect) {
-      // Pillarboxing (black bars on sides)
-      renderedHeight = containerHeight;
-      renderedWidth = renderedHeight * canvasAspect;
-      offsetX = (containerWidth - renderedWidth) / 2;
-    } else {
-      // Letterboxing (black bars on top/bottom)
-      renderedWidth = containerWidth;
-      renderedHeight = renderedWidth / canvasAspect;
-      offsetY = (containerHeight - renderedHeight) / 2;
-    }
-    
+    const renderedWidth = rect.width;
+    const renderedHeight = rect.height;
     const scaleX = canvasWidth / renderedWidth;
     const scaleY = canvasHeight / renderedHeight;
 
-    return { rect, renderedWidth, renderedHeight, offsetX, offsetY, scaleX, scaleY };
+    return { rect, renderedWidth, renderedHeight, offsetX: 0, offsetY: 0, scaleX, scaleY };
   }
 
   function canvasCoords(event: PointerEvent): [number, number] {
@@ -316,7 +314,7 @@
       return;
     }
 
-    const wrap = (event.currentTarget as HTMLElement).parentElement;
+    const wrap = canvasEl?.parentElement?.parentElement;
     if (!wrap) return;
 
     const wrapRect = wrap.getBoundingClientRect();
@@ -371,7 +369,14 @@
   }
 
   function handlePointerDown(event: PointerEvent) {
-    if (!expanded || historyMode) return;
+    if (!expanded) return;
+    if (event.button === 1 || (event.button === 0 && spacePressed)) {
+      beginPan(event);
+      return;
+    }
+    if (historyMode) return;
+    if (event.button !== 0) return;
+
     updateBrushCursor(event);
     hideCancelHint();
     const canvas = getCanvas();
@@ -398,7 +403,13 @@
   }
 
   function handlePointerMove(event: PointerEvent) {
-    if (!expanded || historyMode) return;
+    if (!expanded) return;
+    if (panPointerId === event.pointerId) {
+      updatePan(event);
+      return;
+    }
+    if (historyMode) return;
+
     updateBrushCursor(event);
     const pointerInsideCanvas = isPointerInsideRenderedCanvas(event);
 
@@ -435,7 +446,13 @@
   }
 
   function handlePointerUp(event: PointerEvent) {
-    if (!expanded || historyMode) return;
+    if (!expanded) return;
+    if (panPointerId === event.pointerId) {
+      finishPan(event);
+      return;
+    }
+    if (historyMode) return;
+
     const pointerEndedInsideCanvas = isPointerInsideRenderedCanvas(event);
     updateBrushCursor(event);
     hideCancelHint();
@@ -491,6 +508,14 @@
         activeStrokeCanvas.getContext('2d')!.clearRect(0, 0, canvasWidth, canvasHeight);
       }
     }
+  }
+
+  function handlePointerCancel(event: PointerEvent) {
+    if (panPointerId === event.pointerId) {
+      finishPan(event);
+      return;
+    }
+    clearActiveStroke();
   }
 
   function simplifyFreeformPoints(points: number[][]) {
@@ -814,16 +839,103 @@
   }
 
   function handleBoardWheel(event: WheelEvent) {
-    if (!expanded || historyMode || event.ctrlKey) return;
+    if (!expanded) return;
 
     const delta = event.deltaY || event.deltaX;
     if (delta === 0) return;
+
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      const nextZoom = zoom * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+      setZoom(nextZoom, event.clientX, event.clientY);
+      updateBrushCursor(event);
+      return;
+    }
+    if (historyMode) return;
 
     event.preventDefault();
     event.stopPropagation();
     const step = Math.max(1, Math.round(Math.abs(delta) / BOARD_WHEEL_SIZE_STEP_DELTA));
     selectSize(currentSize + (delta < 0 ? step : -step));
     updateBrushCursor(event);
+  }
+
+  function beginPan(event: PointerEvent) {
+    clearActiveStroke();
+    panPointerId = event.pointerId;
+    panStartClientX = event.clientX;
+    panStartClientY = event.clientY;
+    panStartX = panX;
+    panStartY = panY;
+    brushCursorVisible = false;
+    const canvas = getCanvas();
+    canvas?.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function updatePan(event: PointerEvent) {
+    panX = panStartX + event.clientX - panStartClientX;
+    panY = panStartY + event.clientY - panStartClientY;
+    clampPanToViewport();
+    event.preventDefault();
+  }
+
+  function finishPan(event: PointerEvent) {
+    const canvas = getCanvas();
+    if (canvas?.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    panPointerId = null;
+    updateBrushCursor(event);
+  }
+
+  function setZoom(value: number, anchorClientX?: number, anchorClientY?: number) {
+    const nextZoom = clampZoom(value);
+    if (nextZoom === zoom) return;
+
+    const wrapRect = canvasEl?.parentElement?.parentElement?.getBoundingClientRect();
+    if (wrapRect && anchorClientX !== undefined && anchorClientY !== undefined) {
+      const anchorX = anchorClientX - (wrapRect.left + wrapRect.width / 2);
+      const anchorY = anchorClientY - (wrapRect.top + wrapRect.height / 2);
+      const ratio = nextZoom / zoom;
+      panX = anchorX - ratio * (anchorX - panX);
+      panY = anchorY - ratio * (anchorY - panY);
+    }
+
+    zoom = nextZoom;
+    clampPanToViewport();
+    if (brushCursorVisible) updateBrushCursorSize();
+  }
+
+  function resetZoom() {
+    zoom = MIN_ZOOM;
+    panX = 0;
+    panY = 0;
+    if (brushCursorVisible) updateBrushCursorSize();
+  }
+
+  function clampZoom(value: number) {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100));
+  }
+
+  function clampPanToViewport() {
+    const wrap = canvasEl?.parentElement?.parentElement;
+    if (!wrap) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const canvasAspect = canvasWidth / canvasHeight;
+    let baseWidth = wrapRect.width;
+    let baseHeight = baseWidth / canvasAspect;
+    if (baseHeight > wrapRect.height) {
+      baseHeight = wrapRect.height;
+      baseWidth = baseHeight * canvasAspect;
+    }
+
+    const maxPanX = Math.max(0, (baseWidth * zoom - wrapRect.width) / 2);
+    const maxPanY = Math.max(0, (baseHeight * zoom - wrapRect.height) / 2);
+    panX = Math.min(maxPanX, Math.max(-maxPanX, panX));
+    panY = Math.min(maxPanY, Math.max(-maxPanY, panY));
   }
 
   function handleCustomSizePointerDown(event: PointerEvent) {
@@ -967,7 +1079,28 @@
   function handleWindowKeydown(event: KeyboardEvent) {
     if (!expanded) return;
 
+    if (event.code === 'Space' && !isEditableKeyboardTarget(event.target)) {
+      spacePressed = true;
+      event.preventDefault();
+    }
+
     if (event.key === 'Escape' && clearActiveStroke()) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (!historyMode && !isEditableKeyboardTarget(event.target)) {
+      if (event.key === '+' || event.key === '=') {
+        setZoom(zoom + ZOOM_STEP);
+      } else if (event.key === '-') {
+        setZoom(zoom - ZOOM_STEP);
+      } else if (event.key === '0') {
+        resetZoom();
+      } else {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -977,6 +1110,12 @@
     if (!historyMode) return;
     if (isEditableKeyboardTarget(event.target)) return;
     applyHistoryKey(event);
+  }
+
+  function handleWindowKeyup(event: KeyboardEvent) {
+    if (event.code === 'Space') {
+      spacePressed = false;
+    }
   }
 
   function applyHistoryKey(event: KeyboardEvent) {
@@ -1122,6 +1261,8 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions - the focused drawing surface needs keyboard shortcuts while the canvas handles pointer input. -->
     <div
       class="drawing-canvas-wrap"
+      class:drawing-canvas-panning={panPointerId !== null}
+      class:drawing-canvas-pan-ready={spacePressed}
       role="application"
       aria-label={t.board.drawingBoardNamed(boardName)}
       style="--drawing-canvas-aspect: {canvasWidth / canvasHeight};"
@@ -1129,19 +1270,29 @@
       onwheel={handleBoardWheel}
       tabindex="-1"
     >
-      <canvas
-        bind:this={canvasEl}
-        width={canvasWidth}
-        height={canvasHeight}
-        class="drawing-canvas"
-        onpointerdown={handlePointerDown}
-        onpointermove={handlePointerMove}
-        onpointerup={handlePointerUp}
-        onpointerenter={handlePointerEnter}
-        onpointerleave={handlePointerLeave}
-        style="cursor: {!historyMode && brushCursorVisible ? 'none' : 'default'}; touch-action: none;"
-      ></canvas>
-      <div class="drawing-canvas-boundary" aria-hidden="true">
+      <div
+        class="drawing-canvas-stage"
+        style="
+          --drawing-canvas-aspect: {canvasWidth / canvasHeight};
+          transform: translate3d({panX}px, {panY}px, 0) scale({zoom});
+        "
+      >
+        <canvas
+          bind:this={canvasEl}
+          width={canvasWidth}
+          height={canvasHeight}
+          class="drawing-canvas"
+          onpointerdown={handlePointerDown}
+          onpointermove={handlePointerMove}
+          onpointerup={handlePointerUp}
+          onpointercancel={handlePointerCancel}
+          onpointerenter={handlePointerEnter}
+          onpointerleave={handlePointerLeave}
+          style="cursor: {!historyMode && brushCursorVisible ? 'none' : 'default'}; touch-action: none;"
+        ></canvas>
+        <div class="drawing-canvas-boundary" aria-hidden="true"></div>
+      </div>
+      <div class="drawing-cancel-hint-layer" aria-hidden="true">
         <div
           class="drawing-cancel-hint"
           class:drawing-cancel-hint-visible={!historyMode && cancelHintVisible}
@@ -1173,6 +1324,38 @@
           <X size={18} />
         </button>
       {/if}
+
+      <div class="drawing-zoom-controls" aria-label={t.board.zoomControls}>
+        <button
+          class="drawing-tool-btn"
+          type="button"
+          aria-label={t.board.zoomOut}
+          title={t.board.zoomOut}
+          disabled={zoom <= MIN_ZOOM}
+          onclick={() => setZoom(zoom - ZOOM_STEP)}
+        >
+          <Minus size={16} />
+        </button>
+        <button
+          class="drawing-zoom-value"
+          type="button"
+          aria-label={t.board.resetZoom}
+          title={t.board.resetZoom}
+          onclick={resetZoom}
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+        <button
+          class="drawing-tool-btn"
+          type="button"
+          aria-label={t.board.zoomIn}
+          title={t.board.zoomIn}
+          disabled={zoom >= MAX_ZOOM}
+          onclick={() => setZoom(zoom + ZOOM_STEP)}
+        >
+          <Plus size={16} />
+        </button>
+      </div>
 
       {#if historyMode}
         <div class="drawing-history-toolbar">
@@ -1430,26 +1613,49 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+  }
+
+  .drawing-canvas-stage {
+    position: absolute;
+    width: min(100%, calc(100vh * var(--drawing-canvas-aspect)));
+    max-height: 100%;
+    aspect-ratio: var(--drawing-canvas-aspect);
+    transform-origin: center;
+    will-change: transform;
   }
 
   .drawing-canvas {
     width: 100%;
     height: 100%;
-    object-fit: contain;
     display: block;
   }
 
   .drawing-canvas-boundary {
     position: absolute;
-    width: min(100%, calc(100vh * var(--drawing-canvas-aspect)));
-    max-height: 100%;
-    aspect-ratio: var(--drawing-canvas-aspect);
+    inset: 0;
     outline: 1px solid rgba(255, 255, 255, 0.12);
     outline-offset: 0;
     box-shadow:
       0 0 0 1px rgba(0, 0, 0, 0.34),
       0 0.9rem 2.4rem rgba(0, 0, 0, 0.22);
     pointer-events: none;
+  }
+
+  .drawing-cancel-hint-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .drawing-canvas-pan-ready .drawing-canvas,
+  .drawing-canvas-pan-ready .drawing-brush-cursor {
+    cursor: grab !important;
+  }
+
+  .drawing-canvas-panning .drawing-canvas,
+  .drawing-canvas-panning .drawing-brush-cursor {
+    cursor: grabbing !important;
   }
 
   .drawing-brush-cursor {
@@ -1569,6 +1775,44 @@
       background 140ms ease,
       border-color 140ms ease,
       color 140ms ease;
+  }
+
+  .drawing-zoom-controls {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.8rem;
+    background: rgba(15, 15, 23, 0.72);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+  }
+
+  .drawing-zoom-value {
+    min-width: 3.5rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  .drawing-zoom-value:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .drawing-zoom-controls .drawing-tool-btn:disabled {
+    cursor: default;
+    opacity: 0.35;
   }
 
   .drawing-close-btn:hover {
