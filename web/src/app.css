@@ -28,6 +28,10 @@
   --color-action-hover-strong: rgb(255 255 255 / 0.14);
   --color-action-bg: rgb(255 255 255 / 0.08);
   --color-debug-cell: rgb(255 255 255 / 0.05);
+  --color-scrollbar-thumb: rgb(255 255 255 / 0.28);
+  --color-scrollbar-thumb-hover: rgb(255 255 255 / 0.44);
+  --color-scrollbar-thumb-active: rgb(255 255 255 / 0.58);
+  --color-scrollbar-track: transparent;
 
   /* Glass Backgrounds */
   --background-image-glass: rgb(0 0 0 / 0.04);
@@ -79,6 +83,41 @@
 
 html {
   color-scheme: dark;
+}
+
+* {
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: 0.1875rem solid transparent;
+  border-radius: var(--radius-control);
+  background-color: var(--color-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 body {
