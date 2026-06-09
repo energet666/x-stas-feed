@@ -94,6 +94,209 @@ func TestWorldMovesShipAndLimitsItToArena(t *testing.T) {
 	}
 }
 
+func TestTripleShotSpawnsThreeBullets(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	p := w.players[welcome.PlayerID]
+	w.applyPowerUpLocked(p, "triple-shot", *now)
+	w.mu.Unlock()
+	w.Apply(welcome.PlayerID, Command{Type: "shoot", Seq: 2})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.bullets) != 3 {
+		t.Fatalf("expected triple shot to create 3 bullets, got %d", len(w.bullets))
+	}
+}
+
+func TestRapidFireUsesServerCooldown(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	p := w.players[welcome.PlayerID]
+	w.applyPowerUpLocked(p, "rapid-fire", *now)
+	w.mu.Unlock()
+	w.Apply(welcome.PlayerID, Command{Type: "shoot", Seq: 2})
+	w.Apply(welcome.PlayerID, Command{Type: "shoot", Seq: 3})
+
+	w.mu.Lock()
+	if len(w.bullets) != 1 {
+		t.Fatalf("expected cooldown to reject immediate second shot, got %d bullets", len(w.bullets))
+	}
+	w.mu.Unlock()
+
+	*now = now.Add(rapidFireCooldown)
+	w.Apply(welcome.PlayerID, Command{Type: "shoot", Seq: 4})
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.bullets) != 2 {
+		t.Fatalf("expected rapid fire shot after cooldown, got %d bullets", len(w.bullets))
+	}
+}
+
+func TestShieldAbsorbsOneCrash(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	w.applyPowerUpLocked(p, "shield", *now)
+	w.crashPlayerLocked(p, nil, p.x, p.y, *now)
+	if !p.active || p.shield != 0 || p.score != 0 {
+		t.Fatalf("expected shield to absorb crash, got %#v", p)
+	}
+	w.crashPlayerLocked(p, nil, p.x, p.y, now.Add(shipCollisionGrace))
+	if p.active || p.score != -200 {
+		t.Fatalf("expected next crash to destroy ship, got %#v", p)
+	}
+}
+
+func TestDeathClearsAllPowerUps(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	p.shield = 1
+	p.rapidFireUntil = now.Add(rapidFireDuration)
+	p.tripleShotUntil = now.Add(tripleShotDuration)
+	p.overdriveUntil = now.Add(overdriveDuration)
+	p.lastShotAt = *now
+
+	w.crashPlayerLocked(p, nil, p.x, p.y, *now)
+	if !p.active || p.shield != 0 || p.rapidFireUntil.IsZero() || p.tripleShotUntil.IsZero() || p.overdriveUntil.IsZero() {
+		t.Fatalf("expected shield hit to preserve remaining boosts, got %#v", p)
+	}
+
+	w.crashPlayerLocked(p, nil, p.x, p.y, now.Add(shipCollisionGrace))
+	if p.active || p.shield != 0 || !p.rapidFireUntil.IsZero() || !p.tripleShotUntil.IsZero() || !p.overdriveUntil.IsZero() || !p.lastShotAt.IsZero() {
+		t.Fatalf("expected death to clear all boosts, got %#v", p)
+	}
+}
+
+func TestNovaDestroysCurrentAsteroidsAndAwardsSoloScore(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	if p.asteroid == nil {
+		t.Fatal("expected active player asteroid")
+	}
+	w.applyPowerUpLocked(p, "nova", *now)
+	if p.asteroid != nil || p.score != 100 {
+		t.Fatalf("expected nova to clear asteroid and award score, got asteroid=%#v score=%d", p.asteroid, p.score)
+	}
+	if len(w.events) != 1 || w.events[0].Type != "asteroid-destroyed" {
+		t.Fatalf("expected authoritative destruction event, got %#v", w.events)
+	}
+}
+
+func TestNovaDestroysAllEnemyShipsAndBypassesShields(t *testing.T) {
+	w, now := newTestWorld(t)
+	ownerWelcome, _, _ := w.Connect("", "Nova")
+	firstWelcome, _, _ := w.Connect("", "One")
+	secondWelcome, _, _ := w.Connect("", "Two")
+	w.Apply(ownerWelcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(firstWelcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(secondWelcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	owner := w.players[ownerWelcome.PlayerID]
+	first := w.players[firstWelcome.PlayerID]
+	second := w.players[secondWelcome.PlayerID]
+	first.shield = 2
+	first.rapidFireUntil = now.Add(rapidFireDuration)
+	second.tripleShotUntil = now.Add(tripleShotDuration)
+
+	w.applyPowerUpLocked(owner, "nova", *now)
+
+	if !owner.active {
+		t.Fatal("expected nova owner to survive")
+	}
+	if first.active || second.active {
+		t.Fatalf("expected all enemies to be destroyed, first=%#v second=%#v", first, second)
+	}
+	if first.shield != 0 || !first.rapidFireUntil.IsZero() || !second.tripleShotUntil.IsZero() {
+		t.Fatalf("expected enemy boosts to reset, first=%#v second=%#v", first, second)
+	}
+	if owner.kills != 2 || first.kills != -1 || second.kills != -1 {
+		t.Fatalf("unexpected nova kill scores: owner=%d first=%d second=%d", owner.kills, first.kills, second.kills)
+	}
+	killEvents := 0
+	for _, event := range w.events {
+		if event.Type == "ship-kill" && event.ShooterID == owner.id {
+			killEvents++
+		}
+	}
+	if killEvents != 2 {
+		t.Fatalf("expected two nova ship-kill events, got %#v", w.events)
+	}
+}
+
+func TestPowerUpsSpawnAndExpire(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	*now = now.Add(powerUpSpawnInterval / 2)
+	w.step()
+	w.mu.Lock()
+	if len(w.powerUps) != 1 {
+		t.Fatalf("expected first power-up spawn, got %#v", w.powerUps)
+	}
+	var spawned PowerUp
+	for _, powerUp := range w.powerUps {
+		spawned = powerUp
+	}
+	w.nextPowerUpAt = now.Add(time.Hour)
+	w.mu.Unlock()
+
+	*now = time.UnixMilli(spawned.ExpiresAt)
+	w.step()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.powerUps) != 0 {
+		t.Fatalf("expected expired power-up to be removed, got %#v", w.powerUps)
+	}
+}
+
+func TestPowerUpPickupAllowsNearMiss(t *testing.T) {
+	w, now := newTestWorld(t)
+	welcome, _, _ := w.Connect("", "Pilot")
+	w.Apply(welcome.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[welcome.PlayerID]
+	p.asteroid = nil
+	w.nextEntity++
+	w.powerUps[w.nextEntity] = PowerUp{
+		ID:        w.nextEntity,
+		Kind:      "shield",
+		X:         wrap(p.x+48, ArenaWidth),
+		Y:         p.y,
+		ExpiresAt: now.Add(powerUpLifetime).UnixMilli(),
+	}
+
+	w.detectCollisionsLocked(*now)
+	if p.shield != 1 || len(w.powerUps) != 0 {
+		t.Fatalf("expected nearby boost to be collected, shield=%d powerUps=%#v", p.shield, w.powerUps)
+	}
+}
+
 func TestSecondActivePlayerSwitchesSoloToMultiplayer(t *testing.T) {
 	w, _ := newTestWorld(t)
 	first, _, _ := w.Connect("", "One")

@@ -75,6 +75,10 @@ export type ShipState = {
   kills: number;
   ackSeq: number;
   pingEcho?: number;
+  shield: number;
+  rapidFire: boolean;
+  tripleShot: boolean;
+  overdrive: boolean;
 };
 
 export type ShipBullet = {
@@ -99,9 +103,23 @@ export type ShipAsteroid = {
   path: string;
 };
 
+export type ShipPowerUp = {
+  id: number;
+  kind: 'shield' | 'triple-shot' | 'rapid-fire' | 'overdrive' | 'nova';
+  x: number;
+  y: number;
+  expiresAt: number;
+};
+
 export type ShipEvent = {
   id: number;
-  type: 'asteroid-destroyed' | 'ship-kill' | 'ship-crash' | 'round-finished';
+  type:
+    | 'asteroid-destroyed'
+    | 'ship-kill'
+    | 'ship-crash'
+    | 'round-finished'
+    | 'power-up-collected'
+    | 'shield-hit';
   ownerId?: string;
   shooterId?: string;
   shooterName?: string;
@@ -110,6 +128,7 @@ export type ShipEvent = {
   x?: number;
   y?: number;
   saved?: boolean;
+  powerUpKind?: ShipPowerUp['kind'];
 };
 
 export type ShipScore = {
@@ -127,6 +146,7 @@ export type ShipSnapshot = {
   players: ShipState[];
   bullets?: ShipBullet[];
   asteroids?: ShipAsteroid[];
+  powerUps?: ShipPowerUp[];
   events?: ShipEvent[];
 };
 

@@ -8,6 +8,7 @@
     type ShipBullet,
     type ShipCommand,
     type ShipInput,
+    type ShipPowerUp,
     type ShipScore,
     type ShipSnapshot,
     type ShipState,
@@ -65,6 +66,7 @@
   let remoteShips = $state<ShipState[]>([]);
   let bullets = $state<ShipBullet[]>([]);
   let asteroids = $state<ShipAsteroid[]>([]);
+  let powerUps = $state<ShipPowerUp[]>([]);
   let particles = $state<Particle[]>([]);
   let explosions = $state<Explosion[]>([]);
   let mode = $state<'idle' | 'solo' | 'multiplayer'>('idle');
@@ -106,6 +108,16 @@
   const visibleBullets = $derived(gameVisible ? bullets : bullets.filter((bullet) => bullet.ownerId !== playerId));
   const visibleAsteroids = $derived(
     gameVisible ? asteroids : asteroids.filter((asteroid) => asteroid.ownerId !== playerId)
+  );
+  const activeBoosts = $derived(
+    localShip
+      ? [
+          ...(localShip.shield > 0 ? [{ kind: 'shield', label: `${t.game.boosts.shield} ×${localShip.shield}` }] : []),
+          ...(localShip.tripleShot ? [{ kind: 'triple-shot', label: t.game.boosts.tripleShot }] : []),
+          ...(localShip.rapidFire ? [{ kind: 'rapid-fire', label: t.game.boosts.rapidFire }] : []),
+          ...(localShip.overdrive ? [{ kind: 'overdrive', label: t.game.boosts.overdrive }] : [])
+        ]
+      : []
   );
   const killRows = $derived(
     [localShip, ...remoteShips]
@@ -351,6 +363,7 @@
     remoteShips = snapshot.players.filter((player) => player.id !== playerId).map((player) => ({ ...player }));
     bullets = (snapshot.bullets ?? []).map((bullet) => ({ ...bullet }));
     asteroids = (snapshot.asteroids ?? []).map((asteroid) => ({ ...asteroid }));
+    powerUps = (snapshot.powerUps ?? []).map((powerUp) => ({ ...powerUp }));
     for (const event of snapshot.events ?? []) {
       if (event.id <= lastEventId) continue;
       lastEventId = event.id;
@@ -363,6 +376,14 @@
     if (event.type === 'round-finished' && event.victimId === playerId) {
       roundSaved = Boolean(event.saved);
       void loadLeaderboard();
+      return;
+    }
+    if (event.type === 'power-up-collected') {
+      if (event.ownerId === playerId) playPowerUpSound(event.powerUpKind);
+      return;
+    }
+    if (event.type === 'shield-hit') {
+      if (event.victimId === playerId) playShieldSound();
       return;
     }
     if (!Number.isFinite(event.x) || !Number.isFinite(event.y)) return;
@@ -430,11 +451,13 @@
     let angle = localShip.angle;
     let vx = localShip.vx;
     let vy = localShip.vy;
+    const predictedThrust = localShip.overdrive ? thrust * 1.65 : thrust;
+    const predictedMaxSpeed = localShip.overdrive ? maxSpeed * 1.35 : maxSpeed;
     if (input.left) angle -= turnSpeed * delta;
     if (input.right) angle += turnSpeed * delta;
     if (input.thrust) {
-      vx += Math.cos(angle) * thrust * delta;
-      vy += Math.sin(angle) * thrust * delta;
+      vx += Math.cos(angle) * predictedThrust * delta;
+      vy += Math.sin(angle) * predictedThrust * delta;
       smokeAccumulator += delta;
       while (smokeAccumulator >= 2.4) {
         smokeAccumulator -= 2.4;
@@ -448,9 +471,9 @@
       smokeAccumulator = 0;
     }
     const speed = Math.hypot(vx, vy);
-    if (speed > maxSpeed) {
-      vx *= maxSpeed / speed;
-      vy *= maxSpeed / speed;
+    if (speed > predictedMaxSpeed) {
+      vx *= predictedMaxSpeed / speed;
+      vy *= predictedMaxSpeed / speed;
     }
     vx *= Math.pow(drag, delta);
     vy *= Math.pow(drag, delta);
@@ -571,6 +594,35 @@
     playTone('triangle', 420, 42, 0.3, 0.12);
   }
 
+  function playPowerUpSound(kind?: ShipPowerUp['kind']) {
+    const start = kind === 'nova' ? 260 : 440;
+    playTone('sine', start, start * 2.2, 0.18, 0.08);
+  }
+
+  function playShieldSound() {
+    playTone('sine', 180, 720, 0.22, 0.1);
+  }
+
+  function powerUpGlyph(kind: ShipPowerUp['kind']) {
+    return {
+      shield: 'S',
+      'triple-shot': '3',
+      'rapid-fire': 'R',
+      overdrive: 'F',
+      nova: 'N'
+    }[kind];
+  }
+
+  function powerUpLabel(kind: ShipPowerUp['kind']) {
+    return {
+      shield: t.game.boosts.shield,
+      'triple-shot': t.game.boosts.tripleShot,
+      'rapid-fire': t.game.boosts.rapidFire,
+      overdrive: t.game.boosts.overdrive,
+      nova: t.game.boosts.nova
+    }[kind];
+  }
+
   $effect(() => {
     const name = username.trim() || t.common.guest;
     if (connectionState === 'connected' && playerId) sendCommand({ type: 'name', name });
@@ -655,12 +707,26 @@
           </li>
         {/each}
       </ol>
+      {#if activeBoosts.length > 0}
+        <div class="asteroids-active-boosts">
+          {#each activeBoosts as boost (boost.kind)}
+            <span class={`asteroids-boost-chip asteroids-boost-${boost.kind}`}>{boost.label}</span>
+          {/each}
+        </div>
+      {/if}
     </div>
   {:else}
     <div class="asteroids-hud" aria-live="polite">
       <span>{secondsLeft}s</span>
       <strong>{score}</strong>
       <span class="asteroids-ping"><RadioTower size={11} strokeWidth={1.8} />{pingLabel}</span>
+      {#if activeBoosts.length > 0}
+        <div class="asteroids-active-boosts">
+          {#each activeBoosts as boost (boost.kind)}
+            <span class={`asteroids-boost-chip asteroids-boost-${boost.kind}`}>{boost.label}</span>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 {/if}
@@ -731,10 +797,24 @@
     ></span>
   {/each}
 
+  {#each powerUps as powerUp (powerUp.id)}
+    <div
+      class={`asteroids-power-up asteroids-power-up-${powerUp.kind}`}
+      aria-label={powerUpLabel(powerUp.kind)}
+      title={powerUpLabel(powerUp.kind)}
+      style:width={`${screenSize(42)}px`}
+      style:height={`${screenSize(42)}px`}
+      style:transform={`translate3d(${screenX(powerUp.x)}px, ${screenY(powerUp.y)}px, 0) translate(-50%, -50%)`}
+    >
+      <span>{powerUpGlyph(powerUp.kind)}</span>
+    </div>
+  {/each}
+
   {#each remoteShips as remote (remote.id)}
     {#if remote.active}
       <div
         class="asteroids-remote-ship"
+        class:asteroids-ship-shielded={remote.shield > 0}
         aria-hidden="true"
         style:width={`${screenSize(shipWidth)}px`}
         style:height={`${screenSize(shipHeight)}px`}
@@ -759,6 +839,7 @@
     <div
       class="asteroids-ship"
       class:asteroids-ship-thrusting={localShip.thrusting}
+      class:asteroids-ship-shielded={localShip.shield > 0}
       aria-hidden="true"
       style:width={`${screenSize(shipWidth)}px`}
       style:height={`${screenSize(shipHeight)}px`}
@@ -807,6 +888,29 @@
     color: rgb(226 232 240);
     font-size: 0.9rem;
     pointer-events: none;
+  }
+
+  .asteroids-active-boosts {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 50%;
+    display: flex;
+    width: max-content;
+    max-width: min(32rem, calc(100vw - 2rem));
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem;
+    transform: translateX(-50%);
+  }
+
+  .asteroids-boost-chip {
+    border: 1px solid rgb(125 211 252 / 0.28);
+    border-radius: 999px;
+    background: rgb(2 6 23 / 0.78);
+    padding: 0.2rem 0.48rem;
+    color: rgb(186 230 253);
+    font-size: 0.65rem;
+    white-space: nowrap;
   }
 
   .asteroids-hud {
@@ -923,6 +1027,7 @@
   .asteroids-arena-boundary,
   .asteroids-rock,
   .asteroids-bullet,
+  .asteroids-power-up,
   .asteroids-particle,
   .asteroids-explosion,
   .asteroids-remote-name {
@@ -991,6 +1096,16 @@
   .asteroids-remote-ship {
     transform-origin: 50% 50%;
     filter: drop-shadow(0 0 10px rgb(125 211 252 / 0.5));
+  }
+
+  .asteroids-ship-shielded::before {
+    position: absolute;
+    inset: -28%;
+    border: 2px solid rgb(96 165 250 / 0.72);
+    border-radius: 999px;
+    box-shadow: inset 0 0 1rem rgb(59 130 246 / 0.18), 0 0 1rem rgb(96 165 250 / 0.38);
+    content: '';
+    animation: shield-pulse 1.2s ease-in-out infinite alternate;
   }
 
   .asteroids-remote-ship {
@@ -1085,6 +1200,49 @@
     background: rgb(244 114 182 / 0.96);
   }
 
+  .asteroids-power-up {
+    display: grid;
+    place-items: center;
+    border: 2px solid rgb(255 255 255 / 0.82);
+    border-radius: 0.7rem;
+    background: rgb(2 6 23 / 0.86);
+    color: white;
+    font-size: clamp(0.65rem, 1.2vw, 0.95rem);
+    font-weight: 800;
+    line-height: 1;
+    animation: power-up-pulse 1.1s ease-in-out infinite alternate;
+  }
+
+  .asteroids-power-up-shield {
+    border-color: rgb(96 165 250);
+    box-shadow: 0 0 1rem rgb(59 130 246 / 0.62);
+    color: rgb(191 219 254);
+  }
+
+  .asteroids-power-up-triple-shot {
+    border-color: rgb(192 132 252);
+    box-shadow: 0 0 1rem rgb(168 85 247 / 0.62);
+    color: rgb(233 213 255);
+  }
+
+  .asteroids-power-up-rapid-fire {
+    border-color: rgb(250 204 21);
+    box-shadow: 0 0 1rem rgb(234 179 8 / 0.62);
+    color: rgb(254 240 138);
+  }
+
+  .asteroids-power-up-overdrive {
+    border-color: rgb(251 146 60);
+    box-shadow: 0 0 1rem rgb(249 115 22 / 0.62);
+    color: rgb(254 215 170);
+  }
+
+  .asteroids-power-up-nova {
+    border-color: rgb(45 212 191);
+    box-shadow: 0 0 1.1rem rgb(20 184 166 / 0.72);
+    color: rgb(153 246 228);
+  }
+
   .asteroids-remote-name {
     max-width: 9rem;
     overflow: hidden;
@@ -1142,9 +1300,24 @@
     to { opacity: 0; }
   }
 
+  @keyframes power-up-pulse {
+    from { scale: 0.92; opacity: 0.78; }
+    to { scale: 1.06; opacity: 1; }
+  }
+
+  @keyframes shield-pulse {
+    from { opacity: 0.5; scale: 0.94; }
+    to { opacity: 0.9; scale: 1.04; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ship-flame,
     .remote-ship-flame {
+      animation: none;
+    }
+
+    .asteroids-power-up,
+    .asteroids-ship-shielded::before {
       animation: none;
     }
   }

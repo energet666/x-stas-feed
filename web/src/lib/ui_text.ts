@@ -225,7 +225,14 @@ export const uiText = {
     scoreSaveFailed: 'Не удалось сохранить счёт',
     leadersUnavailable: 'Лидеры недоступны',
     noScores: 'Счётов пока нет',
-    enterToRestart: 'Enter — заново'
+    enterToRestart: 'Enter — заново',
+    boosts: {
+      shield: 'Щит',
+      tripleShot: 'Тройной выстрел',
+      rapidFire: 'Скорострельность',
+      overdrive: 'Форсаж',
+      nova: 'Нова'
+    }
   },
   errors: {
     feedItemRequest: (status: number) => `Запрос элемента ленты не удался: ${status}`,

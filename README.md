@@ -173,6 +173,7 @@ Asteroids:
 - `GET /api/ships/socket` upgrades to the game WebSocket. The server owns the `1600x900` simulation and accepts only sequenced input/action commands.
 - `GET /api/ships/scores` returns the filesystem-backed solo leaderboard. Completed timed solo rounds are saved by the server; client score submission is not exposed.
 - The welcome message includes a resume token that restores the same player for up to 10 seconds after a disconnect.
+- The authoritative world periodically spawns collectible boosts: shield, triple shot, rapid fire, overdrive, and nova. Snapshots include boost positions and active player effects; pickup, duration, weapon behavior, shield absorption, and nova destruction are all resolved by the server. Nova clears current asteroids and destroys every active enemy ship, bypassing shields.
 
 ## Notes for Contributors
 
