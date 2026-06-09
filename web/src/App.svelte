@@ -139,6 +139,7 @@
   let feedRequestVersion = 0;
   let masterBoardExpanded = $state(false);
   let activityBoardExpandedID = $state<string | null>(null);
+  let activityBoardAmbientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
   let newFeedItemCount = $state(0);
   let activityPanelOpen = $state(false);
   let unsubscribeBoardActivity: (() => void) | undefined = undefined;
@@ -1752,10 +1753,16 @@
 
   {#if activityBoardExpandedID}
     <div class="master-board-expanded-overlay">
+      <canvas
+        bind:this={activityBoardAmbientCanvas}
+        class="activity-board-ambient ambient-media"
+        aria-hidden="true"
+      ></canvas>
       <DrawingBoard
         mediaId={activityBoardExpandedID}
         expanded={true}
         username={commentUsername}
+        ambientCanvas={activityBoardAmbientCanvas}
         {debugToolsEnabled}
         onClose={closeActivityBoard}
       />
@@ -1874,6 +1881,11 @@
     inset: 0;
     z-index: 1000;
     background: #0f0f17;
+  }
+
+  .activity-board-ambient {
+    position: absolute;
+    inset: 0;
   }
 
   .floating-action-stack {
