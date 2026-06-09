@@ -27,7 +27,7 @@
     onClose?: () => void;
   } = $props();
 
-  type Tool = 'freeform' | 'line';
+  type Tool = 'pan' | 'freeform' | 'line';
 
   const FIXED_COLORS = ['#ffffff', '#000000', '#60a5fa', '#f87171', '#4ade80', '#facc15'];
   const DEFAULT_CUSTOM_COLORS = ['#ff4757', '#ffa502', '#ffdd59', '#5352ed', '#a855f7', '#ff6348'];
@@ -58,7 +58,7 @@
 
   let strokes = $state<Stroke[]>([]);
   let strokeIds = new Set<string>();
-  let currentTool = $state<Tool>('freeform');
+  let currentTool = $state<Tool>('pan');
   let currentColor = $state('#ffffff');
   let customColors = $state([...DEFAULT_CUSTOM_COLORS]);
   let currentSize = $state(4);
@@ -99,7 +99,6 @@
   const MAX_ZOOM = 6;
   const ZOOM_STEP = 0.25;
   const WHEEL_ZOOM_SENSITIVITY = 0.002;
-  const ZOOM_WHEEL_MOMENTUM_TIMEOUT_MS = 180;
 
   let zoom = $state(MIN_ZOOM);
   let panX = $state(0);
@@ -116,9 +115,13 @@
   let lastPointerClientX = $state(0);
   let lastPointerClientY = $state(0);
   let hasPointerPosition = $state(false);
-  let zoomWheelMomentumTimer: ReturnType<typeof setTimeout> | null = null;
+  const drawingToolSelected = $derived(currentTool === 'freeform' || currentTool === 'line');
   const canvasCursor = $derived(
-    panPointerId !== null || spacePressed || (!historyMode && brushCursorVisible) ? 'none' : 'default'
+    panPointerId !== null ||
+    spacePressed ||
+    (!historyMode && (brushCursorVisible || (currentTool === 'pan' && panCursorVisible)))
+      ? 'none'
+      : 'default'
   );
 
   onMount(() => {
@@ -134,7 +137,6 @@
       window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
       window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
       window.removeEventListener('resize', clampPanToViewport);
-      clearZoomWheelMomentum();
       hideCancelHint();
     };
   });
@@ -318,7 +320,7 @@
   function updateBrushCursor(event: Pick<MouseEvent, 'clientX' | 'clientY'>) {
     if (!expanded) return;
     updatePanCursorPosition(event);
-    if (spacePressed || panPointerId !== null) {
+    if (!drawingToolSelected || spacePressed || panPointerId !== null) {
       brushCursorVisible = false;
       return;
     }
@@ -409,7 +411,10 @@
 
   function handlePointerDown(event: PointerEvent) {
     if (!expanded) return;
-    if (event.button === 1 || (event.button === 0 && spacePressed)) {
+    if (
+      event.button === 1 ||
+      (event.button === 0 && (spacePressed || (!historyMode && currentTool === 'pan')))
+    ) {
       beginPan(event);
       return;
     }
@@ -813,11 +818,19 @@
   }
 
   function selectTool(tool: Tool) {
+    clearActiveStroke();
     currentTool = tool;
     lineStart = null;
     mousePos = null;
+    brushCursorVisible = false;
     hideCancelHint();
     showColorPicker = false;
+    if (tool === 'pan' && hasPointerPosition) {
+      updatePanCursorPosition({
+        clientX: lastPointerClientX,
+        clientY: lastPointerClientY
+      });
+    }
     redraw();
   }
 
@@ -883,41 +896,20 @@
     const delta = event.deltaY || event.deltaX;
     if (delta === 0) return;
 
-    if (event.ctrlKey || event.metaKey) {
+    if (event.ctrlKey && drawingToolSelected && !historyMode) {
       event.preventDefault();
       event.stopPropagation();
-      extendZoomWheelMomentum();
-      const nextZoom = zoom * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
-      setZoom(nextZoom, event.clientX, event.clientY);
+      const step = Math.max(1, Math.round(Math.abs(delta) / BOARD_WHEEL_SIZE_STEP_DELTA));
+      selectSize(currentSize + (delta < 0 ? step : -step));
       updateBrushCursor(event);
       return;
     }
-    if (zoomWheelMomentumTimer) {
-      event.preventDefault();
-      event.stopPropagation();
-      extendZoomWheelMomentum();
-      return;
-    }
-    if (historyMode) return;
 
     event.preventDefault();
     event.stopPropagation();
-    const step = Math.max(1, Math.round(Math.abs(delta) / BOARD_WHEEL_SIZE_STEP_DELTA));
-    selectSize(currentSize + (delta < 0 ? step : -step));
+    const nextZoom = zoom * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+    setZoom(nextZoom, event.clientX, event.clientY);
     updateBrushCursor(event);
-  }
-
-  function extendZoomWheelMomentum() {
-    clearZoomWheelMomentum();
-    zoomWheelMomentumTimer = setTimeout(() => {
-      zoomWheelMomentumTimer = null;
-    }, ZOOM_WHEEL_MOMENTUM_TIMEOUT_MS);
-  }
-
-  function clearZoomWheelMomentum() {
-    if (!zoomWheelMomentumTimer) return;
-    clearTimeout(zoomWheelMomentumTimer);
-    zoomWheelMomentumTimer = null;
   }
 
   function beginPan(event: PointerEvent) {
@@ -1369,7 +1361,7 @@
       {#if !historyMode}
         <div
           class="drawing-brush-cursor"
-          class:drawing-brush-cursor-visible={brushCursorVisible && !spacePressed && panPointerId === null}
+          class:drawing-brush-cursor-visible={drawingToolSelected && brushCursorVisible && !spacePressed && panPointerId === null}
           style="
             width: {brushCursorSize}px;
             height: {brushCursorSize}px;
@@ -1378,7 +1370,7 @@
           "
         ></div>
       {/if}
-      {#if panCursorVisible && (spacePressed || panPointerId !== null)}
+      {#if panCursorVisible && (currentTool === 'pan' || spacePressed || panPointerId !== null)}
         <div
           class="drawing-pan-cursor"
           style="transform: translate3d({panCursorX}px, {panCursorY}px, 0) translate(-50%, -50%);"
@@ -1481,8 +1473,20 @@
         <div class="drawing-toolbar-group">
           <button
             class="drawing-tool-btn"
+            class:drawing-tool-btn-active={currentTool === 'pan'}
+            type="button"
+            title={t.board.pan}
+            aria-label={t.board.pan}
+            onclick={() => selectTool('pan')}
+          >
+            <Hand size={16} />
+          </button>
+          <button
+            class="drawing-tool-btn"
             class:drawing-tool-btn-active={currentTool === 'freeform'}
+            type="button"
             title={t.board.freeform}
+            aria-label={t.board.freeform}
             onclick={() => selectTool('freeform')}
           >
             <Pencil size={16} />
@@ -1490,7 +1494,9 @@
           <button
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={currentTool === 'line'}
+            type="button"
             title={t.board.line}
+            aria-label={t.board.line}
             onclick={() => selectTool('line')}
           >
             <svg

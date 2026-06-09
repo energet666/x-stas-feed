@@ -153,6 +153,7 @@ export const uiText = {
     showingHistoryStrokes: (visible: number, total: number) => `Показано ${visible} из ${total} штрихов`,
     lastVisibleStrokeAuthor: (author: string) => `Автор последнего видимого штриха: ${author}`,
     exitHistory: 'Выйти из истории',
+    pan: 'Панорамирование',
     freeform: 'Свободная линия',
     line: 'Линия',
     showPointDensity: 'Показать плотность точек',
