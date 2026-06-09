@@ -582,11 +582,12 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var request struct {
-		Tool   string      `json:"tool"`
-		Points [][]float64 `json:"points"`
-		Color  string      `json:"color"`
-		Size   float64     `json:"size"`
-		Author string      `json:"author"`
+		Tool    string      `json:"tool"`
+		Points  [][]float64 `json:"points"`
+		Color   string      `json:"color"`
+		Size    float64     `json:"size"`
+		Opacity *float64    `json:"opacity"`
+		Author  string      `json:"author"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid stroke payload")
@@ -598,7 +599,11 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stroke, err := s.boards.AddStroke(id, request.Tool, request.Points, request.Color, request.Size, request.Author)
+	opacity := 1.0
+	if request.Opacity != nil {
+		opacity = *request.Opacity
+	}
+	stroke, err := s.boards.AddStroke(id, request.Tool, request.Points, request.Color, request.Size, opacity, request.Author)
 	if err != nil {
 		if errors.Is(err, media.ErrBoardNotFound) {
 			http.NotFound(w, r)

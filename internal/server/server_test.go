@@ -1345,7 +1345,7 @@ func TestCreateStrokeReturnsNoContentAndPersistsStroke(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/strokes", bytes.NewBufferString(`{"tool":"freeform","points":[[1,2],[3,4]],"color":"#fff","size":4,"author":"Tester"}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/strokes", bytes.NewBufferString(`{"tool":"freeform","points":[[1,2],[3,4]],"color":"#fff","size":4,"opacity":0.4,"author":"Tester"}`))
 	req.Header.Set("Content-Type", "application/json")
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
@@ -1371,7 +1371,7 @@ func TestCreateStrokeReturnsNoContentAndPersistsStroke(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
 		t.Fatal(err)
 	}
-	if len(data.Strokes) != 1 || data.Strokes[0].Author != "Tester" {
+	if len(data.Strokes) != 1 || data.Strokes[0].Author != "Tester" || data.Strokes[0].Opacity != 0.4 {
 		t.Fatalf("expected persisted stroke, got %#v", data.Strokes)
 	}
 }

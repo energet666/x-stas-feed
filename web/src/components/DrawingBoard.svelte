@@ -43,8 +43,10 @@
   const MAX_FREEFORM_SIMPLIFY_EPSILON = 24;
   const MIN_BRUSH_SIZE = 1;
   const MAX_BRUSH_SIZE = 200;
+  const MIN_BRUSH_OPACITY = 0.1;
   const brushColorStorageKey = 'feed-ai:drawing-brush-color';
   const brushSizeStorageKey = 'feed-ai:drawing-brush-size';
+  const brushOpacityStorageKey = 'feed-ai:drawing-brush-opacity';
   const customColorsStorageKey = 'feed-ai:drawing-custom-colors';
 
   let canvasEl = $state<HTMLCanvasElement | undefined>(undefined);
@@ -62,6 +64,7 @@
   let currentColor = $state('#ffffff');
   let customColors = $state([...DEFAULT_CUSTOM_COLORS]);
   let currentSize = $state(4);
+  let currentOpacity = $state(1);
   let isDrawing = $state(false);
   let activeStrokePointerId = $state<number | null>(null);
   let currentPoints = $state<number[][]>([]);
@@ -252,7 +255,7 @@
     }
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     for (const stroke of nextStrokes) {
-      drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
+      drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
     }
     redraw();
   }
@@ -270,7 +273,7 @@
     const ctx = committedCanvas.getContext('2d');
     if (!ctx) return;
 
-    drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
+    drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
     redraw();
   }
 
@@ -482,7 +485,7 @@
     if (debugToolsEnabled && showDebugSegments) {
       drawDebugSegmentedFreeformStroke(ctx, newPoints, currentSize);
     } else {
-      drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform');
+      drawStroke(ctx, newPoints, currentColor, currentSize, 'freeform', currentOpacity);
     }
 
     currentPoints = newPoints;
@@ -627,7 +630,7 @@
 
   async function submitStroke(tool: string, points: number[][]) {
     try {
-      await createStroke(mediaId, tool, points, currentColor, currentSize, username);
+      await createStroke(mediaId, tool, points, currentColor, currentSize, currentOpacity, username);
     } catch {
       // Failed to submit stroke
     }
@@ -695,7 +698,7 @@
 
     if (historyMode && options.includeHistoryMode) {
       for (const stroke of strokes.slice(0, historyStrokeCount)) {
-        drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool);
+        drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
       }
       return;
     }
@@ -712,7 +715,7 @@
 
     // 4. Draw line preview (not incremental but very few points)
     if (options.includeActiveStroke && currentTool === 'line' && lineStart && mousePos) {
-      drawStroke(ctx, [lineStart, mousePos], currentColor, currentSize, 'line');
+      drawStroke(ctx, [lineStart, mousePos], currentColor, currentSize, 'line', currentOpacity);
     }
   }
 
@@ -729,8 +732,9 @@
     ctx.restore();
   }
 
-  function drawPoint(ctx: CanvasRenderingContext2D, point: number[], color: string, size: number) {
+  function drawPoint(ctx: CanvasRenderingContext2D, point: number[], color: string, size: number, opacity = 1) {
     ctx.save();
+    ctx.globalAlpha = normalizedOpacity(opacity);
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(point[0], point[1], size / 2, 0, Math.PI * 2);
@@ -750,6 +754,7 @@
     }
 
     ctx.save();
+    ctx.globalAlpha = currentOpacity;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = size;
@@ -783,15 +788,17 @@
     points: number[][],
     color: string,
     size: number,
-    tool: string
+    tool: string,
+    opacity = 1
   ) {
     if (points.length === 0) return;
     if (points.length === 1) {
-      drawPoint(ctx, points[0], color, size);
+      drawPoint(ctx, points[0], color, size, opacity);
       return;
     }
 
     ctx.save();
+    ctx.globalAlpha = normalizedOpacity(opacity);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = color;
@@ -815,6 +822,12 @@
     }
     ctx.stroke();
     ctx.restore();
+  }
+
+  function normalizedOpacity(opacity: number | undefined) {
+    return typeof opacity === 'number' && Number.isFinite(opacity) && opacity > 0 && opacity <= 1
+      ? opacity
+      : 1;
   }
 
   function selectTool(tool: Tool) {
@@ -888,6 +901,20 @@
     event.preventDefault();
     event.stopPropagation();
     selectSize(currentSize + (event.deltaY < 0 ? 1 : -1));
+  }
+
+  function selectOpacity(opacity: number) {
+    currentOpacity = Math.min(1, Math.max(MIN_BRUSH_OPACITY, Math.round(opacity * 100) / 100));
+    try {
+      window.localStorage.setItem(brushOpacityStorageKey, String(currentOpacity));
+    } catch {
+      // Ignore storage failures; the selected opacity still applies in memory.
+    }
+    redraw();
+  }
+
+  function handleOpacityInput(event: Event) {
+    selectOpacity((event.currentTarget as HTMLInputElement).valueAsNumber / 100);
   }
 
   function handleBoardWheel(event: WheelEvent) {
@@ -1224,6 +1251,13 @@
       const storedSize = Number.parseInt(window.localStorage.getItem(brushSizeStorageKey) ?? '', 10);
       if (Number.isFinite(storedSize)) {
         currentSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, storedSize));
+      }
+
+      const storedOpacity = Number.parseFloat(
+        window.localStorage.getItem(brushOpacityStorageKey) ?? ''
+      );
+      if (Number.isFinite(storedOpacity)) {
+        currentOpacity = Math.min(1, Math.max(MIN_BRUSH_OPACITY, storedOpacity));
       }
 
       const storedCustomColors = parseStoredCustomColors(
@@ -1582,6 +1616,21 @@
             onpointercancel={finishCustomSizeDrag}
           />
         </div>
+
+        <div class="drawing-toolbar-divider"></div>
+
+        <label class="drawing-opacity-control" title={t.board.opacity}>
+          <span>{Math.round(currentOpacity * 100)}%</span>
+          <input
+            type="range"
+            min={MIN_BRUSH_OPACITY * 100}
+            max="100"
+            step="5"
+            value={currentOpacity * 100}
+            aria-label={t.board.opacity}
+            oninput={handleOpacityInput}
+          />
+        </label>
 
         <div class="drawing-toolbar-divider"></div>
 
@@ -2222,6 +2271,35 @@
   .drawing-size-custom::-webkit-inner-spin-button,
   .drawing-size-custom::-webkit-outer-spin-button {
     opacity: 0.85;
+  }
+
+  .drawing-opacity-control {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.65rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  .drawing-opacity-control span {
+    min-width: 2.25rem;
+    text-align: center;
+  }
+
+  .drawing-opacity-control input {
+    width: 4.5rem;
+    accent-color: currentColor;
+  }
+
+  .drawing-board-expanded .drawing-opacity-control {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .drawing-board-expanded .drawing-opacity-control input {
+    width: 3.5rem;
   }
 
   .drawing-color-grid {

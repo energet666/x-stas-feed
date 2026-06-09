@@ -405,6 +405,7 @@ export type Stroke = {
   points: number[][];
   color: string;
   size: number;
+  opacity: number;
   author: string;
   createdAt: string;
 };
@@ -463,6 +464,7 @@ export async function createStroke(
   points: number[][],
   color: string,
   size: number,
+  opacity: number,
   author: string
 ) {
   const response = await fetch(
@@ -470,7 +472,7 @@ export async function createStroke(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tool, points, color, size, author })
+      body: JSON.stringify({ tool, points, color, size, opacity, author })
     }
   );
 

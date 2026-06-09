@@ -163,6 +163,7 @@ export const uiText = {
     simplificationTolerance: 'Допуск ошибки упрощения',
     size: (size: number) => `Размер ${size}`,
     customBrushSize: 'Свой размер кисти',
+    opacity: 'Прозрачность штриха',
     color: 'Цвет',
     customColor: 'Свой цвет',
     history: 'История',

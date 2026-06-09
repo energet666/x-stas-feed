@@ -114,7 +114,7 @@ func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
 	stroke, err := store.AddStroke(info.ID, "line", [][]float64{
 		{-1.234, 40.567},
 		{1200.987, 799.949},
-	}, "#fff", 4, "Tester")
+	}, "#fff", 4, 0.45, "Tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,6 +122,9 @@ func TestBoardStoreAddStrokeNormalizesCoordinates(t *testing.T) {
 	expected := [][]float64{{-1.2, 40.6}, {1201, 799.9}}
 	if !samePoints(stroke.Points, expected) {
 		t.Fatalf("expected normalized points %#v, got %#v", expected, stroke.Points)
+	}
+	if stroke.Opacity != 0.45 {
+		t.Fatalf("expected stroke opacity 0.45, got %v", stroke.Opacity)
 	}
 
 	strokes, err := store.Strokes(info.ID)
@@ -261,7 +264,7 @@ func TestBoardStoreAddStrokeAllowsSingleFreeformPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stroke, err := store.AddStroke(info.ID, "freeform", [][]float64{{10.04, 20.06}}, "#fff", 4, "Tester")
+	stroke, err := store.AddStroke(info.ID, "freeform", [][]float64{{10.04, 20.06}}, "#fff", 4, 1, "Tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +305,7 @@ func TestBoardStoreAddStrokeRejectsSingleLinePoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.AddStroke(info.ID, "line", [][]float64{{10, 20}}, "#fff", 4, "Tester"); err == nil {
+	if _, err := store.AddStroke(info.ID, "line", [][]float64{{10, 20}}, "#fff", 4, 1, "Tester"); err == nil {
 		t.Fatal("expected single-point line stroke to be rejected")
 	}
 }
@@ -319,8 +322,25 @@ func TestBoardStoreAddStrokeRejectsInvalidPoints(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.AddStroke(info.ID, "line", [][]float64{{1, 2, 3}, {4, 5}}, "#fff", 4, "Tester"); err == nil {
+	if _, err := store.AddStroke(info.ID, "line", [][]float64{{1, 2, 3}, {4, 5}}, "#fff", 4, 1, "Tester"); err == nil {
 		t.Fatal("expected invalid coordinate pair to be rejected")
+	}
+}
+
+func TestBoardStoreAddStrokeRejectsInvalidOpacity(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.AddStroke(info.ID, "freeform", [][]float64{{10, 20}}, "#fff", 4, 1.1, "Tester"); err == nil {
+		t.Fatal("expected opacity above 1 to be rejected")
 	}
 }
 

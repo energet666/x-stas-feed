@@ -37,6 +37,7 @@ type Stroke struct {
 	Points    [][]float64 `json:"points"`
 	Color     string      `json:"color"`
 	Size      float64     `json:"size"`
+	Opacity   float64     `json:"opacity"`
 	Author    string      `json:"author"`
 	CreatedAt time.Time   `json:"createdAt"`
 }
@@ -425,7 +426,7 @@ func (bs *BoardStore) BackgroundPath(mediaID string) (string, string, error) {
 }
 
 // AddStroke appends a stroke to the board file and updates the in-memory state.
-func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64, color string, size float64, author string) (Stroke, error) {
+func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64, color string, size float64, opacity float64, author string) (Stroke, error) {
 	tool = strings.TrimSpace(tool)
 	if tool != "freeform" && tool != "line" {
 		return Stroke{}, errors.New("invalid tool: must be freeform or line")
@@ -447,6 +448,9 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 	if size <= 0 {
 		size = 3
 	}
+	if math.IsNaN(opacity) || math.IsInf(opacity, 0) || opacity <= 0 || opacity > 1 {
+		return Stroke{}, errors.New("stroke opacity must be greater than 0 and at most 1")
+	}
 	author = strings.TrimSpace(author)
 	if author == "" {
 		author = "Guest"
@@ -465,6 +469,7 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 		Points:    normalizedPoints,
 		Color:     color,
 		Size:      size,
+		Opacity:   opacity,
 		Author:    author,
 		CreatedAt: time.Now().UTC(),
 	}
@@ -568,6 +573,9 @@ func (bs *BoardStore) loadBoardFile(mediaID string, filename string) (*boardStat
 		var stroke Stroke
 		if err := json.Unmarshal(line, &stroke); err != nil {
 			continue // Skip malformed lines
+		}
+		if stroke.Opacity <= 0 || stroke.Opacity > 1 || math.IsNaN(stroke.Opacity) || math.IsInf(stroke.Opacity, 0) {
+			stroke.Opacity = 1
 		}
 		strokes = append(strokes, stroke)
 	}
