@@ -39,7 +39,7 @@
     type StrokeEvent
   } from './lib/feed';
 
-  const activityLimit = 30;
+  const activityLimit = 100;
   const estimatedCardHeight = 760;
   const itemGap = 16;
   const overscanRows = 2;
