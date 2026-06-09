@@ -858,7 +858,20 @@
     redraw();
   }
 
+  function activateFreeformForBrushSettings() {
+    if (currentTool === 'pan') {
+      selectTool('freeform');
+    }
+  }
+
+  function toggleColorPicker() {
+    const nextOpen = !showColorPicker;
+    activateFreeformForBrushSettings();
+    showColorPicker = nextOpen;
+  }
+
   function selectColor(color: string) {
+    activateFreeformForBrushSettings();
     currentColor = color;
     saveBrushColor(color);
     showColorPicker = false;
@@ -868,6 +881,7 @@
     const normalizedColor = normalizeHexColor(color);
     if (!normalizedColor) return;
 
+    activateFreeformForBrushSettings();
     currentColor = normalizedColor;
     saveBrushColor(normalizedColor);
   }
@@ -895,6 +909,7 @@
   }
 
   function selectSize(size: number) {
+    activateFreeformForBrushSettings();
     const normalizedSize = Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, Math.round(size)));
     currentSize = normalizedSize;
     saveBrushSize(normalizedSize);
@@ -915,6 +930,7 @@
   }
 
   function selectOpacity(opacity: number) {
+    activateFreeformForBrushSettings();
     currentOpacity = Math.min(1, Math.max(MIN_BRUSH_OPACITY, Math.round(opacity * 100) / 100));
     try {
       window.localStorage.setItem(brushOpacityStorageKey, String(currentOpacity));
@@ -1032,6 +1048,7 @@
   function handleCustomSizePointerDown(event: PointerEvent) {
     if (event.button !== 0) return;
 
+    activateFreeformForBrushSettings();
     const input = event.currentTarget as HTMLInputElement;
     if (isCustomSizeStepperPress(input, event)) return;
 
@@ -1640,6 +1657,7 @@
             step="10"
             value={currentOpacity * 100}
             aria-label={t.board.opacity}
+            onpointerdown={activateFreeformForBrushSettings}
             oninput={handleOpacityInput}
           />
         </label>
@@ -1651,7 +1669,7 @@
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={showColorPicker}
             title={t.board.color}
-            onclick={() => (showColorPicker = !showColorPicker)}
+            onclick={toggleColorPicker}
           >
             <Palette size={16} />
             <span
