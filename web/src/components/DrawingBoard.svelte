@@ -830,6 +830,17 @@
       : 1;
   }
 
+  function colorWithOpacity(color: string, opacity: number) {
+    const normalizedColor = normalizeHexColor(color);
+    const normalizedAlpha = normalizedOpacity(opacity);
+    if (!normalizedColor || normalizedAlpha === 1) return 'transparent';
+
+    const red = Number.parseInt(normalizedColor.slice(1, 3), 16);
+    const green = Number.parseInt(normalizedColor.slice(3, 5), 16);
+    const blue = Number.parseInt(normalizedColor.slice(5, 7), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${normalizedAlpha})`;
+  }
+
   function selectTool(tool: Tool) {
     clearActiveStroke();
     currentTool = tool;
@@ -1401,6 +1412,7 @@
             height: {brushCursorSize}px;
             transform: translate3d({brushCursorX}px, {brushCursorY}px, 0) translate(-50%, -50%);
             border-color: {currentColor};
+            background: {colorWithOpacity(currentColor, currentOpacity)};
           "
         ></div>
       {/if}
@@ -1625,7 +1637,7 @@
             type="range"
             min={MIN_BRUSH_OPACITY * 100}
             max="100"
-            step="5"
+            step="10"
             value={currentOpacity * 100}
             aria-label={t.board.opacity}
             oninput={handleOpacityInput}
