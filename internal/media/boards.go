@@ -15,6 +15,7 @@ import (
 	_ "image/png"
 	"io"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,6 +29,7 @@ const boardPointPrecision = 10
 const defaultBoardCanvasWidth = 1200
 const defaultBoardCanvasHeight = 800
 const boardAssetsDirName = "assets"
+const boardStickerPackDirName = "sticker-pack"
 
 // ErrBoardNotFound is returned when a board ID does not match any existing board.
 var ErrBoardNotFound = errors.New("board not found")
@@ -118,6 +120,7 @@ type BoardStore struct {
 
 	mu     sync.RWMutex
 	boards map[string]*boardState
+	assets map[string]BoardAsset
 }
 
 type boardState struct {
@@ -133,6 +136,7 @@ func NewBoardStore(contentRoot string) *BoardStore {
 		root:       filepath.Join(contentRoot, boardsDirName),
 		contentDir: contentRoot,
 		boards:     make(map[string]*boardState),
+		assets:     make(map[string]BoardAsset),
 	}
 }
 
@@ -143,6 +147,9 @@ func (bs *BoardStore) Init() error {
 
 	if err := os.MkdirAll(bs.root, 0o755); err != nil {
 		return fmt.Errorf("create boards directory: %w", err)
+	}
+	if err := bs.importStickerPack(); err != nil {
+		return fmt.Errorf("import board sticker pack: %w", err)
 	}
 
 	entries, err := os.ReadDir(bs.contentDir)
@@ -474,7 +481,10 @@ func (bs *BoardStore) Assets() []BoardAsset {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
 
-	assets := make(map[string]BoardAsset)
+	assets := make(map[string]BoardAsset, len(bs.assets))
+	for assetID, asset := range bs.assets {
+		assets[assetID] = asset
+	}
 	for _, state := range bs.boards {
 		for _, operation := range state.operations {
 			if operation.Image == nil {
@@ -751,6 +761,91 @@ func (bs *BoardStore) storeBoardAsset(source io.Reader) (string, string, error) 
 		}
 	}
 	return assetID, filename, nil
+}
+
+func (bs *BoardStore) importStickerPack() error {
+	stickerPackDir := filepath.Join(bs.root, boardStickerPackDirName)
+	entries, err := os.ReadDir(stickerPackDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read sticker pack directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if err := bs.importStickerPackEntry(stickerPackDir, entry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (bs *BoardStore) importStickerPackEntry(parent string, entry os.DirEntry) error {
+	path := filepath.Join(parent, entry.Name())
+	if entry.IsDir() {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return fmt.Errorf("read sticker pack directory %q: %w", path, err)
+		}
+		for _, child := range entries {
+			if err := bs.importStickerPackEntry(path, child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if !entry.Type().IsRegular() {
+		return nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open sticker pack image %q: %w", path, err)
+	}
+	defer file.Close()
+
+	header := make([]byte, 512)
+	n, err := io.ReadFull(file, header)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("read sticker pack image %q: %w", path, err)
+	}
+	mimeType := http.DetectContentType(header[:n])
+	if !isBoardImageMimeType(mimeType) {
+		return nil
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewind sticker pack image %q: %w", path, err)
+	}
+	assetID, filename, err := bs.storeBoardAsset(file)
+	if err != nil {
+		return fmt.Errorf("store sticker pack image %q: %w", path, err)
+	}
+	info, err := entry.Info()
+	if err != nil {
+		return fmt.Errorf("stat sticker pack image %q: %w", path, err)
+	}
+	createdAt := info.ModTime().UTC()
+	asset, ok := bs.assets[assetID]
+	if !ok || createdAt.After(asset.CreatedAt) {
+		bs.assets[assetID] = BoardAsset{
+			ID:        assetID,
+			URL:       "/api/board-assets/" + assetID,
+			MimeType:  mimeType,
+			CreatedAt: createdAt,
+			Filename:  filename,
+		}
+	}
+	return nil
+}
+
+func isBoardImageMimeType(mimeType string) bool {
+	switch mimeType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeStrokePoints(points [][]float64) ([][]float64, error) {

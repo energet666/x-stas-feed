@@ -2383,8 +2383,11 @@
 
   .drawing-asset-grid {
     display: grid;
+    flex: 1 1 auto;
     min-height: 0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
     gap: 0.55rem;
     padding: 0.65rem;
     overflow-x: hidden;
@@ -2395,6 +2398,11 @@
 
   .drawing-asset-grid button {
     position: relative;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    padding: 0;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.11);
     border-radius: 0.55rem;
@@ -2417,6 +2425,8 @@
   }
 
   .drawing-asset-grid img {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;

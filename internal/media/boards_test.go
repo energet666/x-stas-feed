@@ -449,6 +449,72 @@ func TestBoardStoreDeduplicatesImageAssetsByContent(t *testing.T) {
 	}
 }
 
+func TestBoardStoreInitImportsStickerPackAssets(t *testing.T) {
+	dir := t.TempDir()
+	stickerDir := filepath.Join(dir, boardsDirName, boardStickerPackDirName, "openmoji")
+	if err := os.MkdirAll(stickerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
+	if err := os.WriteFile(filepath.Join(stickerDir, "rocket.png"), pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stickerDir, "rocket-copy.png"), pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stickerDir, "README.md"), []byte("not an image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+	assets := store.Assets()
+	if len(assets) != 1 {
+		t.Fatalf("expected duplicate sticker files to produce one asset, got %#v", assets)
+	}
+	asset := assets[0]
+	if asset.MimeType != "image/png" || asset.UsageCount != 0 {
+		t.Fatalf("expected unused PNG sticker asset, got %#v", asset)
+	}
+	path, mimeType, err := store.GlobalAssetPath(asset.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mimeType != "image/png" {
+		t.Fatalf("expected image/png, got %q", mimeType)
+	}
+	stored, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stored, pngBytes) {
+		t.Fatalf("expected imported sticker bytes, got %q", stored)
+	}
+
+	board, err := store.Create("Sticker board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddExistingImage(board.ID, asset.ID, 10, 20, 100, 100, 0, "Tester"); err != nil {
+		t.Fatal(err)
+	}
+	assets = store.Assets()
+	if len(assets) != 1 || assets[0].UsageCount != 1 {
+		t.Fatalf("expected imported sticker usage to increase, got %#v", assets)
+	}
+
+	reloaded := NewBoardStore(dir)
+	if err := reloaded.Init(); err != nil {
+		t.Fatal(err)
+	}
+	assets = reloaded.Assets()
+	if len(assets) != 1 || assets[0].UsageCount != 1 {
+		t.Fatalf("expected imported sticker and usage after restart, got %#v", assets)
+	}
+}
+
 func samePoints(a, b [][]float64) bool {
 	if len(a) != len(b) {
 		return false

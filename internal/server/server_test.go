@@ -44,6 +44,43 @@ func TestFeedEndpointReturnsIndexedItem(t *testing.T) {
 	}
 }
 
+func TestServerImportsStickerPackIntoBoardAssets(t *testing.T) {
+	dir := t.TempDir()
+	stickerDir := filepath.Join(dir, ".boards", "sticker-pack", "openmoji")
+	if err := os.MkdirAll(stickerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
+	if err := os.WriteFile(filepath.Join(stickerDir, "rocket.png"), pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/board-assets", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	var response struct {
+		Assets []media.BoardAsset `json:"assets"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Assets) != 1 || response.Assets[0].UsageCount != 0 {
+		t.Fatalf("expected one unused starter asset, got %#v", response.Assets)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, response.Assets[0].URL, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || !bytes.Equal(res.Body.Bytes(), pngBytes) {
+		t.Fatalf("expected imported sticker bytes, status=%d body=%q", res.Code, res.Body.Bytes())
+	}
+}
+
 func TestFeedScanKeepsImagesInMediaRootWithBoardHistory(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
