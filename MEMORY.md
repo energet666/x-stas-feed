@@ -339,3 +339,8 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Feed header line-clamp compatibility warning fixed on 2026-06-05 by adding standard `line-clamp`; `npm run check` in `web` now reports 0 errors and 0 warnings.
 - Upload implementation verified with `go test ./...`, `npm --prefix web run check`, `npm --prefix web run build`, and a short Go server smoke test for `/` plus `/api/feed` on 2026-05-08.
 - Favorites implementation verified on 2026-05-09 with `go test ./...`, `npm run check` in `web`, and `npm run build` in `web`.
+## 2026-06-11 — Drawing board help
+
+- Added a help button to the expanded drawing board next to the close control.
+- Added a responsive help dialog documenting drawing tools, canvas navigation, image drag-and-drop and transforms, asset reuse, history controls, and all current keyboard shortcuts.
+- `Escape` closes the help dialog before any underlying board action or the expanded board itself.

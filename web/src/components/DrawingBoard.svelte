@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, Check, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
+  import { Activity, Check, CircleHelp, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
   import {
     createBoardImage,
     createBoardImageFromAsset,
@@ -115,6 +115,7 @@
   let imageDraftSaving = $state(false);
   let imageDraftError = $state('');
   let showAssetLibrary = $state(false);
+  let showHelp = $state(false);
   let boardAssets = $state<BoardAsset[]>([]);
   let boardAssetsLoading = $state(false);
   let boardAssetsError = $state('');
@@ -1271,6 +1272,14 @@
   function handleWindowKeydown(event: KeyboardEvent) {
     if (!expanded) return;
 
+    if (event.key === 'Escape' && showHelp) {
+      showHelp = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+
     if (event.key === 'Escape' && showAssetLibrary) {
       showAssetLibrary = false;
       event.preventDefault();
@@ -1525,8 +1534,16 @@
   async function toggleAssetLibrary() {
     showAssetLibrary = !showAssetLibrary;
     showColorPicker = false;
+    showHelp = false;
     if (!showAssetLibrary) return;
     await loadBoardAssets();
+  }
+
+  function toggleHelp() {
+    showHelp = !showHelp;
+    if (!showHelp) return;
+    showAssetLibrary = false;
+    showColorPicker = false;
   }
 
   async function loadBoardAssets() {
@@ -1644,6 +1661,13 @@
   }
 
   function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && showHelp) {
+      showHelp = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key === 'Escape' && showAssetLibrary) {
       showAssetLibrary = false;
       event.preventDefault();
@@ -1862,6 +1886,91 @@
         >
           <X size={18} />
         </button>
+      {/if}
+
+      <button
+        class="drawing-help-btn"
+        class:drawing-help-btn-with-close={Boolean(onClose)}
+        class:drawing-help-btn-active={showHelp}
+        type="button"
+        aria-label={t.board.openHelp}
+        title={t.board.openHelp}
+        aria-expanded={showHelp}
+        aria-controls="drawing-board-help"
+        onclick={toggleHelp}
+      >
+        <CircleHelp size={18} />
+      </button>
+
+      {#if showHelp}
+        <div
+          class="drawing-help-backdrop"
+          role="presentation"
+          onclick={(event) => {
+            if (event.currentTarget === event.target) showHelp = false;
+          }}
+        >
+          <div
+            id="drawing-board-help"
+            class="drawing-help-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="drawing-board-help-title"
+          >
+            <header>
+              <div>
+                <h2 id="drawing-board-help-title">{t.board.helpTitle}</h2>
+                <p>{t.board.helpSubtitle}</p>
+              </div>
+              <button type="button" aria-label={t.board.closeHelp} title={t.board.closeHelp} onclick={() => (showHelp = false)}>
+                <X size={18} />
+              </button>
+            </header>
+
+            <div class="drawing-help-content">
+              <section>
+                <h3>{t.board.helpDrawingTitle}</h3>
+                <dl>
+                  <div><dt>{t.board.helpPanLabel}</dt><dd>{t.board.helpPanText}</dd></div>
+                  <div><dt>{t.board.helpFreeformLabel}</dt><dd>{t.board.helpFreeformText}</dd></div>
+                  <div><dt>{t.board.helpLineLabel}</dt><dd>{t.board.helpLineText}</dd></div>
+                  <div><dt>{t.board.helpCancelStrokeLabel}</dt><dd>{t.board.helpCancelStrokeText}</dd></div>
+                </dl>
+              </section>
+
+              <section>
+                <h3>{t.board.helpNavigationTitle}</h3>
+                <dl>
+                  <div><dt><kbd>Space</kbd> + drag</dt><dd>{t.board.helpTemporaryPan}</dd></div>
+                  <div><dt>{t.board.helpWheelLabel}</dt><dd>{t.board.helpWheelText}</dd></div>
+                  <div><dt><kbd>+</kbd> / <kbd>−</kbd></dt><dd>{t.board.helpZoomKeys}</dd></div>
+                  <div><dt><kbd>0</kbd></dt><dd>{t.board.helpResetZoomKey}</dd></div>
+                  <div><dt><kbd>Ctrl</kbd> + {t.board.helpWheelLabel}</dt><dd>{t.board.helpBrushWheel}</dd></div>
+                </dl>
+              </section>
+
+              <section>
+                <h3>{t.board.helpImagesTitle}</h3>
+                <dl>
+                  <div><dt>{t.board.helpDropLabel}</dt><dd>{t.board.helpDropText}</dd></div>
+                  <div><dt>{t.board.helpAssetsLabel}</dt><dd>{t.board.helpAssetsText}</dd></div>
+                  <div><dt>{t.board.helpTransformLabel}</dt><dd>{t.board.helpTransformText}</dd></div>
+                  <div><dt><kbd>Esc</kbd></dt><dd>{t.board.helpCancelImage}</dd></div>
+                </dl>
+              </section>
+
+              <section>
+                <h3>{t.board.helpHistoryTitle}</h3>
+                <dl>
+                  <div><dt><kbd>←</kbd> <kbd>↓</kbd></dt><dd>{t.board.helpHistoryBack}</dd></div>
+                  <div><dt><kbd>→</kbd> <kbd>↑</kbd></dt><dd>{t.board.helpHistoryForward}</dd></div>
+                  <div><dt><kbd>Home</kbd> / <kbd>End</kbd></dt><dd>{t.board.helpHistoryEdges}</dd></div>
+                  <div><dt><kbd>Esc</kbd></dt><dd>{t.board.helpExitHistory}</dd></div>
+                </dl>
+              </section>
+            </div>
+          </div>
+        </div>
       {/if}
 
       <div class="drawing-zoom-controls" aria-label={t.board.zoomControls}>
@@ -2637,6 +2746,195 @@
       background 140ms ease,
       border-color 140ms ease,
       color 140ms ease;
+  }
+
+  .drawing-help-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 12;
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 0.75rem;
+    background: rgba(15, 15, 23, 0.72);
+    color: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    transition:
+      background 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .drawing-help-btn-with-close {
+    right: 4rem;
+  }
+
+  .drawing-help-btn:hover,
+  .drawing-help-btn-active {
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(15, 15, 23, 0.9);
+    color: #fff;
+  }
+
+  .drawing-help-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    padding: 1rem;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .drawing-help-dialog {
+    display: flex;
+    width: min(48rem, 100%);
+    max-height: min(42rem, calc(100vh - 2rem));
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 1.25rem;
+    background: rgba(15, 15, 23, 0.96);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.56);
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .drawing-help-dialog > header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.15rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .drawing-help-dialog h2,
+  .drawing-help-dialog h3,
+  .drawing-help-dialog p {
+    margin: 0;
+  }
+
+  .drawing-help-dialog h2 {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  .drawing-help-dialog header p {
+    margin-top: 0.25rem;
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 0.76rem;
+    line-height: 1.4;
+  }
+
+  .drawing-help-dialog header button {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 0.55rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .drawing-help-dialog header button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .drawing-help-content {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 1.5rem;
+    padding: 1rem 1.15rem 1.2rem;
+    overflow-y: auto;
+  }
+
+  .drawing-help-content h3 {
+    margin-bottom: 0.5rem;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .drawing-help-content dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+  }
+
+  .drawing-help-content dl > div {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 1.4fr);
+    gap: 0.75rem;
+    padding: 0.55rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .drawing-help-content dt,
+  .drawing-help-content dd {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+  }
+
+  .drawing-help-content dt {
+    color: rgba(255, 255, 255, 0.86);
+    font-weight: 650;
+  }
+
+  .drawing-help-content dd {
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .drawing-help-content kbd {
+    display: inline-flex;
+    min-width: 1.5rem;
+    min-height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1rem 0.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.35rem;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+    color: rgba(255, 255, 255, 0.9);
+    font: inherit;
+    font-size: 0.68rem;
+    line-height: 1;
+  }
+
+  @media (max-width: 700px) {
+    .drawing-help-content {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .drawing-help-backdrop {
+      padding: 0.5rem;
+    }
+
+    .drawing-help-dialog {
+      max-height: calc(100vh - 1rem);
+      border-radius: 1rem;
+    }
+
+    .drawing-help-content dl > div {
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
+    }
   }
 
   .drawing-zoom-controls {
