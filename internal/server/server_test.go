@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
@@ -1440,6 +1441,45 @@ func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusOK || !bytes.Equal(res.Body.Bytes(), pngBytes) {
 		t.Fatalf("expected stored image bytes, status=%d body=%q", res.Code, res.Body.Bytes())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/board-assets", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var assets struct {
+		Assets []media.BoardAsset `json:"assets"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&assets); err != nil {
+		t.Fatal(err)
+	}
+	if len(assets.Assets) != 1 || assets.Assets[0].ID != image.AssetID || assets.Assets[0].UsageCount != 1 {
+		t.Fatalf("expected uploaded image in asset library, got %#v", assets.Assets)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, assets.Assets[0].URL, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || !bytes.Equal(res.Body.Bytes(), pngBytes) {
+		t.Fatalf("expected globally served asset, status=%d body=%q", res.Code, res.Body.Bytes())
+	}
+
+	reuseBody := fmt.Sprintf(`{"assetId":%q,"x":30,"y":40,"width":150,"height":100,"rotation":12,"author":"Reuse"}`, image.AssetID)
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/images", strings.NewReader(reuseBody))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected asset reuse status 204, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/board-assets", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if err := json.NewDecoder(res.Body).Decode(&assets); err != nil {
+		t.Fatal(err)
+	}
+	if len(assets.Assets) != 1 || assets.Assets[0].UsageCount != 2 {
+		t.Fatalf("expected reused asset count 2, got %#v", assets.Assets)
 	}
 }
 

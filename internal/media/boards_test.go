@@ -431,6 +431,22 @@ func TestBoardStoreDeduplicatesImageAssetsByContent(t *testing.T) {
 	if len(entries) != 1 || entries[0].Name() != first.Filename {
 		t.Fatalf("expected exactly one content-addressed asset, got %#v", entries)
 	}
+
+	assets := store.Assets()
+	if len(assets) != 1 || assets[0].ID != first.AssetID || assets[0].UsageCount != 2 {
+		t.Fatalf("expected one reusable asset with two usages, got %#v", assets)
+	}
+	reused, err := store.AddExistingImage(firstBoard.ID, first.AssetID, 60, 70, 120, 80, 15, "Three")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reused.AssetID != first.AssetID || reused.ID == first.ID {
+		t.Fatalf("expected a distinct placement reusing the asset, got %#v", reused)
+	}
+	assets = store.Assets()
+	if len(assets) != 1 || assets[0].UsageCount != 3 {
+		t.Fatalf("expected reuse count to increase, got %#v", assets)
+	}
 }
 
 func samePoints(a, b [][]float64) bool {

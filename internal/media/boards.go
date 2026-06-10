@@ -60,6 +60,16 @@ type BoardImage struct {
 	Filename  string    `json:"assetFilename,omitempty"`
 }
 
+// BoardAsset describes one reusable image stored by the board system.
+type BoardAsset struct {
+	ID         string    `json:"id"`
+	URL        string    `json:"url"`
+	MimeType   string    `json:"mimeType"`
+	UsageCount int       `json:"usageCount"`
+	CreatedAt  time.Time `json:"createdAt"`
+	Filename   string    `json:"-"`
+}
+
 // BoardOperation preserves the layer order of strokes and fixed images.
 type BoardOperation struct {
 	Type   string      `json:"type"`
@@ -459,6 +469,62 @@ func (bs *BoardStore) AssetPath(mediaID, assetID string) (string, string, error)
 	return "", "", ErrBoardNotFound
 }
 
+// Assets returns unique reusable image assets, newest first.
+func (bs *BoardStore) Assets() []BoardAsset {
+	bs.mu.RLock()
+	defer bs.mu.RUnlock()
+
+	assets := make(map[string]BoardAsset)
+	for _, state := range bs.boards {
+		for _, operation := range state.operations {
+			if operation.Image == nil {
+				continue
+			}
+			image := operation.Image
+			asset, ok := assets[image.AssetID]
+			if !ok {
+				asset = BoardAsset{
+					ID:        image.AssetID,
+					URL:       "/api/board-assets/" + image.AssetID,
+					MimeType:  image.MimeType,
+					CreatedAt: image.CreatedAt,
+					Filename:  image.Filename,
+				}
+			}
+			asset.UsageCount++
+			if image.CreatedAt.After(asset.CreatedAt) {
+				asset.CreatedAt = image.CreatedAt
+			}
+			assets[image.AssetID] = asset
+		}
+	}
+
+	result := make([]BoardAsset, 0, len(assets))
+	for _, asset := range assets {
+		result = append(result, asset)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if !result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].CreatedAt.After(result[j].CreatedAt)
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result
+}
+
+// GlobalAssetPath returns an asset referenced by any board.
+func (bs *BoardStore) GlobalAssetPath(assetID string) (string, string, error) {
+	if assetID == "" || filepath.Base(assetID) != assetID {
+		return "", "", ErrBoardNotFound
+	}
+	for _, asset := range bs.Assets() {
+		if asset.ID == assetID && filepath.Base(asset.Filename) == asset.Filename {
+			return filepath.Join(bs.root, boardAssetsDirName, asset.Filename), asset.MimeType, nil
+		}
+	}
+	return "", "", ErrBoardNotFound
+}
+
 // BackgroundPath returns a safe server-owned background file for a board.
 func (bs *BoardStore) BackgroundPath(mediaID string) (string, string, error) {
 	bs.mu.RLock()
@@ -560,40 +626,30 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 
 // AddImage stores an image asset and appends its placement to board history.
 func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y, width, height, rotation float64, author string) (BoardImage, error) {
-	if width <= 0 || height <= 0 || math.IsNaN(width) || math.IsInf(width, 0) || math.IsNaN(height) || math.IsInf(height, 0) {
-		return BoardImage{}, errors.New("image dimensions must be finite positive numbers")
+	if _, _, _, _, _, _, _, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author); err != nil {
+		return BoardImage{}, err
 	}
-	values := []*float64{&x, &y, &width, &height, &rotation}
-	for _, value := range values {
-		normalized, err := normalizeBoardCoordinate(*value)
-		if err != nil {
-			return BoardImage{}, err
-		}
-		*value = normalized
-	}
-	author = strings.TrimSpace(author)
-	if author == "" {
-		author = "Guest"
-	}
-
-	bs.mu.RLock()
-	state, ok := bs.boards[mediaID]
-	bs.mu.RUnlock()
-	if !ok {
-		return BoardImage{}, ErrBoardNotFound
-	}
-	maxWidth := float64(state.info.Canvas.Width) * 10
-	maxHeight := float64(state.info.Canvas.Height) * 10
-	if width > maxWidth || height > maxHeight ||
-		x < -maxWidth || x > maxWidth || y < -maxHeight || y > maxHeight {
-		return BoardImage{}, errors.New("image placement is outside allowed board bounds")
-	}
-
 	assetID, filename, err := bs.storeBoardAsset(source)
 	if err != nil {
 		return BoardImage{}, err
 	}
+	return bs.addImagePlacement(mediaID, assetID, filename, mimeType, x, y, width, height, rotation, author)
+}
 
+// AddExistingImage reuses an existing asset in a new board placement.
+func (bs *BoardStore) AddExistingImage(mediaID, assetID string, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+	path, mimeType, err := bs.GlobalAssetPath(assetID)
+	if err != nil {
+		return BoardImage{}, err
+	}
+	return bs.addImagePlacement(mediaID, assetID, filepath.Base(path), mimeType, x, y, width, height, rotation, author)
+}
+
+func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType string, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+	state, x, y, width, height, rotation, author, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author)
+	if err != nil {
+		return BoardImage{}, err
+	}
 	image := BoardImage{
 		ID:        generateStrokeID(),
 		AssetID:   assetID,
@@ -630,6 +686,38 @@ func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y,
 	state.operations = append(state.operations, operation)
 	bs.mu.Unlock()
 	return image, nil
+}
+
+func (bs *BoardStore) normalizeImagePlacement(mediaID string, x, y, width, height, rotation float64, author string) (*boardState, float64, float64, float64, float64, float64, string, error) {
+	if width <= 0 || height <= 0 || math.IsNaN(width) || math.IsInf(width, 0) || math.IsNaN(height) || math.IsInf(height, 0) {
+		return nil, 0, 0, 0, 0, 0, "", errors.New("image dimensions must be finite positive numbers")
+	}
+	values := []*float64{&x, &y, &width, &height, &rotation}
+	for _, value := range values {
+		normalized, err := normalizeBoardCoordinate(*value)
+		if err != nil {
+			return nil, 0, 0, 0, 0, 0, "", err
+		}
+		*value = normalized
+	}
+	author = strings.TrimSpace(author)
+	if author == "" {
+		author = "Guest"
+	}
+
+	bs.mu.RLock()
+	state, ok := bs.boards[mediaID]
+	bs.mu.RUnlock()
+	if !ok {
+		return nil, 0, 0, 0, 0, 0, "", ErrBoardNotFound
+	}
+	maxWidth := float64(state.info.Canvas.Width) * 10
+	maxHeight := float64(state.info.Canvas.Height) * 10
+	if width > maxWidth || height > maxHeight ||
+		x < -maxWidth || x > maxWidth || y < -maxHeight || y > maxHeight {
+		return nil, 0, 0, 0, 0, 0, "", errors.New("image placement is outside allowed board bounds")
+	}
+	return state, x, y, width, height, rotation, author, nil
 }
 
 func (bs *BoardStore) storeBoardAsset(source io.Reader) (string, string, error) {

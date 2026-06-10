@@ -85,6 +85,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
 	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
+	s.mux.HandleFunc("GET /api/board-assets", s.handleListBoardAssets)
+	s.mux.HandleFunc("GET /api/board-assets/{assetID}", s.handleGlobalBoardAsset)
 	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
 	s.mux.HandleFunc("GET /api/boards/{id}/background", s.handleBoardBackground)
 	s.mux.HandleFunc("GET /api/boards/{id}/assets/{assetID}", s.handleBoardAsset)
@@ -536,6 +538,21 @@ func (s *Server) handleListBoards(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]media.BoardInfo{"boards": boards})
 }
 
+func (s *Server) handleListBoardAssets(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string][]media.BoardAsset{"assets": s.boards.Assets()})
+}
+
+func (s *Server) handleGlobalBoardAsset(w http.ResponseWriter, r *http.Request) {
+	path, mimeType, err := s.boards.GlobalAssetPath(r.PathValue("assetID"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", mediaCacheControl)
+	w.Header().Set("Content-Type", mimeType)
+	http.ServeFile(w, r, path)
+}
+
 func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	info, err := s.boardInfoForID(id)
@@ -643,6 +660,10 @@ func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		s.handleCreateExistingBoardImage(w, r, id)
+		return
+	}
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		writeError(w, http.StatusBadRequest, "board image request must be multipart/form-data")
 		return
@@ -715,6 +736,33 @@ func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) 
 	}
 	image, err := s.boards.AddImage(id, mimeType, temp, x, y, width, height, rotation, r.FormValue("author"))
 	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.boardHub.publishImage(id, image)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleCreateExistingBoardImage(w http.ResponseWriter, r *http.Request, id string) {
+	var request struct {
+		AssetID  string  `json:"assetId"`
+		X        float64 `json:"x"`
+		Y        float64 `json:"y"`
+		Width    float64 `json:"width"`
+		Height   float64 `json:"height"`
+		Rotation float64 `json:"rotation"`
+		Author   string  `json:"author"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid board image payload")
+		return
+	}
+	image, err := s.boards.AddExistingImage(id, request.AssetID, request.X, request.Y, request.Width, request.Height, request.Rotation, request.Author)
+	if err != nil {
+		if errors.Is(err, media.ErrBoardNotFound) {
+			http.NotFound(w, r)
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

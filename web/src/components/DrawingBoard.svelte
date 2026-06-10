@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, Check, Hand, HandGrab, History, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
+  import { Activity, Check, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
   import {
     createBoardImage,
+    createBoardImageFromAsset,
     createStroke,
     fetchBoard,
+    fetchBoardAssets,
+    type BoardAsset,
     type BoardImage,
     type BoardOperation,
     type Stroke
@@ -98,8 +101,10 @@
   let sizeDragSuppressClick = $state(false);
   let backgroundImage = $state<HTMLImageElement | undefined>(undefined);
   type ImageDraft = {
-    file: File;
+    file?: File;
+    assetId?: string;
     url: string;
+    revokeURL: boolean;
     x: number;
     y: number;
     width: number;
@@ -109,6 +114,10 @@
   let imageDraft = $state<ImageDraft | null>(null);
   let imageDraftSaving = $state(false);
   let imageDraftError = $state('');
+  let showAssetLibrary = $state(false);
+  let boardAssets = $state<BoardAsset[]>([]);
+  let boardAssetsLoading = $state(false);
+  let boardAssetsError = $state('');
   let imageTransformPointerId = $state<number | null>(null);
   let imageTransformMode = $state<'move' | 'resize' | 'rotate' | null>(null);
   let imageTransformStart = $state({ x: 0, y: 0, draftX: 0, draftY: 0, width: 0, height: 0, rotation: 0, pointerAngle: 0 });
@@ -162,7 +171,7 @@
       window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
       window.removeEventListener('resize', clampPanToViewport);
       hideCancelHint();
-      if (imageDraft) URL.revokeObjectURL(imageDraft.url);
+      releaseImageDraftURL(imageDraft);
     };
   });
 
@@ -935,6 +944,7 @@
   function toggleColorPicker() {
     const nextOpen = !showColorPicker;
     activateFreeformForBrushSettings();
+    showAssetLibrary = false;
     showColorPicker = nextOpen;
   }
 
@@ -1032,6 +1042,10 @@
     const nextZoom = zoom * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
     setZoom(nextZoom, event.clientX, event.clientY);
     updateBrushCursor(event);
+  }
+
+  function handleAssetLibraryWheel(event: WheelEvent) {
+    event.stopPropagation();
   }
 
   function beginPan(event: PointerEvent) {
@@ -1219,6 +1233,7 @@
     historyMode = true;
     historyStrokeCount = operations.length;
     cancelImageDraft();
+    showAssetLibrary = false;
     lineStart = null;
     mousePos = null;
     isDrawing = false;
@@ -1255,6 +1270,14 @@
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (!expanded) return;
+
+    if (event.key === 'Escape' && showAssetLibrary) {
+      showAssetLibrary = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
 
     if (event.key === 'Escape' && cancelImageDraft()) {
       event.preventDefault();
@@ -1459,19 +1482,30 @@
     }
     const [dropX, dropY] = canvasCoords(event);
     const url = URL.createObjectURL(file);
+    startImageDraft(url, { file, revokeURL: true, centerX: dropX, centerY: dropY });
+  }
+
+  function startImageDraft(
+    url: string,
+    source: { file?: File; assetId?: string; revokeURL: boolean; centerX?: number; centerY?: number }
+  ) {
     const image = new Image();
     image.onload = () => {
-      if (imageDraft) URL.revokeObjectURL(imageDraft.url);
+      releaseImageDraftURL(imageDraft);
       const maxWidth = canvasWidth * 0.45;
       const maxHeight = canvasHeight * 0.45;
       const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight, 1);
       const width = Math.max(20, image.naturalWidth * scale);
       const height = Math.max(20, image.naturalHeight * scale);
+      const centerX = source.centerX ?? canvasWidth / 2;
+      const centerY = source.centerY ?? canvasHeight / 2;
       imageDraft = {
-        file,
+        file: source.file,
+        assetId: source.assetId,
         url,
-        x: dropX - width / 2,
-        y: dropY - height / 2,
+        revokeURL: source.revokeURL,
+        x: centerX - width / 2,
+        y: centerY - height / 2,
         width,
         height,
         rotation: 0
@@ -1479,12 +1513,37 @@
       imageDraftError = '';
       clearActiveStroke();
       currentTool = 'pan';
+      showAssetLibrary = false;
     };
     image.onerror = () => {
-      URL.revokeObjectURL(url);
+      if (source.revokeURL) URL.revokeObjectURL(url);
       imageDraftError = 'Не удалось прочитать изображение';
     };
     image.src = url;
+  }
+
+  async function toggleAssetLibrary() {
+    showAssetLibrary = !showAssetLibrary;
+    showColorPicker = false;
+    if (!showAssetLibrary) return;
+    await loadBoardAssets();
+  }
+
+  async function loadBoardAssets() {
+    if (boardAssetsLoading) return;
+    boardAssetsLoading = true;
+    boardAssetsError = '';
+    try {
+      boardAssets = await fetchBoardAssets();
+    } catch (error) {
+      boardAssetsError = error instanceof Error ? error.message : 'Не удалось загрузить ассеты';
+    } finally {
+      boardAssetsLoading = false;
+    }
+  }
+
+  function selectBoardAsset(asset: BoardAsset) {
+    startImageDraft(asset.url, { assetId: asset.id, revokeURL: false });
   }
 
   function hasBoardDraggedFiles(event: DragEvent) {
@@ -1550,7 +1609,7 @@
 
   function cancelImageDraft() {
     if (!imageDraft || imageDraftSaving) return false;
-    URL.revokeObjectURL(imageDraft.url);
+    releaseImageDraftURL(imageDraft);
     imageDraft = null;
     imageDraftError = '';
     imageTransformPointerId = null;
@@ -1564,8 +1623,14 @@
     imageDraftError = '';
     const draft = imageDraft;
     try {
-      await createBoardImage(mediaId, draft.file, draft, username);
-      URL.revokeObjectURL(draft.url);
+      if (draft.file) {
+        await createBoardImage(mediaId, draft.file, draft, username);
+      } else if (draft.assetId) {
+        await createBoardImageFromAsset(mediaId, draft.assetId, draft, username);
+      } else {
+        throw new Error('Источник изображения не найден');
+      }
+      releaseImageDraftURL(draft);
       imageDraft = null;
     } catch (error) {
       imageDraftError = error instanceof Error ? error.message : 'Не удалось добавить изображение';
@@ -1574,7 +1639,18 @@
     }
   }
 
+  function releaseImageDraftURL(draft: ImageDraft | null) {
+    if (draft?.revokeURL) URL.revokeObjectURL(draft.url);
+  }
+
   function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && showAssetLibrary) {
+      showAssetLibrary = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key === 'Escape' && cancelImageDraft()) {
       event.preventDefault();
       event.stopPropagation();
@@ -1696,6 +1772,50 @@
           </button>
           {#if imageDraftError}<span>{imageDraftError}</span>{/if}
         </div>
+      {/if}
+      {#if showAssetLibrary}
+        <section
+          class="drawing-asset-library"
+          aria-label="Библиотека ассетов"
+          onwheel={handleAssetLibraryWheel}
+        >
+          <header>
+            <strong>Ассеты</strong>
+            <span>{boardAssets.length}</span>
+            <button type="button" aria-label="Закрыть библиотеку ассетов" onclick={() => (showAssetLibrary = false)}>
+              <X size={15} />
+            </button>
+          </header>
+          {#if boardAssetsLoading}
+            <div class="drawing-asset-library-state">
+              <LoaderCircle class="drawing-asset-spinner" size={22} />
+              Загрузка…
+            </div>
+          {:else if boardAssetsError}
+            <div class="drawing-asset-library-state drawing-asset-library-error">
+              {boardAssetsError}
+              <button type="button" onclick={loadBoardAssets}>Повторить</button>
+            </div>
+          {:else if boardAssets.length === 0}
+            <div class="drawing-asset-library-state">
+              Перетащите изображение на доску, чтобы добавить первый ассет.
+            </div>
+          {:else}
+            <div class="drawing-asset-grid">
+              {#each boardAssets as asset (asset.id)}
+                <button
+                  type="button"
+                  title="Использований: {asset.usageCount}"
+                  aria-label="Добавить ассет на доску. Использований: {asset.usageCount}"
+                  onclick={() => selectBoardAsset(asset)}
+                >
+                  <img src={asset.url} alt="" loading="lazy" />
+                  <span>{asset.usageCount}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </section>
       {/if}
       <div class="drawing-cancel-hint-layer" aria-hidden="true">
         <div
@@ -2004,6 +2124,17 @@
         <div class="drawing-toolbar-group">
           <button
             class="drawing-tool-btn"
+            class:drawing-tool-btn-active={showAssetLibrary}
+            type="button"
+            title="Библиотека ассетов"
+            aria-label="Открыть библиотеку ассетов"
+            aria-pressed={showAssetLibrary}
+            onclick={toggleAssetLibrary}
+          >
+            <Images size={16} />
+          </button>
+          <button
+            class="drawing-tool-btn"
             type="button"
             title={t.board.history}
             aria-label={t.board.openHistory}
@@ -2192,6 +2323,168 @@
     max-width: min(26rem, 45vw);
     color: #fca5a5;
     font-size: 0.72rem;
+  }
+
+  .drawing-asset-library {
+    position: absolute;
+    top: 50%;
+    right: 5rem;
+    z-index: 13;
+    display: flex;
+    width: min(22rem, calc(100vw - 7rem));
+    max-height: min(32rem, calc(100vh - 3rem));
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.9rem;
+    background: rgba(15, 15, 23, 0.94);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(18px) saturate(145%);
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    transform: translateY(-50%);
+  }
+
+  .drawing-asset-library header {
+    display: flex;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.55rem 0 0.8rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  .drawing-asset-library header strong {
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.82rem;
+  }
+
+  .drawing-asset-library header span {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.7rem;
+  }
+
+  .drawing-asset-library header button {
+    display: grid;
+    width: 1.9rem;
+    height: 1.9rem;
+    margin-left: auto;
+    place-items: center;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .drawing-asset-library header button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .drawing-asset-grid {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    padding: 0.65rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .drawing-asset-grid button {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 0.55rem;
+    aspect-ratio: 1;
+    background-color: #1b1b24;
+    background-image:
+      linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.06) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.06) 75%);
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+    background-size: 12px 12px;
+  }
+
+  .drawing-asset-grid button:hover,
+  .drawing-asset-grid button:focus-visible {
+    border-color: rgba(96, 165, 250, 0.75);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    outline: none;
+  }
+
+  .drawing-asset-grid img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .drawing-asset-grid span {
+    position: absolute;
+    right: 0.3rem;
+    bottom: 0.3rem;
+    min-width: 1.15rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.72);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .drawing-asset-library-state {
+    display: flex;
+    min-height: 9rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.76rem;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .drawing-asset-library-error {
+    flex-direction: column;
+    color: #fca5a5;
+  }
+
+  .drawing-asset-library-error button {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+  }
+
+  .drawing-asset-spinner {
+    animation: drawing-asset-spin 900ms linear infinite;
+  }
+
+  @keyframes drawing-asset-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 700px) {
+    .drawing-asset-library {
+      top: 4.25rem;
+      right: 0.75rem;
+      left: 0.75rem;
+      width: auto;
+      max-height: calc(100vh - 9rem);
+      transform: none;
+    }
+
+    .drawing-asset-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 
   .drawing-cancel-hint-layer {

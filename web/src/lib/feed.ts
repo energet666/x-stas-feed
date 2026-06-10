@@ -444,6 +444,14 @@ export type BoardImage = {
   createdAt: string;
 };
 
+export type BoardAsset = {
+  id: string;
+  url: string;
+  mimeType: string;
+  usageCount: number;
+  createdAt: string;
+};
+
 export type BoardOperation =
   | { type: 'stroke'; stroke: Stroke }
   | { type: 'image'; image: BoardImage };
@@ -555,5 +563,32 @@ export async function createBoardImage(
   if (!response.ok) {
     const message = await responseErrorMessage(response);
     throw new Error(message ?? `Не удалось добавить изображение (${response.status})`);
+  }
+}
+
+export async function fetchBoardAssets() {
+  const response = await fetch('/api/board-assets');
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Не удалось загрузить ассеты (${response.status})`);
+  }
+  const data = (await response.json()) as { assets?: BoardAsset[] };
+  return Array.isArray(data.assets) ? data.assets : [];
+}
+
+export async function createBoardImageFromAsset(
+  mediaId: string,
+  assetId: string,
+  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation'>,
+  author: string
+) {
+  const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assetId, ...placement, author })
+  });
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Не удалось переиспользовать ассет (${response.status})`);
   }
 }
