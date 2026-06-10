@@ -3,6 +3,7 @@ package media
 import (
 	"bufio"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -558,7 +559,7 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 }
 
 // AddImage stores an image asset and appends its placement to board history.
-func (bs *BoardStore) AddImage(mediaID, mimeType, extension string, source io.Reader, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y, width, height, rotation float64, author string) (BoardImage, error) {
 	if width <= 0 || height <= 0 || math.IsNaN(width) || math.IsInf(width, 0) || math.IsNaN(height) || math.IsInf(height, 0) {
 		return BoardImage{}, errors.New("image dimensions must be finite positive numbers")
 	}
@@ -588,25 +589,9 @@ func (bs *BoardStore) AddImage(mediaID, mimeType, extension string, source io.Re
 		return BoardImage{}, errors.New("image placement is outside allowed board bounds")
 	}
 
-	assetID := generateStrokeID()
-	filename := assetID + extension
-	assetsDir := filepath.Join(bs.root, boardAssetsDirName)
-	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
-		return BoardImage{}, fmt.Errorf("create board assets directory: %w", err)
-	}
-	assetPath := filepath.Join(assetsDir, filename)
-	assetFile, err := os.OpenFile(assetPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	assetID, filename, err := bs.storeBoardAsset(source)
 	if err != nil {
-		return BoardImage{}, fmt.Errorf("create board image asset: %w", err)
-	}
-	if _, err := io.Copy(assetFile, source); err != nil {
-		_ = assetFile.Close()
-		_ = os.Remove(assetPath)
-		return BoardImage{}, fmt.Errorf("store board image asset: %w", err)
-	}
-	if err := assetFile.Close(); err != nil {
-		_ = os.Remove(assetPath)
-		return BoardImage{}, fmt.Errorf("close board image asset: %w", err)
+		return BoardImage{}, err
 	}
 
 	image := BoardImage{
@@ -626,21 +611,17 @@ func (bs *BoardStore) AddImage(mediaID, mimeType, extension string, source io.Re
 	operation := BoardOperation{Type: "image", Image: &image}
 	line, err := json.Marshal(operation)
 	if err != nil {
-		_ = os.Remove(assetPath)
 		return BoardImage{}, fmt.Errorf("marshal board image: %w", err)
 	}
 	f, err := os.OpenFile(state.filePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		_ = os.Remove(assetPath)
 		return BoardImage{}, fmt.Errorf("open board file: %w", err)
 	}
 	if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
 		_ = f.Close()
-		_ = os.Remove(assetPath)
 		return BoardImage{}, fmt.Errorf("write board image: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(assetPath)
 		return BoardImage{}, fmt.Errorf("close board file: %w", err)
 	}
 
@@ -649,6 +630,39 @@ func (bs *BoardStore) AddImage(mediaID, mimeType, extension string, source io.Re
 	state.operations = append(state.operations, operation)
 	bs.mu.Unlock()
 	return image, nil
+}
+
+func (bs *BoardStore) storeBoardAsset(source io.Reader) (string, string, error) {
+	assetsDir := filepath.Join(bs.root, boardAssetsDirName)
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		return "", "", fmt.Errorf("create board assets directory: %w", err)
+	}
+
+	temp, err := os.CreateTemp(assetsDir, ".asset-*")
+	if err != nil {
+		return "", "", fmt.Errorf("create temporary board image asset: %w", err)
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+
+	hash := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(temp, hash), source); err != nil {
+		_ = temp.Close()
+		return "", "", fmt.Errorf("store board image asset: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return "", "", fmt.Errorf("close board image asset: %w", err)
+	}
+
+	assetID := hex.EncodeToString(hash.Sum(nil))
+	filename := assetID
+	assetPath := filepath.Join(assetsDir, filename)
+	if err := os.Link(tempPath, assetPath); err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return "", "", fmt.Errorf("publish board image asset: %w", err)
+		}
+	}
+	return assetID, filename, nil
 }
 
 func normalizeStrokePoints(points [][]float64) ([][]float64, error) {

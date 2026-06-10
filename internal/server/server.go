@@ -713,7 +713,7 @@ func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid board image placement")
 		return
 	}
-	image, err := s.boards.AddImage(id, mimeType, extension, temp, x, y, width, height, rotation, r.FormValue("author"))
+	image, err := s.boards.AddImage(id, mimeType, temp, x, y, width, height, rotation, r.FormValue("author"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

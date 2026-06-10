@@ -358,7 +358,7 @@ func TestBoardStorePersistsOrderedImageOperation(t *testing.T) {
 	if _, err := store.AddStroke(info.ID, "freeform", [][]float64{{1, 2}}, "#fff", 4, 1, "Tester"); err != nil {
 		t.Fatal(err)
 	}
-	image, err := store.AddImage(info.ID, "image/png", ".png", strings.NewReader("png"), 10, 20, 300, 200, 32.55, "Tester")
+	image, err := store.AddImage(info.ID, "image/png", strings.NewReader("png"), 10, 20, 300, 200, 32.55, "Tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,6 +390,46 @@ func TestBoardStorePersistsOrderedImageOperation(t *testing.T) {
 	}
 	if string(bytes) != "png" {
 		t.Fatalf("expected persisted asset bytes, got %q", bytes)
+	}
+}
+
+func TestBoardStoreDeduplicatesImageAssetsByContent(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+	firstBoard, err := store.Create("First")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondBoard, err := store.Create("Second")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := "same transparent image bytes"
+	first, err := store.AddImage(firstBoard.ID, "image/png", strings.NewReader(content), 10, 20, 300, 200, 0, "One")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.AddImage(secondBoard.ID, "image/webp", strings.NewReader(content), 40, 50, 150, 100, 25, "Two")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.ID == second.ID {
+		t.Fatal("expected placements to keep distinct operation IDs")
+	}
+	if first.AssetID != second.AssetID || first.Filename != second.Filename {
+		t.Fatalf("expected matching content to reuse one asset, first=%#v second=%#v", first, second)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, boardsDirName, boardAssetsDirName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != first.Filename {
+		t.Fatalf("expected exactly one content-addressed asset, got %#v", entries)
 	}
 }
 
