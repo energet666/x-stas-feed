@@ -1,17 +1,12 @@
-import type { Stroke } from './feed';
-
-export interface StrokeEvent {
-  mediaId: string;
-  stroke: Stroke;
-}
+import type { BoardEvent, BoardImageEvent, StrokeEvent } from './feed';
 
 class BoardEventManager {
   private es: EventSource | null = null;
-  private listeners: Set<(event: StrokeEvent) => void> = new Set();
+  private listeners: Set<(event: BoardEvent) => void> = new Set();
   
   status = $state<'connecting' | 'connected' | 'error'>('connecting');
 
-  subscribe(callback: (event: StrokeEvent) => void) {
+  subscribe(callback: (event: BoardEvent) => void) {
     this.listeners.add(callback);
     if (!this.es) {
       this.connect();
@@ -32,10 +27,19 @@ class BoardEventManager {
 
     this.es.addEventListener('stroke', (e) => {
       try {
-        const data = JSON.parse(e.data) as StrokeEvent;
-        this.listeners.forEach(l => l(data));
+        const data = JSON.parse(e.data) as Omit<StrokeEvent, 'type'>;
+        this.listeners.forEach(l => l({ ...data, type: 'stroke' }));
       } catch (err) {
         console.error('Failed to parse board stroke event', err);
+      }
+    });
+
+    this.es.addEventListener('image', (e) => {
+      try {
+        const data = JSON.parse(e.data) as Omit<BoardImageEvent, 'type'>;
+        this.listeners.forEach(l => l({ ...data, type: 'image' }));
+      } catch (err) {
+        console.error('Failed to parse board image event', err);
       }
     });
 

@@ -25,6 +25,7 @@ const (
 	mediaCacheControl  = "public, max-age=3600"
 	uploadMaxBytes     = 5 * 1024 * 1024 * 1024
 	uploadMaxSizeLabel = "5 GiB"
+	boardImageMaxBytes = 25 * 1024 * 1024
 )
 
 type Server struct {
@@ -86,8 +87,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
 	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
 	s.mux.HandleFunc("GET /api/boards/{id}/background", s.handleBoardBackground)
+	s.mux.HandleFunc("GET /api/boards/{id}/assets/{assetID}", s.handleBoardAsset)
 	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
 	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
+	s.mux.HandleFunc("POST /api/boards/{id}/images", s.handleCreateBoardImage)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
 }
@@ -546,11 +549,28 @@ func (s *Server) handleGetBoard(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	operations, err := s.boards.Operations(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"board":   info,
-		"strokes": strokes,
+		"board":      info,
+		"strokes":    strokes,
+		"operations": operations,
 	})
+}
+
+func (s *Server) handleBoardAsset(w http.ResponseWriter, r *http.Request) {
+	path, mimeType, err := s.boards.AssetPath(r.PathValue("id"), r.PathValue("assetID"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", mediaCacheControl)
+	w.Header().Set("Content-Type", mimeType)
+	http.ServeFile(w, r, path)
 }
 
 func (s *Server) handleBoardBackground(w http.ResponseWriter, r *http.Request) {
@@ -615,6 +635,106 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 
 	s.boardHub.publishStroke(id, stroke)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.boardInfoForID(id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		writeError(w, http.StatusBadRequest, "board image request must be multipart/form-data")
+		return
+	}
+	if r.ContentLength > boardImageMaxBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "board image is too large; maximum size is 25 MiB")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, boardImageMaxBytes)
+	if err := r.ParseMultipartForm(boardImageMaxBytes); err != nil {
+		if isRequestTooLarge(err) {
+			writeError(w, http.StatusRequestEntityTooLarge, "board image is too large; maximum size is 25 MiB")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid board image payload")
+		}
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "board image file is required")
+		return
+	}
+	defer file.Close()
+	temp, err := os.CreateTemp("", "feed-ai-board-image-*")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "board image could not be stored")
+		return
+	}
+	defer os.Remove(temp.Name())
+	defer temp.Close()
+
+	header := make([]byte, 512)
+	n, readErr := io.ReadFull(file, header)
+	if readErr != nil && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		writeError(w, http.StatusBadRequest, "board image could not be read")
+		return
+	}
+	header = header[:n]
+	mimeType := http.DetectContentType(header)
+	extension := boardImageExtension(mimeType)
+	if extension == "" {
+		writeError(w, http.StatusBadRequest, "unsupported board image format")
+		return
+	}
+	if _, err := temp.Write(header); err != nil {
+		writeError(w, http.StatusInternalServerError, "board image could not be stored")
+		return
+	}
+	if _, err := io.Copy(temp, file); err != nil {
+		writeError(w, http.StatusBadRequest, "board image could not be read")
+		return
+	}
+	if _, err := temp.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusInternalServerError, "board image could not be read")
+		return
+	}
+
+	parseNumber := func(name string) (float64, error) {
+		return strconv.ParseFloat(strings.TrimSpace(r.FormValue(name)), 64)
+	}
+	x, errX := parseNumber("x")
+	y, errY := parseNumber("y")
+	width, errWidth := parseNumber("width")
+	height, errHeight := parseNumber("height")
+	rotation, errRotation := parseNumber("rotation")
+	if errX != nil || errY != nil || errWidth != nil || errHeight != nil || errRotation != nil {
+		writeError(w, http.StatusBadRequest, "invalid board image placement")
+		return
+	}
+	image, err := s.boards.AddImage(id, mimeType, extension, temp, x, y, width, height, rotation, r.FormValue("author"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.boardHub.publishImage(id, image)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func boardImageExtension(mimeType string) string {
+	switch mimeType {
+	case "image/png":
+		return ".png"
+	case "image/jpeg":
+		return ".jpg"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
 }
 
 func (s *Server) boardInfoForID(id string) (media.BoardInfo, error) {

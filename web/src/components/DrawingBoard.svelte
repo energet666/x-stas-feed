@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, Hand, HandGrab, History, Minus, Palette, Pencil, Plus, X } from 'lucide-svelte';
+  import { Activity, Check, Hand, HandGrab, History, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
   import {
+    createBoardImage,
     createStroke,
     fetchBoard,
+    type BoardImage,
+    type BoardOperation,
     type Stroke
   } from '../lib/feed';
   import { boardEvents } from '../lib/board_events.svelte';
@@ -59,7 +62,10 @@
   let activeStrokeCanvas: HTMLCanvasElement | undefined;
 
   let strokes = $state<Stroke[]>([]);
+  let operations = $state<BoardOperation[]>([]);
   let strokeIds = new Set<string>();
+  let imageIds = new Set<string>();
+  const operationImages = new Map<string, HTMLImageElement>();
   let currentTool = $state<Tool>('pan');
   let currentColor = $state('#ffffff');
   let customColors = $state([...DEFAULT_CUSTOM_COLORS]);
@@ -91,6 +97,21 @@
   let sizeDragActive = $state(false);
   let sizeDragSuppressClick = $state(false);
   let backgroundImage = $state<HTMLImageElement | undefined>(undefined);
+  type ImageDraft = {
+    file: File;
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+  };
+  let imageDraft = $state<ImageDraft | null>(null);
+  let imageDraftSaving = $state(false);
+  let imageDraftError = $state('');
+  let imageTransformPointerId = $state<number | null>(null);
+  let imageTransformMode = $state<'move' | 'resize' | 'rotate' | null>(null);
+  let imageTransformStart = $state({ x: 0, y: 0, draftX: 0, draftY: 0, width: 0, height: 0, rotation: 0, pointerAngle: 0 });
 
   let canvasWidth = $state(1200);
   let canvasHeight = $state(800);
@@ -141,6 +162,7 @@
       window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
       window.removeEventListener('resize', clampPanToViewport);
       hideCancelHint();
+      if (imageDraft) URL.revokeObjectURL(imageDraft.url);
     };
   });
 
@@ -150,7 +172,11 @@
     
     return boardEvents.subscribe((event) => {
       if (event.mediaId === mediaId) {
-        appendCommittedStroke(event.stroke);
+        if (event.type === 'stroke') {
+          appendCommittedStroke(event.stroke);
+        } else {
+          appendCommittedImage(event.image);
+        }
       }
     });
   });
@@ -193,9 +219,9 @@
         setupCanvasBuffers(Math.round(width), Math.round(height));
       }
       setBackground(data.board.background);
-      const loadedIds = new Set(data.strokes.map((stroke) => stroke.id));
-      const sseStrokes = strokes.filter((stroke) => !loadedIds.has(stroke.id));
-      rebuildCommittedCanvas([...data.strokes, ...sseStrokes]);
+      const loadedIds = new Set(data.operations.map(operationID));
+      const sseOperations = operations.filter((operation) => !loadedIds.has(operationID(operation)));
+      rebuildCommittedCanvas([...data.operations, ...sseOperations]);
     } catch {
       // Board might not exist yet
     }
@@ -240,22 +266,24 @@
     redraw();
   }
 
-  function rebuildCommittedCanvas(nextStrokes: Stroke[]) {
+  function rebuildCommittedCanvas(nextOperations: BoardOperation[]) {
     if (!committedCanvas) return;
     const ctx = committedCanvas.getContext('2d');
     if (!ctx) return;
 
-    const wasViewingLatest = historyStrokeCount >= strokes.length;
-    strokes = nextStrokes;
-    strokeIds = new Set(nextStrokes.map((stroke) => stroke.id));
+    const wasViewingLatest = historyStrokeCount >= operations.length;
+    operations = nextOperations;
+    strokes = nextOperations.flatMap((operation) => operation.type === 'stroke' ? [operation.stroke] : []);
+    strokeIds = new Set(strokes.map((stroke) => stroke.id));
+    imageIds = new Set(nextOperations.flatMap((operation) => operation.type === 'image' ? [operation.image.id] : []));
     if (!historyMode || wasViewingLatest) {
-      historyStrokeCount = nextStrokes.length;
+      historyStrokeCount = nextOperations.length;
     } else {
-      historyStrokeCount = Math.min(historyStrokeCount, nextStrokes.length);
+      historyStrokeCount = Math.min(historyStrokeCount, nextOperations.length);
     }
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    for (const stroke of nextStrokes) {
-      drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
+    for (const operation of nextOperations) {
+      drawOperation(ctx, operation);
     }
     redraw();
   }
@@ -263,10 +291,12 @@
   function appendCommittedStroke(stroke: Stroke) {
     if (strokeIds.has(stroke.id)) return;
     strokeIds.add(stroke.id);
-    const wasViewingLatest = historyStrokeCount >= strokes.length;
+    const wasViewingLatest = historyStrokeCount >= operations.length;
     strokes = [...strokes, stroke];
+    const operation: BoardOperation = { type: 'stroke', stroke };
+    operations = [...operations, operation];
     if (!historyMode || wasViewingLatest) {
-      historyStrokeCount = strokes.length;
+      historyStrokeCount = operations.length;
     }
 
     if (!committedCanvas) return;
@@ -275,6 +305,44 @@
 
     drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
     redraw();
+  }
+
+  function appendCommittedImage(image: BoardImage) {
+    if (imageIds.has(image.id)) return;
+    imageIds.add(image.id);
+    const wasViewingLatest = historyStrokeCount >= operations.length;
+    operations = [...operations, { type: 'image', image }];
+    if (!historyMode || wasViewingLatest) {
+      historyStrokeCount = operations.length;
+    }
+    rebuildCommittedCanvas(operations);
+  }
+
+  function operationID(operation: BoardOperation) {
+    return operation.type === 'stroke' ? operation.stroke.id : operation.image.id;
+  }
+
+  function drawOperation(ctx: CanvasRenderingContext2D, operation: BoardOperation) {
+    if (operation.type === 'stroke') {
+      const stroke = operation.stroke;
+      drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
+      return;
+    }
+    const image = operation.image;
+    let element = operationImages.get(image.id);
+    if (!element) {
+      element = new Image();
+      element.decoding = 'async';
+      element.onload = () => rebuildCommittedCanvas(operations);
+      element.src = image.url;
+      operationImages.set(image.id, element);
+    }
+    if (!element.complete || element.naturalWidth <= 0) return;
+    ctx.save();
+    ctx.translate(image.x + image.width / 2, image.y + image.height / 2);
+    ctx.rotate((image.rotation * Math.PI) / 180);
+    ctx.drawImage(element, -image.width / 2, -image.height / 2, image.width, image.height);
+    ctx.restore();
   }
 
 
@@ -295,7 +363,7 @@
     return { rect, renderedWidth, renderedHeight, offsetX: 0, offsetY: 0, scaleX, scaleY };
   }
 
-  function canvasCoords(event: PointerEvent): [number, number] {
+  function canvasCoords(event: Pick<PointerEvent, 'clientX' | 'clientY'>): [number, number] {
     const metrics = getCanvasMetrics();
     if (!metrics) return [0, 0];
     
@@ -697,8 +765,8 @@
     }
 
     if (historyMode && options.includeHistoryMode) {
-      for (const stroke of strokes.slice(0, historyStrokeCount)) {
-        drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
+      for (const operation of operations.slice(0, historyStrokeCount)) {
+        drawOperation(ctx, operation);
       }
       return;
     }
@@ -1149,7 +1217,8 @@
 
   function enterHistoryMode() {
     historyMode = true;
-    historyStrokeCount = strokes.length;
+    historyStrokeCount = operations.length;
+    cancelImageDraft();
     lineStart = null;
     mousePos = null;
     isDrawing = false;
@@ -1166,13 +1235,13 @@
 
   function exitHistoryMode() {
     historyMode = false;
-    historyStrokeCount = strokes.length;
+    historyStrokeCount = operations.length;
     redraw();
   }
 
   function handleHistoryRangeInput(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
-    const value = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : strokes.length;
+    const value = Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : operations.length;
     setHistoryStrokeCount(value);
   }
 
@@ -1186,6 +1255,13 @@
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (!expanded) return;
+
+    if (event.key === 'Escape' && cancelImageDraft()) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
 
     if (event.code === 'Space' && !isEditableKeyboardTarget(event.target)) {
       spacePressed = true;
@@ -1241,7 +1317,7 @@
     } else if (event.key === 'Home') {
       setHistoryStrokeCount(0);
     } else if (event.key === 'End') {
-      setHistoryStrokeCount(strokes.length);
+      setHistoryStrokeCount(operations.length);
     } else {
       return;
     }
@@ -1253,7 +1329,7 @@
   }
 
   function setHistoryStrokeCount(value: number) {
-    historyStrokeCount = Math.min(strokes.length, Math.max(0, Math.round(value)));
+    historyStrokeCount = Math.min(operations.length, Math.max(0, Math.round(value)));
     redraw();
   }
 
@@ -1264,7 +1340,8 @@
 
   function historyLastAuthor() {
     if (historyStrokeCount <= 0) return '—';
-    const author = strokes[historyStrokeCount - 1]?.author?.trim();
+    const operation = operations[historyStrokeCount - 1];
+    const author = operation?.type === 'stroke' ? operation.stroke.author.trim() : operation?.image.author.trim();
     return author || t.common.guest;
   }
 
@@ -1355,7 +1432,155 @@
     }
   }
 
+  function handleBoardDragEnter(event: DragEvent) {
+    if (!hasBoardDraggedFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleBoardDragOver(event: DragEvent) {
+    if (!hasBoardDraggedFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = historyMode || imageDraftSaving ? 'none' : 'copy';
+    }
+  }
+
+  function handleBoardDrop(event: DragEvent) {
+    if (!hasBoardDraggedFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (historyMode || imageDraftSaving) return;
+    const file = Array.from(event.dataTransfer?.files ?? []).find((entry) => entry.type.startsWith('image/'));
+    if (!file) {
+      imageDraftError = 'На доску можно добавить только изображение';
+      return;
+    }
+    const [dropX, dropY] = canvasCoords(event);
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      if (imageDraft) URL.revokeObjectURL(imageDraft.url);
+      const maxWidth = canvasWidth * 0.45;
+      const maxHeight = canvasHeight * 0.45;
+      const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight, 1);
+      const width = Math.max(20, image.naturalWidth * scale);
+      const height = Math.max(20, image.naturalHeight * scale);
+      imageDraft = {
+        file,
+        url,
+        x: dropX - width / 2,
+        y: dropY - height / 2,
+        width,
+        height,
+        rotation: 0
+      };
+      imageDraftError = '';
+      clearActiveStroke();
+      currentTool = 'pan';
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      imageDraftError = 'Не удалось прочитать изображение';
+    };
+    image.src = url;
+  }
+
+  function hasBoardDraggedFiles(event: DragEvent) {
+    return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  function beginImageTransform(event: PointerEvent, mode: 'move' | 'resize' | 'rotate') {
+    if (!imageDraft || imageDraftSaving || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const [x, y] = canvasCoords(event);
+    const centerX = imageDraft.x + imageDraft.width / 2;
+    const centerY = imageDraft.y + imageDraft.height / 2;
+    imageTransformPointerId = event.pointerId;
+    imageTransformMode = mode;
+    imageTransformStart = {
+      x,
+      y,
+      draftX: imageDraft.x,
+      draftY: imageDraft.y,
+      width: imageDraft.width,
+      height: imageDraft.height,
+      rotation: imageDraft.rotation,
+      pointerAngle: Math.atan2(y - centerY, x - centerX)
+    };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
+
+  function updateImageTransform(event: PointerEvent) {
+    if (!imageDraft || imageTransformPointerId !== event.pointerId || !imageTransformMode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const [x, y] = canvasCoords(event);
+    if (imageTransformMode === 'move') {
+      imageDraft.x = imageTransformStart.draftX + x - imageTransformStart.x;
+      imageDraft.y = imageTransformStart.draftY + y - imageTransformStart.y;
+      return;
+    }
+    const centerX = imageTransformStart.draftX + imageTransformStart.width / 2;
+    const centerY = imageTransformStart.draftY + imageTransformStart.height / 2;
+    if (imageTransformMode === 'rotate') {
+      const angle = Math.atan2(y - centerY, x - centerX);
+      imageDraft.rotation = imageTransformStart.rotation + ((angle - imageTransformStart.pointerAngle) * 180) / Math.PI;
+      return;
+    }
+    const startDistance = Math.hypot(imageTransformStart.x - centerX, imageTransformStart.y - centerY);
+    const distance = Math.hypot(x - centerX, y - centerY);
+    const scale = Math.min(10, Math.max(20 / Math.min(imageTransformStart.width, imageTransformStart.height), distance / Math.max(1, startDistance)));
+    imageDraft.width = imageTransformStart.width * scale;
+    imageDraft.height = imageTransformStart.height * scale;
+    imageDraft.x = centerX - imageDraft.width / 2;
+    imageDraft.y = centerY - imageDraft.height / 2;
+  }
+
+  function finishImageTransform(event: PointerEvent) {
+    if (imageTransformPointerId !== event.pointerId) return;
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    imageTransformPointerId = null;
+    imageTransformMode = null;
+    event.stopPropagation();
+  }
+
+  function cancelImageDraft() {
+    if (!imageDraft || imageDraftSaving) return false;
+    URL.revokeObjectURL(imageDraft.url);
+    imageDraft = null;
+    imageDraftError = '';
+    imageTransformPointerId = null;
+    imageTransformMode = null;
+    return true;
+  }
+
+  async function confirmImageDraft() {
+    if (!imageDraft || imageDraftSaving) return;
+    imageDraftSaving = true;
+    imageDraftError = '';
+    const draft = imageDraft;
+    try {
+      await createBoardImage(mediaId, draft.file, draft, username);
+      URL.revokeObjectURL(draft.url);
+      imageDraft = null;
+    } catch (error) {
+      imageDraftError = error instanceof Error ? error.message : 'Не удалось добавить изображение';
+    } finally {
+      imageDraftSaving = false;
+    }
+  }
+
   function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && cancelImageDraft()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key === 'Escape' && historyMode) {
       exitHistoryMode();
       event.stopPropagation();
@@ -1388,6 +1613,9 @@
       style="--drawing-canvas-aspect: {canvasWidth / canvasHeight}; cursor: {canvasCursor};"
       onkeydown={handleKeyDown}
       onwheel={handleBoardWheel}
+      ondragenter={handleBoardDragEnter}
+      ondragover={handleBoardDragOver}
+      ondrop={handleBoardDrop}
       tabindex="-1"
     >
       <div
@@ -1410,8 +1638,65 @@
           onpointerleave={handlePointerLeave}
           style="touch-action: none;"
         ></canvas>
+        {#if imageDraft}
+          <div
+            class="drawing-image-draft"
+            class:drawing-image-draft-saving={imageDraftSaving}
+            style="
+              left: {(imageDraft.x / canvasWidth) * 100}%;
+              top: {(imageDraft.y / canvasHeight) * 100}%;
+              width: {(imageDraft.width / canvasWidth) * 100}%;
+              height: {(imageDraft.height / canvasHeight) * 100}%;
+              transform: rotate({imageDraft.rotation}deg);
+            "
+            role="group"
+            aria-label="Размещаемое изображение"
+            onpointerdown={(event) => beginImageTransform(event, 'move')}
+            onpointermove={updateImageTransform}
+            onpointerup={finishImageTransform}
+            onpointercancel={finishImageTransform}
+          >
+            <img src={imageDraft.url} alt="" draggable="false" />
+            {#each ['nw', 'ne', 'se', 'sw'] as corner}
+              <button
+                type="button"
+                class="drawing-image-resize-handle drawing-image-resize-{corner}"
+                aria-label="Изменить размер изображения"
+                onpointerdown={(event) => beginImageTransform(event, 'resize')}
+                onpointermove={updateImageTransform}
+                onpointerup={finishImageTransform}
+                onpointercancel={finishImageTransform}
+              ></button>
+            {/each}
+            <button
+              type="button"
+              class="drawing-image-rotate-handle"
+              aria-label="Повернуть изображение"
+              title="Повернуть"
+              onpointerdown={(event) => beginImageTransform(event, 'rotate')}
+              onpointermove={updateImageTransform}
+              onpointerup={finishImageTransform}
+              onpointercancel={finishImageTransform}
+            >
+              <RotateCw size={15} />
+            </button>
+          </div>
+        {/if}
         <div class="drawing-canvas-boundary" aria-hidden="true"></div>
       </div>
+      {#if imageDraft}
+        <div class="drawing-image-actions">
+          <button type="button" disabled={imageDraftSaving} onclick={confirmImageDraft}>
+            <Check size={16} />
+            {imageDraftSaving ? 'Сохранение…' : 'Зафиксировать'}
+          </button>
+          <button type="button" disabled={imageDraftSaving} onclick={cancelImageDraft}>
+            <X size={16} />
+            Отмена
+          </button>
+          {#if imageDraftError}<span>{imageDraftError}</span>{/if}
+        </div>
+      {/if}
       <div class="drawing-cancel-hint-layer" aria-hidden="true">
         <div
           class="drawing-cancel-hint"
@@ -1498,7 +1783,7 @@
             class="drawing-history-range"
             type="range"
             min="0"
-            max={strokes.length}
+            max={operations.length}
             step="1"
             value={historyStrokeCount}
             aria-label={t.board.visibleHistoryStrokes}
@@ -1509,9 +1794,9 @@
           />
           <div
             class="drawing-history-count"
-            aria-label={t.board.showingHistoryStrokes(historyStrokeCount, strokes.length)}
+            aria-label={t.board.showingHistoryStrokes(historyStrokeCount, operations.length)}
           >
-            {historyStrokeCount}/{strokes.length}
+            {historyStrokeCount}/{operations.length}
           </div>
           <div
             class="drawing-history-author"
@@ -1805,6 +2090,108 @@
       0 0 0 1px rgba(0, 0, 0, 0.34),
       0 0.9rem 2.4rem rgba(0, 0, 0, 0.22);
     pointer-events: none;
+  }
+
+  .drawing-image-draft {
+    position: absolute;
+    z-index: 6;
+    box-sizing: border-box;
+    border: 2px solid #60a5fa;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+    cursor: move;
+    touch-action: none;
+    transform-origin: center;
+    user-select: none;
+  }
+
+  .drawing-image-draft-saving {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .drawing-image-draft img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    pointer-events: none;
+  }
+
+  .drawing-image-resize-handle,
+  .drawing-image-rotate-handle {
+    position: absolute;
+    z-index: 2;
+    display: grid;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    place-items: center;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    touch-action: none;
+  }
+
+  .drawing-image-resize-nw { top: 0; left: 0; cursor: nwse-resize; transform: translate(-50%, -50%); }
+  .drawing-image-resize-ne { top: 0; right: 0; cursor: nesw-resize; transform: translate(50%, -50%); }
+  .drawing-image-resize-se { right: 0; bottom: 0; cursor: nwse-resize; transform: translate(50%, 50%); }
+  .drawing-image-resize-sw { bottom: 0; left: 0; cursor: nesw-resize; transform: translate(-50%, 50%); }
+
+  .drawing-image-rotate-handle {
+    top: -34px;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: grab;
+    transform: translateX(-50%);
+  }
+
+  .drawing-image-rotate-handle::after {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 1px;
+    height: 12px;
+    background: #60a5fa;
+    content: '';
+  }
+
+  .drawing-image-actions {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    z-index: 14;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transform: translateX(-50%);
+  }
+
+  .drawing-image-actions button {
+    display: flex;
+    height: 2.25rem;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.65rem;
+    background: rgba(15, 15, 23, 0.88);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 650;
+  }
+
+  .drawing-image-actions button:first-child {
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(37, 99, 235, 0.9);
+  }
+
+  .drawing-image-actions span {
+    max-width: min(26rem, 45vw);
+    color: #fca5a5;
+    font-size: 0.72rem;
   }
 
   .drawing-cancel-hint-layer {

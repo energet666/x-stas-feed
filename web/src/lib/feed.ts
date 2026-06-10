@@ -430,14 +430,42 @@ export type Stroke = {
   createdAt: string;
 };
 
+export type BoardImage = {
+  id: string;
+  assetId: string;
+  url: string;
+  mimeType: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  author: string;
+  createdAt: string;
+};
+
+export type BoardOperation =
+  | { type: 'stroke'; stroke: Stroke }
+  | { type: 'image'; image: BoardImage };
+
 export type StrokeEvent = {
+  type: 'stroke';
   mediaId: string;
   stroke: Stroke;
 };
 
+export type BoardImageEvent = {
+  type: 'image';
+  mediaId: string;
+  image: BoardImage;
+};
+
+export type BoardEvent = StrokeEvent | BoardImageEvent;
+
 export type BoardData = {
   board: BoardInfo;
   strokes: Stroke[];
+  operations: BoardOperation[];
 };
 
 export async function createBoard(name: string) {
@@ -464,6 +492,9 @@ export async function fetchBoard(mediaId: string) {
 
   const data = (await response.json()) as BoardData;
   data.strokes = Array.isArray(data.strokes) ? data.strokes : [];
+  data.operations = Array.isArray(data.operations)
+    ? data.operations
+    : data.strokes.map((stroke) => ({ type: 'stroke' as const, stroke }));
   return data;
 }
 
@@ -499,5 +530,30 @@ export async function createStroke(
   if (!response.ok) {
     const message = await responseErrorMessage(response);
     throw new Error(message ?? uiText.errors.strokeCreation(response.status));
+  }
+}
+
+export async function createBoardImage(
+  mediaId: string,
+  file: File,
+  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation'>,
+  author: string
+) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('x', String(placement.x));
+  form.append('y', String(placement.y));
+  form.append('width', String(placement.width));
+  form.append('height', String(placement.height));
+  form.append('rotation', String(placement.rotation));
+  form.append('author', author);
+
+  const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}/images`, {
+    method: 'POST',
+    body: form
+  });
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Не удалось добавить изображение (${response.status})`);
   }
 }

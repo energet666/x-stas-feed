@@ -1376,6 +1376,73 @@ func TestCreateStrokeReturnsNoContentAndPersistsStroke(t *testing.T) {
 	}
 }
 
+func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	for name, value := range map[string]string{
+		"x": "10", "y": "20", "width": "300", "height": "200", "rotation": "45", "author": "Tester",
+	} {
+		if err := writer.WriteField(name, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	part, err := writer.CreateFormFile("file", "photo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
+	if _, err := part.Write(pngBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/images", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected image creation status 204, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var data struct {
+		Operations []media.BoardOperation `json:"operations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Operations) != 1 || data.Operations[0].Image == nil {
+		t.Fatalf("expected one image operation, got %#v", data.Operations)
+	}
+	image := data.Operations[0].Image
+	if image.Rotation != 45 || image.Author != "Tester" {
+		t.Fatalf("unexpected image operation: %#v", image)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, image.URL, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || !bytes.Equal(res.Body.Bytes(), pngBytes) {
+		t.Fatalf("expected stored image bytes, status=%d body=%q", res.Code, res.Body.Bytes())
+	}
+}
+
 func writeServerTestFile(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

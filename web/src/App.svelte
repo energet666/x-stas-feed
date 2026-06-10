@@ -1301,6 +1301,7 @@
   function subscribeToBoardActivity() {
     unsubscribeBoardActivity?.();
     unsubscribeBoardActivity = boardEvents.subscribe((event) => {
+      if (event.type !== 'stroke') return;
       handleBoardActivity(event);
     });
   }

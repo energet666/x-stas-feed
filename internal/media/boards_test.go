@@ -9,6 +9,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -341,6 +342,54 @@ func TestBoardStoreAddStrokeRejectsInvalidOpacity(t *testing.T) {
 
 	if _, err := store.AddStroke(info.ID, "freeform", [][]float64{{10, 20}}, "#fff", 4, 1.1, "Tester"); err == nil {
 		t.Fatal("expected opacity above 1 to be rejected")
+	}
+}
+
+func TestBoardStorePersistsOrderedImageOperation(t *testing.T) {
+	dir := t.TempDir()
+	store := NewBoardStore(dir)
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := store.Create("Sketch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddStroke(info.ID, "freeform", [][]float64{{1, 2}}, "#fff", 4, 1, "Tester"); err != nil {
+		t.Fatal(err)
+	}
+	image, err := store.AddImage(info.ID, "image/png", ".png", strings.NewReader("png"), 10, 20, 300, 200, 32.55, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if image.Rotation != 32.6 {
+		t.Fatalf("expected normalized rotation, got %v", image.Rotation)
+	}
+
+	reloaded := NewBoardStore(dir)
+	if err := reloaded.Init(); err != nil {
+		t.Fatal(err)
+	}
+	operations, err := reloaded.Operations(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(operations) != 2 || operations[0].Type != "stroke" || operations[1].Type != "image" {
+		t.Fatalf("expected ordered stroke and image operations, got %#v", operations)
+	}
+	path, mimeType, err := reloaded.AssetPath(info.ID, image.AssetID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mimeType != "image/png" {
+		t.Fatalf("expected image/png, got %q", mimeType)
+	}
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(bytes) != "png" {
+		t.Fatalf("expected persisted asset bytes, got %q", bytes)
 	}
 }
 

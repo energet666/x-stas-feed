@@ -11,6 +11,11 @@ type strokeEvent struct {
 	Stroke  media.Stroke `json:"stroke"`
 }
 
+type boardImageEvent struct {
+	MediaID string           `json:"mediaId"`
+	Image   media.BoardImage `json:"image"`
+}
+
 type boardHub struct {
 	mu          sync.Mutex
 	subscribers map[chan feedEvent]struct{}
@@ -44,6 +49,22 @@ func (h *boardHub) publishStroke(mediaID string, stroke media.Stroke) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	for ch := range h.subscribers {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
+}
+
+func (h *boardHub) publishImage(mediaID string, image media.BoardImage) {
+	event := feedEvent{
+		Name: "image",
+		Data: boardImageEvent{MediaID: mediaID, Image: image},
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	for ch := range h.subscribers {
 		select {
 		case ch <- event:
