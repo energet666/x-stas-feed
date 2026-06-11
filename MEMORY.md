@@ -344,3 +344,4 @@ This file is for durable project decisions, constraints, and known risks. It is 
 - Added a help button to the expanded drawing board next to the close control.
 - Added a responsive help dialog documenting drawing tools, canvas navigation, image drag-and-drop and transforms, asset reuse, history controls, and all current keyboard shortcuts.
 - `Escape` closes the help dialog before any underlying board action or the expanded board itself.
+- Wheel events inside the help overlay stop before reaching the board zoom handler; the help content keeps native scrolling with contained overscroll.

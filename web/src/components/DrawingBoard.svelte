@@ -1049,6 +1049,10 @@
     event.stopPropagation();
   }
 
+  function handleHelpWheel(event: WheelEvent) {
+    event.stopPropagation();
+  }
+
   function beginPan(event: PointerEvent) {
     clearActiveStroke();
     updatePanCursorPosition(event);
@@ -1906,6 +1910,7 @@
         <div
           class="drawing-help-backdrop"
           role="presentation"
+          onwheel={handleHelpWheel}
           onclick={(event) => {
             if (event.currentTarget === event.target) showHelp = false;
           }}
@@ -2858,6 +2863,7 @@
     gap: 1.25rem 1.5rem;
     padding: 1rem 1.15rem 1.2rem;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .drawing-help-content h3 {
