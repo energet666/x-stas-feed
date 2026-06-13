@@ -1,16 +1,21 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, Check, CircleHelp, FlipHorizontal2, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
+  import { Activity, Check, CircleHelp, CloudOff, FlipHorizontal2, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, Undo2, X } from 'lucide-svelte';
   import {
     createBoardImage,
     createBoardImageFromAsset,
+    createBoardAsset,
+    createBoardOperations,
     createStroke,
     fetchBoard,
     fetchBoardAssets,
     type BoardAsset,
     type BoardImage,
+    type BoardImageInput,
     type BoardOperation,
-    type Stroke
+    type BoardOperationInput,
+    type Stroke,
+    type StrokeInput
   } from '../lib/feed';
   import { boardEvents } from '../lib/board_events.svelte';
   import { uiText as t } from '../lib/ui_text';
@@ -69,11 +74,19 @@
   let strokeIds = new Set<string>();
   let imageIds = new Set<string>();
   const operationImages = new Map<string, HTMLImageElement>();
+  const localOperationImages = new Map<string, HTMLImageElement>();
   let currentTool = $state<Tool>('pan');
   let currentColor = $state('#ffffff');
   let customColors = $state([...DEFAULT_CUSTOM_COLORS]);
   let currentSize = $state(4);
   let currentOpacity = $state(1);
+  let localMode = $state(false);
+  type LocalOperation =
+    | { type: 'stroke'; stroke: StrokeInput }
+    | { type: 'image'; image: BoardImageInput & { url: string } };
+  let localOperations = $state<LocalOperation[]>([]);
+  let localStrokesSaving = $state(false);
+  let localStrokesError = $state('');
   let isDrawing = $state(false);
   let activeStrokePointerId = $state<number | null>(null);
   let currentPoints = $state<number[][]>([]);
@@ -114,6 +127,7 @@
   };
   let imageDraft = $state<ImageDraft | null>(null);
   let imageDraftSaving = $state(false);
+  let assetUploadSaving = $state(false);
   let imageDraftError = $state('');
   let showAssetLibrary = $state(false);
   let showHelp = $state(false);
@@ -494,6 +508,7 @@
 
   function handlePointerDown(event: PointerEvent) {
     if (!expanded) return;
+    if (localStrokesSaving || assetUploadSaving) return;
     if (
       event.button === 1 ||
       (event.button === 0 && (spacePressed || (!historyMode && currentTool === 'pan')))
@@ -709,10 +724,85 @@
   }
 
   async function submitStroke(tool: string, points: number[][]) {
+    const stroke = {
+      tool,
+      points,
+      color: currentColor,
+      size: currentSize,
+      opacity: currentOpacity,
+      author: username
+    };
+    if (localMode) {
+      localOperations = [...localOperations, { type: 'stroke', stroke }];
+      localStrokesError = '';
+      redraw();
+      return;
+    }
     try {
-      await createStroke(mediaId, tool, points, currentColor, currentSize, currentOpacity, username);
+      await createStroke(mediaId, tool, points, stroke.color, stroke.size, stroke.opacity, stroke.author);
     } catch {
       // Failed to submit stroke
+    }
+  }
+
+  function toggleLocalMode() {
+    if (localStrokesSaving || assetUploadSaving || imageDraft) return;
+    if (localMode) {
+      cancelLocalMode();
+      return;
+    }
+    localMode = true;
+    localStrokesError = '';
+    showAssetLibrary = false;
+    showColorPicker = false;
+  }
+
+  function undoLocalStroke() {
+    if (!localMode || localStrokesSaving || assetUploadSaving || imageDraft || localOperations.length === 0) return;
+    localOperations = localOperations.slice(0, -1);
+    localStrokesError = '';
+    redraw();
+  }
+
+  function cancelLocalMode() {
+    if (!localMode || localStrokesSaving || assetUploadSaving) return;
+    cancelImageDraft();
+    clearActiveStroke();
+    localMode = false;
+    localOperations = [];
+    localStrokesError = '';
+    redraw();
+  }
+
+  async function publishLocalStrokes() {
+    if (!localMode || localStrokesSaving || assetUploadSaving || imageDraft) return;
+    if (localOperations.length === 0) {
+      localStrokesError = t.board.localStrokePublishEmpty;
+      return;
+    }
+
+    localStrokesSaving = true;
+    localStrokesError = '';
+    const drafts: BoardOperationInput[] = localOperations.map((operation) => {
+      if (operation.type === 'stroke') return operation;
+      const { url: _, ...image } = operation.image;
+      return { type: 'image', image };
+    });
+    try {
+      const created = await createBoardOperations(mediaId, drafts);
+      for (const operation of created) {
+        if (operation.type === 'stroke') {
+          appendCommittedStroke(operation.stroke);
+        } else {
+          appendCommittedImage(operation.image);
+        }
+      }
+      localOperations = [];
+    } catch (error) {
+      localStrokesError = error instanceof Error ? error.message : t.board.localStrokePublishFailed;
+    } finally {
+      localStrokesSaving = false;
+      redraw();
     }
   }
 
@@ -788,15 +878,47 @@
       ctx.drawImage(committedCanvas, 0, 0);
     }
 
-    // 3. Draw active stroke canvas (incremental)
+    // 3. Draw strokes kept in the current local session.
+    if (options.includeActiveStroke) {
+      for (const operation of localOperations) {
+        drawLocalOperation(ctx, operation);
+      }
+    }
+
+    // 4. Draw active stroke canvas (incremental)
     if (options.includeActiveStroke && isDrawing && activeStrokeCanvas) {
       ctx.drawImage(activeStrokeCanvas, 0, 0);
     }
 
-    // 4. Draw line preview (not incremental but very few points)
+    // 5. Draw line preview (not incremental but very few points)
     if (options.includeActiveStroke && currentTool === 'line' && lineStart && mousePos) {
       drawStroke(ctx, [lineStart, mousePos], currentColor, currentSize, 'line', currentOpacity);
     }
+  }
+
+  function drawLocalOperation(ctx: CanvasRenderingContext2D, operation: LocalOperation) {
+    if (operation.type === 'stroke') {
+      const stroke = operation.stroke;
+      drawStroke(ctx, stroke.points, stroke.color, stroke.size, stroke.tool, stroke.opacity);
+      return;
+    }
+
+    const image = operation.image;
+    let element = localOperationImages.get(image.url);
+    if (!element) {
+      element = new Image();
+      element.decoding = 'async';
+      element.onload = redraw;
+      element.src = image.url;
+      localOperationImages.set(image.url, element);
+    }
+    if (!element.complete || element.naturalWidth <= 0) return;
+    ctx.save();
+    ctx.translate(image.x + image.width / 2, image.y + image.height / 2);
+    ctx.rotate((image.rotation * Math.PI) / 180);
+    ctx.scale(image.flipX ? -1 : 1, 1);
+    ctx.drawImage(element, -image.width / 2, -image.height / 2, image.width, image.height);
+    ctx.restore();
   }
 
   function drawSegment(ctx: CanvasRenderingContext2D, p1: number[], p2: number[], color: string, size: number) {
@@ -1237,6 +1359,7 @@
   }
 
   function enterHistoryMode() {
+    if (localMode) return;
     historyMode = true;
     historyStrokeCount = operations.length;
     cancelImageDraft();
@@ -1305,6 +1428,19 @@
       spacePressed = true;
       brushCursorVisible = false;
       event.preventDefault();
+    }
+
+    if (
+      localMode &&
+      !isEditableKeyboardTarget(event.target) &&
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === 'z'
+    ) {
+      undoLocalStroke();
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
     }
 
     if (event.key === 'Escape' && clearActiveStroke()) {
@@ -1481,21 +1617,36 @@
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = historyMode || imageDraftSaving ? 'none' : 'copy';
+      event.dataTransfer.dropEffect = historyMode || imageDraftSaving || assetUploadSaving ? 'none' : 'copy';
     }
   }
 
-  function handleBoardDrop(event: DragEvent) {
+  async function handleBoardDrop(event: DragEvent) {
     if (!hasBoardDraggedFiles(event)) return;
     event.preventDefault();
     event.stopPropagation();
-    if (historyMode || imageDraftSaving) return;
+    if (historyMode || imageDraftSaving || assetUploadSaving) return;
     const file = Array.from(event.dataTransfer?.files ?? []).find((entry) => entry.type.startsWith('image/'));
     if (!file) {
       imageDraftError = 'На доску можно добавить только изображение';
       return;
     }
     const [dropX, dropY] = canvasCoords(event);
+    if (localMode) {
+      assetUploadSaving = true;
+      imageDraftError = '';
+      localStrokesError = '';
+      try {
+        const asset = await createBoardAsset(file);
+        boardAssets = [asset, ...boardAssets.filter((entry) => entry.id !== asset.id)];
+        startImageDraft(asset.url, { assetId: asset.id, revokeURL: false, centerX: dropX, centerY: dropY });
+      } catch (error) {
+        localStrokesError = error instanceof Error ? error.message : t.board.assetUploadFailed;
+      } finally {
+        assetUploadSaving = false;
+      }
+      return;
+    }
     const url = URL.createObjectURL(file);
     startImageDraft(url, { file, revokeURL: true, centerX: dropX, centerY: dropY });
   }
@@ -1648,6 +1799,32 @@
 
   async function confirmImageDraft() {
     if (!imageDraft || imageDraftSaving) return;
+    const assetId = imageDraft.assetId;
+    if (localMode && assetId) {
+      const draft = imageDraft;
+      localOperations = [
+        ...localOperations,
+        {
+          type: 'image',
+          image: {
+            assetId,
+            url: draft.url,
+            x: draft.x,
+            y: draft.y,
+            width: draft.width,
+            height: draft.height,
+            rotation: draft.rotation,
+            flipX: draft.flipX,
+            author: username
+          }
+        }
+      ];
+      imageDraft = null;
+      imageDraftError = '';
+      localStrokesError = '';
+      redraw();
+      return;
+    }
     imageDraftSaving = true;
     imageDraftError = '';
     const draft = imageDraft;
@@ -1826,6 +2003,39 @@
           {#if imageDraftError}<span>{imageDraftError}</span>{/if}
         </div>
       {/if}
+      {#if localMode && !imageDraft}
+        <div class="drawing-local-actions">
+          <button
+            type="button"
+            disabled={localStrokesSaving || assetUploadSaving || Boolean(imageDraft) || localOperations.length === 0}
+            onclick={publishLocalStrokes}
+          >
+            {#if localStrokesSaving}<LoaderCircle class="drawing-local-spinner" size={16} />{:else}<Check size={16} />{/if}
+            {localStrokesSaving ? t.board.publishingLocalStrokes : t.board.publishLocalStrokes}
+          </button>
+          <span class="drawing-local-count">{t.board.localStrokeCount(localOperations.length)}</span>
+          {#if assetUploadSaving}
+            <span class="drawing-local-uploading">
+              <LoaderCircle class="drawing-local-spinner" size={15} />
+              {t.board.savingAsset}
+            </span>
+          {/if}
+          <button
+            type="button"
+            disabled={localStrokesSaving || assetUploadSaving || Boolean(imageDraft) || localOperations.length === 0}
+            title={`${t.board.undoLocalStroke} (Ctrl/Cmd+Z)`}
+            onclick={undoLocalStroke}
+          >
+            <Undo2 size={16} />
+            {t.board.undoLocalStroke}
+          </button>
+          <button type="button" disabled={localStrokesSaving || assetUploadSaving} onclick={cancelLocalMode}>
+            <X size={16} />
+            {t.board.cancelLocalMode}
+          </button>
+          {#if localStrokesError}<span class="drawing-local-error">{localStrokesError}</span>{/if}
+        </div>
+      {/if}
       {#if showAssetLibrary}
         <section
           class="drawing-asset-library"
@@ -1965,6 +2175,8 @@
                   <div><dt>{t.board.helpFreeformLabel}</dt><dd>{t.board.helpFreeformText}</dd></div>
                   <div><dt>{t.board.helpLineLabel}</dt><dd>{t.board.helpLineText}</dd></div>
                   <div><dt>{t.board.helpCancelStrokeLabel}</dt><dd>{t.board.helpCancelStrokeText}</dd></div>
+                  <div><dt>{t.board.helpLocalModeLabel}</dt><dd>{t.board.helpLocalModeText}</dd></div>
+                  <div><dt><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></dt><dd>{t.board.helpLocalUndo}</dd></div>
                 </dl>
               </section>
 
@@ -2263,6 +2475,18 @@
         <div class="drawing-toolbar-group">
           <button
             class="drawing-tool-btn"
+            class:drawing-tool-btn-active={localMode}
+            type="button"
+            title={localMode ? t.board.disableLocalMode : t.board.enableLocalMode}
+            aria-label={localMode ? t.board.disableLocalMode : t.board.enableLocalMode}
+            aria-pressed={localMode}
+            disabled={Boolean(imageDraft) || localStrokesSaving || assetUploadSaving}
+            onclick={toggleLocalMode}
+          >
+            <CloudOff size={16} />
+          </button>
+          <button
+            class="drawing-tool-btn"
             class:drawing-tool-btn-active={showAssetLibrary}
             type="button"
             title="Библиотека ассетов"
@@ -2277,6 +2501,7 @@
             type="button"
             title={t.board.history}
             aria-label={t.board.openHistory}
+            disabled={localMode}
             onclick={enterHistoryMode}
           >
             <History size={16} />
@@ -2468,6 +2693,87 @@
     max-width: min(26rem, 45vw);
     color: #fca5a5;
     font-size: 0.72rem;
+  }
+
+  .drawing-local-actions {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    z-index: 14;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: calc(100vw - 7rem);
+    transform: translateX(-50%);
+  }
+
+  .drawing-local-actions button {
+    display: flex;
+    height: 2.25rem;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.65rem;
+    background: rgba(15, 15, 23, 0.88);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 650;
+  }
+
+  .drawing-local-actions button:first-child {
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(37, 99, 235, 0.9);
+  }
+
+  .drawing-local-actions button:disabled {
+    cursor: default;
+    opacity: 0.42;
+  }
+
+  .drawing-local-count {
+    flex: 0 0 auto;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 999px;
+    background: rgba(15, 15, 23, 0.78);
+    color: rgba(191, 219, 254, 0.92);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .drawing-local-error {
+    max-width: min(26rem, 38vw);
+    color: #fca5a5;
+    font-size: 0.72rem;
+  }
+
+  .drawing-local-uploading {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.35rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.72rem;
+  }
+
+  .drawing-local-spinner {
+    animation: drawing-asset-spin 900ms linear infinite;
+  }
+
+  @media (max-width: 760px) {
+    .drawing-local-actions {
+      right: 4.5rem;
+      left: 0.75rem;
+      max-width: none;
+      flex-wrap: wrap;
+      transform: none;
+    }
+
+    .drawing-local-actions button {
+      padding-inline: 0.55rem;
+    }
   }
 
   .drawing-asset-library {
@@ -3186,6 +3492,16 @@
   .drawing-tool-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
+  }
+
+  .drawing-tool-btn:disabled {
+    cursor: default;
+    opacity: 0.3;
+  }
+
+  .drawing-tool-btn:disabled:hover {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .drawing-tool-btn-active {

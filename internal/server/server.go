@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -86,12 +87,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
 	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
 	s.mux.HandleFunc("GET /api/board-assets", s.handleListBoardAssets)
+	s.mux.HandleFunc("POST /api/board-assets", s.handleCreateBoardAsset)
 	s.mux.HandleFunc("GET /api/board-assets/{assetID}", s.handleGlobalBoardAsset)
 	s.mux.HandleFunc("GET /api/boards/events", s.handleAllBoardEvents)
 	s.mux.HandleFunc("GET /api/boards/{id}/background", s.handleBoardBackground)
 	s.mux.HandleFunc("GET /api/boards/{id}/assets/{assetID}", s.handleBoardAsset)
 	s.mux.HandleFunc("GET /api/boards/{id}", s.handleGetBoard)
 	s.mux.HandleFunc("POST /api/boards/{id}/strokes", s.handleCreateStroke)
+	s.mux.HandleFunc("POST /api/boards/{id}/strokes/batch", s.handleCreateStrokes)
+	s.mux.HandleFunc("POST /api/boards/{id}/operations/batch", s.handleCreateBoardOperations)
 	s.mux.HandleFunc("POST /api/boards/{id}/images", s.handleCreateBoardImage)
 	s.mux.HandleFunc("GET /media/{id}", s.handleMedia)
 	s.mux.HandleFunc("GET /", s.handleStatic)
@@ -542,6 +546,53 @@ func (s *Server) handleListBoardAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]media.BoardAsset{"assets": s.boards.Assets()})
 }
 
+func (s *Server) handleCreateBoardAsset(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		writeError(w, http.StatusBadRequest, "board asset request must be multipart/form-data")
+		return
+	}
+	if r.ContentLength > boardImageMaxBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "board asset is too large; maximum size is 25 MiB")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, boardImageMaxBytes)
+	if err := r.ParseMultipartForm(boardImageMaxBytes); err != nil {
+		if isRequestTooLarge(err) {
+			writeError(w, http.StatusRequestEntityTooLarge, "board asset is too large; maximum size is 25 MiB")
+		} else {
+			writeError(w, http.StatusBadRequest, "invalid board asset payload")
+		}
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "board asset file is required")
+		return
+	}
+	defer file.Close()
+
+	header := make([]byte, 512)
+	n, readErr := io.ReadFull(file, header)
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		writeError(w, http.StatusBadRequest, "board asset could not be read")
+		return
+	}
+	header = header[:n]
+	mimeType := http.DetectContentType(header)
+	if boardImageExtension(mimeType) == "" {
+		writeError(w, http.StatusBadRequest, "unsupported board image format")
+		return
+	}
+
+	asset, err := s.boards.AddAsset(mimeType, io.MultiReader(bytes.NewReader(header), file))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "board asset could not be stored")
+		return
+	}
+	writeJSON(w, http.StatusCreated, asset)
+}
+
 func (s *Server) handleGlobalBoardAsset(w http.ResponseWriter, r *http.Request) {
 	path, mimeType, err := s.boards.GlobalAssetPath(r.PathValue("assetID"))
 	if err != nil {
@@ -618,14 +669,7 @@ func (s *Server) handleBoardBackground(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	var request struct {
-		Tool    string      `json:"tool"`
-		Points  [][]float64 `json:"points"`
-		Color   string      `json:"color"`
-		Size    float64     `json:"size"`
-		Opacity *float64    `json:"opacity"`
-		Author  string      `json:"author"`
-	}
+	var request media.StrokeInput
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid stroke payload")
 		return
@@ -652,6 +696,68 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 
 	s.boardHub.publishStroke(id, stroke)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleCreateStrokes(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var request struct {
+		Strokes []media.StrokeInput `json:"strokes"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4*1024*1024)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid strokes payload")
+		return
+	}
+	if _, err := s.boardInfoForID(id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	strokes, err := s.boards.AddStrokes(id, request.Strokes)
+	if err != nil {
+		if errors.Is(err, media.ErrBoardNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for _, stroke := range strokes {
+		s.boardHub.publishStroke(id, stroke)
+	}
+	writeJSON(w, http.StatusCreated, map[string][]media.Stroke{"strokes": strokes})
+}
+
+func (s *Server) handleCreateBoardOperations(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var request struct {
+		Operations []media.BoardOperationInput `json:"operations"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4*1024*1024)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid board operations payload")
+		return
+	}
+	if _, err := s.boardInfoForID(id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	operations, err := s.boards.AddOperations(id, request.Operations)
+	if err != nil {
+		if errors.Is(err, media.ErrBoardNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for _, operation := range operations {
+		if operation.Stroke != nil {
+			s.boardHub.publishStroke(id, *operation.Stroke)
+		} else if operation.Image != nil {
+			s.boardHub.publishImage(id, *operation.Image)
+		}
+	}
+	writeJSON(w, http.StatusCreated, map[string][]media.BoardOperation{"operations": operations})
 }
 
 func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) {

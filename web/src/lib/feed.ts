@@ -430,6 +430,14 @@ export type Stroke = {
   createdAt: string;
 };
 
+export type StrokeInput = Pick<Stroke, 'tool' | 'points' | 'color' | 'size' | 'opacity' | 'author'>;
+
+export type BoardImageInput = Pick<BoardImage, 'assetId' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX' | 'author'>;
+
+export type BoardOperationInput =
+  | { type: 'stroke'; stroke: StrokeInput }
+  | { type: 'image'; image: BoardImageInput };
+
 export type BoardImage = {
   id: string;
   assetId: string;
@@ -542,6 +550,44 @@ export async function createStroke(
   }
 }
 
+export async function createStrokes(mediaId: string, strokes: StrokeInput[]) {
+  const response = await fetch(
+    `/api/boards/${encodeURIComponent(mediaId)}/strokes/batch`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ strokes })
+    }
+  );
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? uiText.errors.strokesCreation(response.status));
+  }
+
+  const data = (await response.json()) as { strokes?: Stroke[] };
+  return Array.isArray(data.strokes) ? data.strokes : [];
+}
+
+export async function createBoardOperations(mediaId: string, operations: BoardOperationInput[]) {
+  const response = await fetch(
+    `/api/boards/${encodeURIComponent(mediaId)}/operations/batch`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operations })
+    }
+  );
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? uiText.errors.boardOperationsCreation(response.status));
+  }
+
+  const data = (await response.json()) as { operations?: BoardOperation[] };
+  return Array.isArray(data.operations) ? data.operations : [];
+}
+
 export async function createBoardImage(
   mediaId: string,
   file: File,
@@ -576,6 +622,20 @@ export async function fetchBoardAssets() {
   }
   const data = (await response.json()) as { assets?: BoardAsset[] };
   return Array.isArray(data.assets) ? data.assets : [];
+}
+
+export async function createBoardAsset(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch('/api/board-assets', {
+    method: 'POST',
+    body: form
+  });
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? `Не удалось сохранить ассет (${response.status})`);
+  }
+  return (await response.json()) as BoardAsset;
 }
 
 export async function createBoardImageFromAsset(

@@ -34,6 +34,9 @@ const boardStickerPackDirName = "sticker-pack"
 // ErrBoardNotFound is returned when a board ID does not match any existing board.
 var ErrBoardNotFound = errors.New("board not found")
 
+// ErrBoardAssetNotFound is returned when an asset ID is not registered.
+var ErrBoardAssetNotFound = errors.New("board asset not found")
+
 // Stroke represents a single drawing stroke on a board.
 type Stroke struct {
 	ID        string      `json:"id"`
@@ -44,6 +47,35 @@ type Stroke struct {
 	Opacity   float64     `json:"opacity"`
 	Author    string      `json:"author"`
 	CreatedAt time.Time   `json:"createdAt"`
+}
+
+// StrokeInput describes a stroke before the server assigns identity and time.
+type StrokeInput struct {
+	Tool    string      `json:"tool"`
+	Points  [][]float64 `json:"points"`
+	Color   string      `json:"color"`
+	Size    float64     `json:"size"`
+	Opacity *float64    `json:"opacity"`
+	Author  string      `json:"author"`
+}
+
+// BoardImageInput describes a placement of an existing board asset.
+type BoardImageInput struct {
+	AssetID  string  `json:"assetId"`
+	X        float64 `json:"x"`
+	Y        float64 `json:"y"`
+	Width    float64 `json:"width"`
+	Height   float64 `json:"height"`
+	Rotation float64 `json:"rotation"`
+	FlipX    bool    `json:"flipX"`
+	Author   string  `json:"author"`
+}
+
+// BoardOperationInput describes an operation before the server assigns identity and time.
+type BoardOperationInput struct {
+	Type   string           `json:"type"`
+	Stroke *StrokeInput     `json:"stroke,omitempty"`
+	Image  *BoardImageInput `json:"image,omitempty"`
 }
 
 // BoardImage represents an image fixed into the board operation history.
@@ -526,14 +558,40 @@ func (bs *BoardStore) Assets() []BoardAsset {
 // GlobalAssetPath returns an asset referenced by any board.
 func (bs *BoardStore) GlobalAssetPath(assetID string) (string, string, error) {
 	if assetID == "" || filepath.Base(assetID) != assetID {
-		return "", "", ErrBoardNotFound
+		return "", "", ErrBoardAssetNotFound
 	}
 	for _, asset := range bs.Assets() {
 		if asset.ID == assetID && filepath.Base(asset.Filename) == asset.Filename {
 			return filepath.Join(bs.root, boardAssetsDirName, asset.Filename), asset.MimeType, nil
 		}
 	}
-	return "", "", ErrBoardNotFound
+	return "", "", ErrBoardAssetNotFound
+}
+
+// AddAsset stores and registers a reusable image without placing it on a board.
+func (bs *BoardStore) AddAsset(mimeType string, source io.Reader) (BoardAsset, error) {
+	if !isBoardImageMimeType(mimeType) {
+		return BoardAsset{}, errors.New("unsupported board image format")
+	}
+	assetID, filename, err := bs.storeBoardAsset(source)
+	if err != nil {
+		return BoardAsset{}, err
+	}
+
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	if asset, ok := bs.assets[assetID]; ok {
+		return asset, nil
+	}
+	asset := BoardAsset{
+		ID:        assetID,
+		URL:       "/api/board-assets/" + assetID,
+		MimeType:  mimeType,
+		CreatedAt: time.Now().UTC(),
+		Filename:  filename,
+	}
+	bs.assets[assetID] = asset
+	return asset, nil
 }
 
 // BackgroundPath returns a safe server-owned background file for a board.
@@ -562,6 +620,126 @@ func (bs *BoardStore) BackgroundPath(mediaID string) (string, string, error) {
 
 // AddStroke appends a stroke to the board file and updates the in-memory state.
 func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64, color string, size float64, opacity float64, author string) (Stroke, error) {
+	strokes, err := bs.AddStrokes(mediaID, []StrokeInput{{
+		Tool: tool, Points: points, Color: color, Size: size, Opacity: &opacity, Author: author,
+	}})
+	if err != nil {
+		return Stroke{}, err
+	}
+	return strokes[0], nil
+}
+
+// AddStrokes appends a validated group of strokes in order.
+func (bs *BoardStore) AddStrokes(mediaID string, inputs []StrokeInput) ([]Stroke, error) {
+	if len(inputs) == 0 {
+		return nil, errors.New("at least one stroke is required")
+	}
+
+	operationInputs := make([]BoardOperationInput, 0, len(inputs))
+	for i := range inputs {
+		operationInputs = append(operationInputs, BoardOperationInput{Type: "stroke", Stroke: &inputs[i]})
+	}
+	operations, err := bs.AddOperations(mediaID, operationInputs)
+	if err != nil {
+		return nil, err
+	}
+	strokes := make([]Stroke, 0, len(operations))
+	for _, operation := range operations {
+		strokes = append(strokes, *operation.Stroke)
+	}
+	return strokes, nil
+}
+
+// AddOperations validates and appends a mixed group of strokes and existing assets in order.
+func (bs *BoardStore) AddOperations(mediaID string, inputs []BoardOperationInput) ([]BoardOperation, error) {
+	if len(inputs) == 0 {
+		return nil, errors.New("at least one board operation is required")
+	}
+
+	bs.mu.RLock()
+	state, ok := bs.boards[mediaID]
+	bs.mu.RUnlock()
+	if !ok {
+		return nil, ErrBoardNotFound
+	}
+
+	operations := make([]BoardOperation, 0, len(inputs))
+	var lines strings.Builder
+	for _, input := range inputs {
+		var operation BoardOperation
+		switch {
+		case input.Type == "stroke" && input.Stroke != nil:
+			opacity := 1.0
+			if input.Stroke.Opacity != nil {
+				opacity = *input.Stroke.Opacity
+			}
+			stroke, err := newStroke(input.Stroke.Tool, input.Stroke.Points, input.Stroke.Color, input.Stroke.Size, opacity, input.Stroke.Author)
+			if err != nil {
+				return nil, err
+			}
+			operation = BoardOperation{Type: "stroke", Stroke: &stroke}
+		case input.Type == "image" && input.Image != nil:
+			path, mimeType, err := bs.GlobalAssetPath(input.Image.AssetID)
+			if err != nil {
+				return nil, err
+			}
+			image, err := bs.newBoardImage(
+				mediaID,
+				input.Image.AssetID,
+				filepath.Base(path),
+				mimeType,
+				input.Image.X,
+				input.Image.Y,
+				input.Image.Width,
+				input.Image.Height,
+				input.Image.Rotation,
+				input.Image.FlipX,
+				input.Image.Author,
+			)
+			if err != nil {
+				return nil, err
+			}
+			operation = BoardOperation{Type: "image", Image: &image}
+		default:
+			return nil, errors.New("invalid board operation")
+		}
+
+		line, err := json.Marshal(operation)
+		if err != nil {
+			return nil, fmt.Errorf("marshal board operation: %w", err)
+		}
+		lines.Write(line)
+		lines.WriteByte('\n')
+		operations = append(operations, operation)
+	}
+
+	f, err := os.OpenFile(state.filePath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open board file: %w", err)
+	}
+	if _, err := io.WriteString(f, lines.String()); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("write strokes: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("close board file: %w", err)
+	}
+
+	bs.mu.Lock()
+	state = bs.boards[mediaID]
+	state.operations = append(state.operations, operations...)
+	for _, operation := range operations {
+		if operation.Stroke != nil {
+			state.strokes = append(state.strokes, *operation.Stroke)
+		}
+	}
+	state.info.StrokeCount = len(state.strokes)
+	bs.mu.Unlock()
+
+	return operations, nil
+}
+
+func newStroke(tool string, points [][]float64, color string, size float64, opacity float64, author string) (Stroke, error) {
 	tool = strings.TrimSpace(tool)
 	if tool != "freeform" && tool != "line" {
 		return Stroke{}, errors.New("invalid tool: must be freeform or line")
@@ -591,13 +769,6 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 		author = "Guest"
 	}
 
-	bs.mu.RLock()
-	state, ok := bs.boards[mediaID]
-	bs.mu.RUnlock()
-	if !ok {
-		return Stroke{}, ErrBoardNotFound
-	}
-
 	stroke := Stroke{
 		ID:        generateStrokeID(),
 		Tool:      tool,
@@ -608,29 +779,6 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 		Author:    author,
 		CreatedAt: time.Now().UTC(),
 	}
-
-	operation := BoardOperation{Type: "stroke", Stroke: &stroke}
-	line, err := json.Marshal(operation)
-	if err != nil {
-		return Stroke{}, fmt.Errorf("marshal stroke: %w", err)
-	}
-
-	f, err := os.OpenFile(state.filePath, os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		return Stroke{}, fmt.Errorf("open board file: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
-		return Stroke{}, fmt.Errorf("write stroke: %w", err)
-	}
-
-	bs.mu.Lock()
-	state = bs.boards[mediaID]
-	state.strokes = append(state.strokes, stroke)
-	state.operations = append(state.operations, operation)
-	state.info.StrokeCount = len(state.strokes)
-	bs.mu.Unlock()
 
 	return stroke, nil
 }
@@ -657,24 +805,13 @@ func (bs *BoardStore) AddExistingImage(mediaID, assetID string, x, y, width, hei
 }
 
 func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType string, x, y, width, height, rotation float64, flipX bool, author string) (BoardImage, error) {
-	state, x, y, width, height, rotation, author, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author)
+	state, _, _, _, _, _, _, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author)
 	if err != nil {
 		return BoardImage{}, err
 	}
-	image := BoardImage{
-		ID:        generateStrokeID(),
-		AssetID:   assetID,
-		URL:       "/api/boards/" + mediaID + "/assets/" + assetID,
-		MimeType:  mimeType,
-		X:         x,
-		Y:         y,
-		Width:     width,
-		Height:    height,
-		Rotation:  rotation,
-		FlipX:     flipX,
-		Author:    author,
-		CreatedAt: time.Now().UTC(),
-		Filename:  filename,
+	image, err := bs.newBoardImage(mediaID, assetID, filename, mimeType, x, y, width, height, rotation, flipX, author)
+	if err != nil {
+		return BoardImage{}, err
 	}
 	operation := BoardOperation{Type: "image", Image: &image}
 	line, err := json.Marshal(operation)
@@ -698,6 +835,28 @@ func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType str
 	state.operations = append(state.operations, operation)
 	bs.mu.Unlock()
 	return image, nil
+}
+
+func (bs *BoardStore) newBoardImage(mediaID, assetID, filename, mimeType string, x, y, width, height, rotation float64, flipX bool, author string) (BoardImage, error) {
+	_, x, y, width, height, rotation, author, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author)
+	if err != nil {
+		return BoardImage{}, err
+	}
+	return BoardImage{
+		ID:        generateStrokeID(),
+		AssetID:   assetID,
+		URL:       "/api/boards/" + mediaID + "/assets/" + assetID,
+		MimeType:  mimeType,
+		X:         x,
+		Y:         y,
+		Width:     width,
+		Height:    height,
+		Rotation:  rotation,
+		FlipX:     flipX,
+		Author:    author,
+		CreatedAt: time.Now().UTC(),
+		Filename:  filename,
+	}, nil
 }
 
 func (bs *BoardStore) normalizeImagePlacement(mediaID string, x, y, width, height, rotation float64, author string) (*boardState, float64, float64, float64, float64, float64, string, error) {

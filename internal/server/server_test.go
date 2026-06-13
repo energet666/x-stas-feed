@@ -81,6 +81,60 @@ func TestServerImportsStickerPackIntoBoardAssets(t *testing.T) {
 	}
 }
 
+func TestCreateBoardAssetStoresWithoutBoardOperation(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "draft.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(pngBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/board-assets", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected asset creation status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+	var asset media.BoardAsset
+	if err := json.NewDecoder(res.Body).Decode(&asset); err != nil {
+		t.Fatal(err)
+	}
+	if asset.ID == "" || asset.URL == "" || asset.UsageCount != 0 {
+		t.Fatalf("expected unused registered asset, got %#v", asset)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, asset.URL, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || !bytes.Equal(res.Body.Bytes(), pngBytes) {
+		t.Fatalf("expected stored asset bytes, status=%d body=%q", res.Code, res.Body.Bytes())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/master", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var boardData struct {
+		Operations []media.BoardOperation `json:"operations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&boardData); err != nil {
+		t.Fatal(err)
+	}
+	if len(boardData.Operations) != 0 {
+		t.Fatalf("expected asset upload not to create board operation, got %#v", boardData.Operations)
+	}
+}
+
 func TestFeedScanKeepsImagesInMediaRootWithBoardHistory(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.png")
@@ -1411,6 +1465,209 @@ func TestCreateStrokeReturnsNoContentAndPersistsStroke(t *testing.T) {
 	}
 	if len(data.Strokes) != 1 || data.Strokes[0].Author != "Tester" || data.Strokes[0].Opacity != 0.4 {
 		t.Fatalf("expected persisted stroke, got %#v", data.Strokes)
+	}
+}
+
+func TestCreateBoardStrokesPersistsBatch(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"strokes":[
+		{"tool":"freeform","points":[[1,2]],"color":"#fff","size":4,"opacity":0.4,"author":"Tester"},
+		{"tool":"line","points":[[3,4],[5,6]],"color":"#000","size":8,"opacity":1,"author":"Tester"}
+	]}`
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/strokes/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected batch stroke creation status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+	var created struct {
+		Strokes []media.Stroke `json:"strokes"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if len(created.Strokes) != 2 || created.Strokes[0].Tool != "freeform" || created.Strokes[1].Tool != "line" {
+		t.Fatalf("expected ordered created strokes, got %#v", created.Strokes)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var data struct {
+		Strokes []media.Stroke `json:"strokes"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Strokes) != 2 {
+		t.Fatalf("expected two persisted strokes, got %#v", data.Strokes)
+	}
+}
+
+func TestCreateBoardStrokesRejectsWholeInvalidBatch(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"strokes":[
+		{"tool":"freeform","points":[[1,2]],"color":"#fff","size":4,"opacity":1,"author":"Tester"},
+		{"tool":"line","points":[[3,4]],"color":"#000","size":8,"opacity":1,"author":"Tester"}
+	]}`
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/strokes/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid batch status 400, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var data struct {
+		Strokes []media.Stroke `json:"strokes"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Strokes) != 0 {
+		t.Fatalf("expected invalid batch to persist no strokes, got %#v", data.Strokes)
+	}
+}
+
+func TestCreateBoardOperationsPersistsMixedBatchInOrder(t *testing.T) {
+	dir := t.TempDir()
+	stickerDir := filepath.Join(dir, ".boards", "sticker-pack")
+	if err := os.MkdirAll(stickerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pngBytes := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
+	if err := os.WriteFile(filepath.Join(stickerDir, "shape.png"), pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/board-assets", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var assets struct {
+		Assets []media.BoardAsset `json:"assets"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&assets); err != nil {
+		t.Fatal(err)
+	}
+	if len(assets.Assets) != 1 {
+		t.Fatalf("expected one starter asset, got %#v", assets.Assets)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	body := fmt.Sprintf(`{"operations":[
+		{"type":"stroke","stroke":{"tool":"freeform","points":[[1,2]],"color":"#fff","size":4,"opacity":1,"author":"Tester"}},
+		{"type":"image","image":{"assetId":%q,"x":10,"y":20,"width":100,"height":80,"rotation":15,"flipX":true,"author":"Tester"}},
+		{"type":"stroke","stroke":{"tool":"line","points":[[3,4],[5,6]],"color":"#000","size":8,"opacity":0.5,"author":"Tester"}}
+	]}`, assets.Assets[0].ID)
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/operations/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected mixed operation creation status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var created struct {
+		Operations []media.BoardOperation `json:"operations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if len(created.Operations) != 3 ||
+		created.Operations[0].Stroke == nil ||
+		created.Operations[1].Image == nil ||
+		created.Operations[2].Stroke == nil {
+		t.Fatalf("expected ordered stroke-image-stroke response, got %#v", created.Operations)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var data struct {
+		Operations []media.BoardOperation `json:"operations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Operations) != 3 ||
+		data.Operations[0].Stroke == nil ||
+		data.Operations[1].Image == nil ||
+		data.Operations[2].Stroke == nil {
+		t.Fatalf("expected persisted stroke-image-stroke order, got %#v", data.Operations)
+	}
+}
+
+func TestCreateBoardOperationsRejectsWholeBatchWithUnknownAsset(t *testing.T) {
+	dir := t.TempDir()
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/api/boards", bytes.NewBufferString(`{"name":"Sketch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var board media.BoardInfo
+	if err := json.NewDecoder(res.Body).Decode(&board); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"operations":[
+		{"type":"stroke","stroke":{"tool":"freeform","points":[[1,2]],"color":"#fff","size":4,"opacity":1,"author":"Tester"}},
+		{"type":"image","image":{"assetId":"missing","x":10,"y":20,"width":100,"height":80,"rotation":0,"flipX":false,"author":"Tester"}}
+	]}`
+	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/operations/batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown asset status 400, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/boards/"+board.ID, nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	var data struct {
+		Operations []media.BoardOperation `json:"operations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Operations) != 0 {
+		t.Fatalf("expected invalid mixed batch to persist no operations, got %#v", data.Operations)
 	}
 }
 

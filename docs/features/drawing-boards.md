@@ -31,6 +31,19 @@ Plain wheel zooms around the pointer; Ctrl-wheel adjusts brush size while
 drawing. Middle-button or Space-drag temporarily pans. Brush settings and custom
 colors persist in browser storage. The help dialog documents current shortcuts.
 
+Local drawing mode keeps completed strokes and placements from the existing
+asset library in the expanded browser session instead of posting them
+immediately. The user can undo the latest local operation with the action bar or
+Ctrl/Cmd+Z, discard the session, or publish all remaining operations together.
+Their layer order is preserved. History mode is unavailable until the local
+session is published or discarded. Incoming SSE operations continue to update
+the committed layer underneath the local operations.
+
+Dropping a new image during local mode immediately uploads and registers its
+bytes as a reusable asset, then opens a local placement draft at the drop point.
+Canceling the placement or the local session does not delete the registered
+asset. The placement itself is persisted only with the local operation batch.
+
 ## Images And Assets
 
 Dropped images become local placement drafts before persistence. Uploads are
@@ -48,3 +61,11 @@ Stroke and image POSTs persist the operation and return through the global board
 SSE stream. Every visible board may subscribe for live previews. The frontend
 aggregates live board edits into one activity item per board.
 
+`POST /api/boards/{id}/operations/batch` validates a complete mixed group of
+strokes and existing-asset placements before appending it in order and returning
+the created operations. Each persisted operation is then published through the
+same global board SSE stream. The stroke-only batch endpoint remains available.
+
+`POST /api/board-assets` accepts one multipart image, stores it content-addressed,
+and registers it in the global asset library without adding a board operation or
+publishing an SSE event.

@@ -162,6 +162,9 @@ export const uiText = {
     helpLineText: 'Проведите от начальной до конечной точки, чтобы создать прямой отрезок.',
     helpCancelStrokeLabel: 'Отмена штриха',
     helpCancelStrokeText: 'Нажмите Esc или отпустите указатель за границей холста.',
+    helpLocalModeLabel: 'Локальный режим',
+    helpLocalModeText: 'Копит штрихи и размещённые ассеты только в браузере. Отменяйте операции и публикуйте их вместе, когда рисунок готов.',
+    helpLocalUndo: 'Отменить последнюю локальную операцию.',
     helpNavigationTitle: 'Навигация',
     helpTemporaryPan: 'Временное панорамирование независимо от выбранного инструмента.',
     helpWheelLabel: 'Колесо',
@@ -171,7 +174,7 @@ export const uiText = {
     helpBrushWheel: 'Изменить размер выбранной кисти.',
     helpImagesTitle: 'Изображения',
     helpDropLabel: 'Drag and drop',
-    helpDropText: 'Перетащите файл изображения прямо на нужное место доски.',
+    helpDropText: 'Перетащите файл изображения прямо на нужное место доски. В локальном режиме файл сразу сохраняется как ассет, а его размещение остаётся локальным до публикации.',
     helpAssetsLabel: 'Ассеты',
     helpAssetsText: 'Откройте библиотеку, чтобы повторно использовать ранее добавленные изображения.',
     helpTransformLabel: 'Размещение',
@@ -201,6 +204,18 @@ export const uiText = {
     customColor: 'Свой цвет',
     history: 'История',
     openHistory: 'Открыть историю',
+    localMode: 'Локальный режим',
+    enableLocalMode: 'Включить локальный режим',
+    disableLocalMode: 'Отменить локальный режим',
+    publishLocalStrokes: 'Опубликовать',
+    publishingLocalStrokes: 'Публикация…',
+    undoLocalStroke: 'Отменить действие',
+    cancelLocalMode: 'Отмена',
+    localStrokeCount: (count: number) => `${count} ${plural(count, ['локальная операция', 'локальные операции', 'локальных операций'])}`,
+    localStrokePublishEmpty: 'Сначала добавьте хотя бы одну локальную операцию',
+    localStrokePublishFailed: 'Не удалось опубликовать локальные операции',
+    savingAsset: 'Сохранение ассета…',
+    assetUploadFailed: 'Не удалось сохранить новый ассет',
     zoomControls: 'Масштаб доски',
     zoomIn: 'Увеличить масштаб',
     zoomOut: 'Уменьшить масштаб',
@@ -280,7 +295,9 @@ export const uiText = {
     boardCreation: (status: number) => `Создание доски не удалось: ${status}`,
     boardRequest: (status: number) => `Запрос доски не удался: ${status}`,
     boardsRequest: (status: number) => `Запрос досок не удался: ${status}`,
-    strokeCreation: (status: number) => `Создание штриха не удалось: ${status}`
+    strokeCreation: (status: number) => `Создание штриха не удалось: ${status}`,
+    strokesCreation: (status: number) => `Создание штрихов не удалось: ${status}`,
+    boardOperationsCreation: (status: number) => `Создание операций доски не удалось: ${status}`
   }
 } as const;
 
