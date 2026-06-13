@@ -2171,11 +2171,49 @@
               <section>
                 <h3>{t.board.helpDrawingTitle}</h3>
                 <dl>
-                  <div><dt>{t.board.helpPanLabel}</dt><dd>{t.board.helpPanText}</dd></div>
-                  <div><dt>{t.board.helpFreeformLabel}</dt><dd>{t.board.helpFreeformText}</dd></div>
-                  <div><dt>{t.board.helpLineLabel}</dt><dd>{t.board.helpLineText}</dd></div>
+                  <div>
+                    <dt>
+                      <span class="drawing-help-tool-icon" aria-label={t.board.pan} title={t.board.pan}>
+                        <Hand size={16} />
+                      </span>
+                    </dt>
+                    <dd>{t.board.helpPanText}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <span class="drawing-help-tool-icon" aria-label={t.board.freeform} title={t.board.freeform}>
+                        <Pencil size={16} />
+                      </span>
+                    </dt>
+                    <dd>{t.board.helpFreeformText}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <span class="drawing-help-tool-icon" aria-label={t.board.line} title={t.board.line}>
+                        <svg
+                          class="drawing-segment-icon"
+                          viewBox="0 0 24 24"
+                          width="16"
+                          height="16"
+                          aria-hidden="true"
+                        >
+                          <line x1="7" y1="17" x2="17" y2="7"></line>
+                          <circle cx="7" cy="17" r="2.25"></circle>
+                          <circle cx="17" cy="7" r="2.25"></circle>
+                        </svg>
+                      </span>
+                    </dt>
+                    <dd>{t.board.helpLineText}</dd>
+                  </div>
                   <div><dt>{t.board.helpCancelStrokeLabel}</dt><dd>{t.board.helpCancelStrokeText}</dd></div>
-                  <div><dt>{t.board.helpLocalModeLabel}</dt><dd>{t.board.helpLocalModeText}</dd></div>
+                  <div>
+                    <dt>
+                      <span class="drawing-help-tool-icon" aria-label={t.board.localMode} title={t.board.localMode}>
+                        <CloudOff size={16} />
+                      </span>
+                    </dt>
+                    <dd>{t.board.helpLocalModeText}</dd>
+                  </div>
                   <div><dt><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></dt><dd>{t.board.helpLocalUndo}</dd></div>
                 </dl>
               </section>
@@ -2195,7 +2233,14 @@
                 <h3>{t.board.helpImagesTitle}</h3>
                 <dl>
                   <div><dt>{t.board.helpDropLabel}</dt><dd>{t.board.helpDropText}</dd></div>
-                  <div><dt>{t.board.helpAssetsLabel}</dt><dd>{t.board.helpAssetsText}</dd></div>
+                  <div>
+                    <dt>
+                      <span class="drawing-help-tool-icon" aria-label={t.board.assetLibrary} title={t.board.assetLibrary}>
+                        <Images size={16} />
+                      </span>
+                    </dt>
+                    <dd>{t.board.helpAssetsText}</dd>
+                  </div>
                   <div><dt>{t.board.helpTransformLabel}</dt><dd>{t.board.helpTransformText}</dd></div>
                   <div><dt><kbd>Esc</kbd></dt><dd>{t.board.helpCancelImage}</dd></div>
                 </dl>
@@ -2489,8 +2534,8 @@
             class="drawing-tool-btn"
             class:drawing-tool-btn-active={showAssetLibrary}
             type="button"
-            title="Библиотека ассетов"
-            aria-label="Открыть библиотеку ассетов"
+            title={t.board.assetLibrary}
+            aria-label={t.board.openAssetLibrary}
             aria-pressed={showAssetLibrary}
             onclick={toggleAssetLibrary}
           >
@@ -3235,6 +3280,17 @@
   .drawing-help-content dt {
     color: rgba(255, 255, 255, 0.86);
     font-weight: 650;
+  }
+
+  .drawing-help-tool-icon {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.88);
   }
 
   .drawing-help-content dd {
