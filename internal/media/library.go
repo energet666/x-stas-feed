@@ -244,7 +244,9 @@ func (l *Library) Activity(requestedLimit int) ([]ActivityItem, error) {
 		limit = len(l.activity)
 	}
 	activity := make([]ActivityItem, limit)
-	copy(activity, l.activity[:limit])
+	for i := range limit {
+		activity[i] = l.activity[len(l.activity)-1-i]
+	}
 	return activity, nil
 }
 
@@ -668,15 +670,24 @@ func (l *Library) updateItemCommentSummaryLocked(id string) {
 }
 
 func (l *Library) insertActivityLocked(item Item, comment Comment) {
-	l.activity = append(l.activity, activityItem(item, comment))
-	sortActivity(l.activity)
+	next := activityItem(item, comment)
+	if len(l.activity) == 0 || !activityLess(next, l.activity[len(l.activity)-1]) {
+		l.activity = append(l.activity, next)
+		return
+	}
+
+	index := sort.Search(len(l.activity), func(i int) bool {
+		return !activityLess(l.activity[i], next)
+	})
+	l.activity = append(l.activity, ActivityItem{})
+	copy(l.activity[index+1:], l.activity[index:])
+	l.activity[index] = next
 }
 
 func (l *Library) updateActivityCommentLocked(mediaID string, comment Comment) {
 	for i := range l.activity {
 		if l.activity[i].MediaID == mediaID && l.activity[i].Comment.ID == comment.ID {
 			l.activity[i].Comment = comment
-			sortActivity(l.activity)
 			return
 		}
 	}
@@ -754,14 +765,18 @@ func sortTime(item Item) time.Time {
 
 func sortActivity(activity []ActivityItem) {
 	sort.Slice(activity, func(i, j int) bool {
-		if !activity[i].Comment.CreatedAt.Equal(activity[j].Comment.CreatedAt) {
-			return activity[i].Comment.CreatedAt.After(activity[j].Comment.CreatedAt)
-		}
-		if activity[i].MediaDisplayName != activity[j].MediaDisplayName {
-			return activity[i].MediaDisplayName < activity[j].MediaDisplayName
-		}
-		return activity[i].Comment.ID > activity[j].Comment.ID
+		return activityLess(activity[i], activity[j])
 	})
+}
+
+func activityLess(left, right ActivityItem) bool {
+	if !left.Comment.CreatedAt.Equal(right.Comment.CreatedAt) {
+		return left.Comment.CreatedAt.Before(right.Comment.CreatedAt)
+	}
+	if left.MediaDisplayName != right.MediaDisplayName {
+		return left.MediaDisplayName > right.MediaDisplayName
+	}
+	return left.Comment.ID < right.Comment.ID
 }
 
 func validateMediaID(id string) error {

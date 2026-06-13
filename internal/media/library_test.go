@@ -632,6 +632,9 @@ func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	if len(activity) != 2 || activity[0].Comment.ID != second.ID || activity[1].Comment.ID != first.ID {
 		t.Fatalf("expected cached activity newest first, got %#v", activity)
 	}
+	if len(library.activity) != 2 || library.activity[0].Comment.ID != first.ID || library.activity[1].Comment.ID != second.ID {
+		t.Fatalf("expected internal activity oldest first, got %#v", library.activity)
+	}
 
 	likedComment, err := library.AddCommentLike(id, first.ID)
 	if err != nil {
@@ -648,6 +651,9 @@ func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	if item.Comments[0].ID != first.ID || item.Comments[0].LikeCount != 1 {
 		t.Fatalf("expected comment like in cached summary, got %#v", item.Comments)
 	}
+	if library.activity[0].Comment.ID != first.ID || library.activity[0].Comment.LikeCount != 1 || library.activity[1].Comment.ID != second.ID {
+		t.Fatalf("expected comment like to preserve internal activity order, got %#v", library.activity)
+	}
 
 	likeCount, err := library.AddLike(id)
 	if err != nil {
@@ -662,6 +668,33 @@ func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	}
 	if item.LikeCount != 1 {
 		t.Fatalf("expected cached item like count 1, got %#v", item)
+	}
+}
+
+func TestActivityInsertsOutOfOrderCommentsAndReturnsLatestLimit(t *testing.T) {
+	library := NewLibrary(t.TempDir())
+	item := Item{ID: EncodeID("photo.png"), DisplayName: "photo.png", Type: "image"}
+	baseTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	library.insertActivityLocked(item, Comment{ID: "first", CreatedAt: baseTime})
+	library.insertActivityLocked(item, Comment{ID: "third", CreatedAt: baseTime.Add(2 * time.Minute)})
+	library.insertActivityLocked(item, Comment{ID: "second", CreatedAt: baseTime.Add(time.Minute)})
+
+	if got := []string{
+		library.activity[0].Comment.ID,
+		library.activity[1].Comment.ID,
+		library.activity[2].Comment.ID,
+	}; got[0] != "first" || got[1] != "second" || got[2] != "third" {
+		t.Fatalf("expected internal activity oldest first after middle insertion, got %#v", got)
+	}
+
+	library.initialized = true
+	activity, err := library.Activity(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 2 || activity[0].Comment.ID != "third" || activity[1].Comment.ID != "second" {
+		t.Fatalf("expected latest activity limit newest first, got %#v", activity)
 	}
 }
 
