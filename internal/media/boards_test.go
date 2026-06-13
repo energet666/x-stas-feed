@@ -358,12 +358,15 @@ func TestBoardStorePersistsOrderedImageOperation(t *testing.T) {
 	if _, err := store.AddStroke(info.ID, "freeform", [][]float64{{1, 2}}, "#fff", 4, 1, "Tester"); err != nil {
 		t.Fatal(err)
 	}
-	image, err := store.AddImage(info.ID, "image/png", strings.NewReader("png"), 10, 20, 300, 200, 32.55, "Tester")
+	image, err := store.AddImage(info.ID, "image/png", strings.NewReader("png"), 10, 20, 300, 200, 32.55, true, "Tester")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if image.Rotation != 32.6 {
 		t.Fatalf("expected normalized rotation, got %v", image.Rotation)
+	}
+	if !image.FlipX {
+		t.Fatal("expected horizontal flip to be persisted")
 	}
 
 	reloaded := NewBoardStore(dir)
@@ -376,6 +379,9 @@ func TestBoardStorePersistsOrderedImageOperation(t *testing.T) {
 	}
 	if len(operations) != 2 || operations[0].Type != "stroke" || operations[1].Type != "image" {
 		t.Fatalf("expected ordered stroke and image operations, got %#v", operations)
+	}
+	if operations[1].Image == nil || !operations[1].Image.FlipX {
+		t.Fatalf("expected reloaded image operation to preserve horizontal flip, got %#v", operations[1])
 	}
 	path, mimeType, err := reloaded.AssetPath(info.ID, image.AssetID)
 	if err != nil {
@@ -409,11 +415,11 @@ func TestBoardStoreDeduplicatesImageAssetsByContent(t *testing.T) {
 	}
 
 	content := "same transparent image bytes"
-	first, err := store.AddImage(firstBoard.ID, "image/png", strings.NewReader(content), 10, 20, 300, 200, 0, "One")
+	first, err := store.AddImage(firstBoard.ID, "image/png", strings.NewReader(content), 10, 20, 300, 200, 0, false, "One")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.AddImage(secondBoard.ID, "image/webp", strings.NewReader(content), 40, 50, 150, 100, 25, "Two")
+	second, err := store.AddImage(secondBoard.ID, "image/webp", strings.NewReader(content), 40, 50, 150, 100, 25, false, "Two")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,12 +442,15 @@ func TestBoardStoreDeduplicatesImageAssetsByContent(t *testing.T) {
 	if len(assets) != 1 || assets[0].ID != first.AssetID || assets[0].UsageCount != 2 {
 		t.Fatalf("expected one reusable asset with two usages, got %#v", assets)
 	}
-	reused, err := store.AddExistingImage(firstBoard.ID, first.AssetID, 60, 70, 120, 80, 15, "Three")
+	reused, err := store.AddExistingImage(firstBoard.ID, first.AssetID, 60, 70, 120, 80, 15, true, "Three")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if reused.AssetID != first.AssetID || reused.ID == first.ID {
 		t.Fatalf("expected a distinct placement reusing the asset, got %#v", reused)
+	}
+	if !reused.FlipX {
+		t.Fatal("expected reused placement to preserve horizontal flip")
 	}
 	assets = store.Assets()
 	if len(assets) != 1 || assets[0].UsageCount != 3 {
@@ -497,7 +506,7 @@ func TestBoardStoreInitImportsStickerPackAssets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddExistingImage(board.ID, asset.ID, 10, 20, 100, 100, 0, "Tester"); err != nil {
+	if _, err := store.AddExistingImage(board.ID, asset.ID, 10, 20, 100, 100, 0, false, "Tester"); err != nil {
 		t.Fatal(err)
 	}
 	assets = store.Assets()

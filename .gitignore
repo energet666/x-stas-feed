@@ -20,6 +20,13 @@ TODO.txt
 
 # Local media fixtures
 /test-content/
+!/test-content/
+/test-content/*
+!/test-content/.boards/
+/test-content/.boards/*
+!/test-content/.boards/sticker-pack/
+!/test-content/.boards/sticker-pack/**
+.DS_Store
 
 # Logs
 *.log

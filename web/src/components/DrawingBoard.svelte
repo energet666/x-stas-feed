@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { Activity, Check, CircleHelp, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
+  import { Activity, Check, CircleHelp, FlipHorizontal2, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, X } from 'lucide-svelte';
   import {
     createBoardImage,
     createBoardImageFromAsset,
@@ -110,6 +110,7 @@
     width: number;
     height: number;
     rotation: number;
+    flipX: boolean;
   };
   let imageDraft = $state<ImageDraft | null>(null);
   let imageDraftSaving = $state(false);
@@ -351,6 +352,7 @@
     ctx.save();
     ctx.translate(image.x + image.width / 2, image.y + image.height / 2);
     ctx.rotate((image.rotation * Math.PI) / 180);
+    ctx.scale(image.flipX ? -1 : 1, 1);
     ctx.drawImage(element, -image.width / 2, -image.height / 2, image.width, image.height);
     ctx.restore();
   }
@@ -1521,7 +1523,8 @@
         y: centerY - height / 2,
         width,
         height,
-        rotation: 0
+        rotation: 0,
+        flipX: false
       };
       imageDraftError = '';
       clearActiveStroke();
@@ -1636,6 +1639,11 @@
     imageTransformPointerId = null;
     imageTransformMode = null;
     return true;
+  }
+
+  function toggleImageDraftFlip() {
+    if (!imageDraft || imageDraftSaving) return;
+    imageDraft.flipX = !imageDraft.flipX;
   }
 
   async function confirmImageDraft() {
@@ -1760,7 +1768,12 @@
             onpointerup={finishImageTransform}
             onpointercancel={finishImageTransform}
           >
-            <img src={imageDraft.url} alt="" draggable="false" />
+            <img
+              src={imageDraft.url}
+              alt=""
+              draggable="false"
+              style:transform={imageDraft.flipX ? 'scaleX(-1)' : 'none'}
+            />
             {#each ['nw', 'ne', 'se', 'sw'] as corner}
               <button
                 type="button"
@@ -1793,6 +1806,18 @@
           <button type="button" disabled={imageDraftSaving} onclick={confirmImageDraft}>
             <Check size={16} />
             {imageDraftSaving ? 'Сохранение…' : 'Зафиксировать'}
+          </button>
+          <button
+            type="button"
+            class:drawing-image-action-active={imageDraft.flipX}
+            disabled={imageDraftSaving}
+            aria-label="Отразить изображение по горизонтали"
+            aria-pressed={imageDraft.flipX}
+            title="Отразить по горизонтали"
+            onclick={toggleImageDraftFlip}
+          >
+            <FlipHorizontal2 size={16} />
+            Зеркально
           </button>
           <button type="button" disabled={imageDraftSaving} onclick={cancelImageDraft}>
             <X size={16} />
@@ -2360,6 +2385,7 @@
     height: 100%;
     object-fit: fill;
     pointer-events: none;
+    transform-origin: center;
   }
 
   .drawing-image-resize-handle,
@@ -2431,6 +2457,11 @@
   .drawing-image-actions button:first-child {
     border-color: rgba(96, 165, 250, 0.55);
     background: rgba(37, 99, 235, 0.9);
+  }
+
+  .drawing-image-actions .drawing-image-action-active {
+    border-color: rgba(96, 165, 250, 0.65);
+    background: rgba(37, 99, 235, 0.72);
   }
 
   .drawing-image-actions span {

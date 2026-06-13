@@ -734,7 +734,16 @@ func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid board image placement")
 		return
 	}
-	image, err := s.boards.AddImage(id, mimeType, temp, x, y, width, height, rotation, r.FormValue("author"))
+	flipX := false
+	if rawFlipX := strings.TrimSpace(r.FormValue("flipX")); rawFlipX != "" {
+		var errFlipX error
+		flipX, errFlipX = strconv.ParseBool(rawFlipX)
+		if errFlipX != nil {
+			writeError(w, http.StatusBadRequest, "invalid board image placement")
+			return
+		}
+	}
+	image, err := s.boards.AddImage(id, mimeType, temp, x, y, width, height, rotation, flipX, r.FormValue("author"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -751,13 +760,14 @@ func (s *Server) handleCreateExistingBoardImage(w http.ResponseWriter, r *http.R
 		Width    float64 `json:"width"`
 		Height   float64 `json:"height"`
 		Rotation float64 `json:"rotation"`
+		FlipX    bool    `json:"flipX"`
 		Author   string  `json:"author"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid board image payload")
 		return
 	}
-	image, err := s.boards.AddExistingImage(id, request.AssetID, request.X, request.Y, request.Width, request.Height, request.Rotation, request.Author)
+	image, err := s.boards.AddExistingImage(id, request.AssetID, request.X, request.Y, request.Width, request.Height, request.Rotation, request.FlipX, request.Author)
 	if err != nil {
 		if errors.Is(err, media.ErrBoardNotFound) {
 			http.NotFound(w, r)

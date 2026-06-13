@@ -1430,7 +1430,7 @@ func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 	for name, value := range map[string]string{
-		"x": "10", "y": "20", "width": "300", "height": "200", "rotation": "45", "author": "Tester",
+		"x": "10", "y": "20", "width": "300", "height": "200", "rotation": "45", "flipX": "true", "author": "Tester",
 	} {
 		if err := writer.WriteField(name, value); err != nil {
 			t.Fatal(err)
@@ -1469,7 +1469,7 @@ func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
 		t.Fatalf("expected one image operation, got %#v", data.Operations)
 	}
 	image := data.Operations[0].Image
-	if image.Rotation != 45 || image.Author != "Tester" {
+	if image.Rotation != 45 || !image.FlipX || image.Author != "Tester" {
 		t.Fatalf("unexpected image operation: %#v", image)
 	}
 
@@ -1500,7 +1500,7 @@ func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
 		t.Fatalf("expected globally served asset, status=%d body=%q", res.Code, res.Body.Bytes())
 	}
 
-	reuseBody := fmt.Sprintf(`{"assetId":%q,"x":30,"y":40,"width":150,"height":100,"rotation":12,"author":"Reuse"}`, image.AssetID)
+	reuseBody := fmt.Sprintf(`{"assetId":%q,"x":30,"y":40,"width":150,"height":100,"rotation":12,"flipX":true,"author":"Reuse"}`, image.AssetID)
 	req = httptest.NewRequest(http.MethodPost, "/api/boards/"+board.ID+"/images", strings.NewReader(reuseBody))
 	req.Header.Set("Content-Type", "application/json")
 	res = httptest.NewRecorder()

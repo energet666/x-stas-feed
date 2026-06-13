@@ -440,6 +440,7 @@ export type BoardImage = {
   width: number;
   height: number;
   rotation: number;
+  flipX: boolean;
   author: string;
   createdAt: string;
 };
@@ -544,7 +545,7 @@ export async function createStroke(
 export async function createBoardImage(
   mediaId: string,
   file: File,
-  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation'>,
+  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX'>,
   author: string
 ) {
   const form = new FormData();
@@ -554,6 +555,7 @@ export async function createBoardImage(
   form.append('width', String(placement.width));
   form.append('height', String(placement.height));
   form.append('rotation', String(placement.rotation));
+  form.append('flipX', String(placement.flipX));
   form.append('author', author);
 
   const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}/images`, {
@@ -579,7 +581,7 @@ export async function fetchBoardAssets() {
 export async function createBoardImageFromAsset(
   mediaId: string,
   assetId: string,
-  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation'>,
+  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX'>,
   author: string
 ) {
   const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}/images`, {

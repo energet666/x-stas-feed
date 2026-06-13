@@ -57,6 +57,7 @@ type BoardImage struct {
 	Width     float64   `json:"width"`
 	Height    float64   `json:"height"`
 	Rotation  float64   `json:"rotation"`
+	FlipX     bool      `json:"flipX"`
 	Author    string    `json:"author"`
 	CreatedAt time.Time `json:"createdAt"`
 	Filename  string    `json:"assetFilename,omitempty"`
@@ -635,7 +636,7 @@ func (bs *BoardStore) AddStroke(mediaID string, tool string, points [][]float64,
 }
 
 // AddImage stores an image asset and appends its placement to board history.
-func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y, width, height, rotation float64, flipX bool, author string) (BoardImage, error) {
 	if _, _, _, _, _, _, _, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author); err != nil {
 		return BoardImage{}, err
 	}
@@ -643,19 +644,19 @@ func (bs *BoardStore) AddImage(mediaID, mimeType string, source io.Reader, x, y,
 	if err != nil {
 		return BoardImage{}, err
 	}
-	return bs.addImagePlacement(mediaID, assetID, filename, mimeType, x, y, width, height, rotation, author)
+	return bs.addImagePlacement(mediaID, assetID, filename, mimeType, x, y, width, height, rotation, flipX, author)
 }
 
 // AddExistingImage reuses an existing asset in a new board placement.
-func (bs *BoardStore) AddExistingImage(mediaID, assetID string, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+func (bs *BoardStore) AddExistingImage(mediaID, assetID string, x, y, width, height, rotation float64, flipX bool, author string) (BoardImage, error) {
 	path, mimeType, err := bs.GlobalAssetPath(assetID)
 	if err != nil {
 		return BoardImage{}, err
 	}
-	return bs.addImagePlacement(mediaID, assetID, filepath.Base(path), mimeType, x, y, width, height, rotation, author)
+	return bs.addImagePlacement(mediaID, assetID, filepath.Base(path), mimeType, x, y, width, height, rotation, flipX, author)
 }
 
-func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType string, x, y, width, height, rotation float64, author string) (BoardImage, error) {
+func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType string, x, y, width, height, rotation float64, flipX bool, author string) (BoardImage, error) {
 	state, x, y, width, height, rotation, author, err := bs.normalizeImagePlacement(mediaID, x, y, width, height, rotation, author)
 	if err != nil {
 		return BoardImage{}, err
@@ -670,6 +671,7 @@ func (bs *BoardStore) addImagePlacement(mediaID, assetID, filename, mimeType str
 		Width:     width,
 		Height:    height,
 		Rotation:  rotation,
+		FlipX:     flipX,
 		Author:    author,
 		CreatedAt: time.Now().UTC(),
 		Filename:  filename,
