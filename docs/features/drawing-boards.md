@@ -40,18 +40,18 @@ Their layer order is preserved. History mode is unavailable until the local
 session is published or discarded. Incoming SSE operations continue to update
 the committed layer underneath the local operations.
 
-Dropping a new image during local mode immediately uploads and registers its
-bytes as a reusable asset, then opens a local placement draft at the drop point.
-Canceling the placement or the local session does not delete the registered
-asset. The placement itself is persisted only with the local operation batch.
-
 ## Images And Assets
 
-Dropped images become local placement drafts before persistence. Uploads are
-capped at 25 MiB. Asset bytes are SHA-256 content-addressed and shared across
-boards; identical bytes reuse storage while creating a new immutable operation.
-The asset library combines committed starter-pack images and assets referenced
-by board history. Its global endpoints serve only registered assets.
+Dropped images are immediately uploaded and registered as reusable assets in
+both normal and local drawing modes, then opened as placement drafts at the drop
+point. Canceling a placement or local session does not delete the registered
+asset. In normal mode, confirming the draft persists the placement immediately;
+in local mode, the placement remains local until the operation batch is
+published. Uploads are capped at 25 MiB. Asset bytes are SHA-256
+content-addressed and shared across boards; identical bytes reuse storage while
+creating a new immutable operation. The asset library combines committed
+starter-pack images and registered user assets. Its global endpoints serve only
+registered assets.
 
 The committed starter pack under `test-content/.boards/sticker-pack` is part of
 the repository and Windows package. Its attribution files must remain intact.

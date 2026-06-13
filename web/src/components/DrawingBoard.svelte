@@ -2,7 +2,6 @@
   import { onMount, tick } from 'svelte';
   import { Activity, Check, CircleHelp, CloudOff, FlipHorizontal2, Hand, HandGrab, History, Images, LoaderCircle, Minus, Palette, Pencil, Plus, RotateCw, Undo2, X } from 'lucide-svelte';
   import {
-    createBoardImage,
     createBoardImageFromAsset,
     createBoardAsset,
     createBoardOperations,
@@ -114,10 +113,8 @@
   let sizeDragSuppressClick = $state(false);
   let backgroundImage = $state<HTMLImageElement | undefined>(undefined);
   type ImageDraft = {
-    file?: File;
-    assetId?: string;
+    assetId: string;
     url: string;
-    revokeURL: boolean;
     x: number;
     y: number;
     width: number;
@@ -128,6 +125,7 @@
   let imageDraft = $state<ImageDraft | null>(null);
   let imageDraftSaving = $state(false);
   let assetUploadSaving = $state(false);
+  let assetUploadError = $state('');
   let imageDraftError = $state('');
   let showAssetLibrary = $state(false);
   let showHelp = $state(false);
@@ -187,7 +185,6 @@
       window.removeEventListener('keyup', handleWindowKeyup, { capture: true });
       window.removeEventListener('resize', clampPanToViewport);
       hideCancelHint();
-      releaseImageDraftURL(imageDraft);
     };
   });
 
@@ -1628,36 +1625,31 @@
     if (historyMode || imageDraftSaving || assetUploadSaving) return;
     const file = Array.from(event.dataTransfer?.files ?? []).find((entry) => entry.type.startsWith('image/'));
     if (!file) {
-      imageDraftError = 'На доску можно добавить только изображение';
+      assetUploadError = 'На доску можно добавить только изображение';
       return;
     }
     const [dropX, dropY] = canvasCoords(event);
-    if (localMode) {
-      assetUploadSaving = true;
-      imageDraftError = '';
-      localStrokesError = '';
-      try {
-        const asset = await createBoardAsset(file);
-        boardAssets = [asset, ...boardAssets.filter((entry) => entry.id !== asset.id)];
-        startImageDraft(asset.url, { assetId: asset.id, revokeURL: false, centerX: dropX, centerY: dropY });
-      } catch (error) {
-        localStrokesError = error instanceof Error ? error.message : t.board.assetUploadFailed;
-      } finally {
-        assetUploadSaving = false;
-      }
-      return;
+    assetUploadSaving = true;
+    assetUploadError = '';
+    imageDraftError = '';
+    localStrokesError = '';
+    try {
+      const asset = await createBoardAsset(file);
+      boardAssets = [asset, ...boardAssets.filter((entry) => entry.id !== asset.id)];
+      startImageDraft(asset.url, { assetId: asset.id, centerX: dropX, centerY: dropY });
+    } catch (error) {
+      assetUploadError = error instanceof Error ? error.message : t.board.assetUploadFailed;
+    } finally {
+      assetUploadSaving = false;
     }
-    const url = URL.createObjectURL(file);
-    startImageDraft(url, { file, revokeURL: true, centerX: dropX, centerY: dropY });
   }
 
   function startImageDraft(
     url: string,
-    source: { file?: File; assetId?: string; revokeURL: boolean; centerX?: number; centerY?: number }
+    source: { assetId: string; centerX?: number; centerY?: number }
   ) {
     const image = new Image();
     image.onload = () => {
-      releaseImageDraftURL(imageDraft);
       const maxWidth = canvasWidth * 0.45;
       const maxHeight = canvasHeight * 0.45;
       const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight, 1);
@@ -1666,10 +1658,8 @@
       const centerX = source.centerX ?? canvasWidth / 2;
       const centerY = source.centerY ?? canvasHeight / 2;
       imageDraft = {
-        file: source.file,
         assetId: source.assetId,
         url,
-        revokeURL: source.revokeURL,
         x: centerX - width / 2,
         y: centerY - height / 2,
         width,
@@ -1677,14 +1667,14 @@
         rotation: 0,
         flipX: false
       };
+      assetUploadError = '';
       imageDraftError = '';
       clearActiveStroke();
       currentTool = 'pan';
       showAssetLibrary = false;
     };
     image.onerror = () => {
-      if (source.revokeURL) URL.revokeObjectURL(url);
-      imageDraftError = 'Не удалось прочитать изображение';
+      assetUploadError = 'Ассет сохранён, но изображение не удалось прочитать';
     };
     image.src = url;
   }
@@ -1718,7 +1708,7 @@
   }
 
   function selectBoardAsset(asset: BoardAsset) {
-    startImageDraft(asset.url, { assetId: asset.id, revokeURL: false });
+    startImageDraft(asset.url, { assetId: asset.id });
   }
 
   function hasBoardDraggedFiles(event: DragEvent) {
@@ -1784,7 +1774,6 @@
 
   function cancelImageDraft() {
     if (!imageDraft || imageDraftSaving) return false;
-    releaseImageDraftURL(imageDraft);
     imageDraft = null;
     imageDraftError = '';
     imageTransformPointerId = null;
@@ -1800,7 +1789,7 @@
   async function confirmImageDraft() {
     if (!imageDraft || imageDraftSaving) return;
     const assetId = imageDraft.assetId;
-    if (localMode && assetId) {
+    if (localMode) {
       const draft = imageDraft;
       localOperations = [
         ...localOperations,
@@ -1829,24 +1818,13 @@
     imageDraftError = '';
     const draft = imageDraft;
     try {
-      if (draft.file) {
-        await createBoardImage(mediaId, draft.file, draft, username);
-      } else if (draft.assetId) {
-        await createBoardImageFromAsset(mediaId, draft.assetId, draft, username);
-      } else {
-        throw new Error('Источник изображения не найден');
-      }
-      releaseImageDraftURL(draft);
+      await createBoardImageFromAsset(mediaId, draft.assetId, draft, username);
       imageDraft = null;
     } catch (error) {
       imageDraftError = error instanceof Error ? error.message : 'Не удалось добавить изображение';
     } finally {
       imageDraftSaving = false;
     }
-  }
-
-  function releaseImageDraftURL(draft: ImageDraft | null) {
-    if (draft?.revokeURL) URL.revokeObjectURL(draft.url);
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -2003,6 +1981,16 @@
           {#if imageDraftError}<span>{imageDraftError}</span>{/if}
         </div>
       {/if}
+      {#if !localMode && (assetUploadSaving || assetUploadError)}
+        <div class="drawing-asset-upload-status" class:drawing-asset-upload-error={Boolean(assetUploadError)}>
+          {#if assetUploadSaving}
+            <LoaderCircle class="drawing-local-spinner" size={15} />
+            {t.board.savingAsset}
+          {:else}
+            {assetUploadError}
+          {/if}
+        </div>
+      {/if}
       {#if localMode && !imageDraft}
         <div class="drawing-local-actions">
           <button
@@ -2020,6 +2008,7 @@
               {t.board.savingAsset}
             </span>
           {/if}
+          {#if assetUploadError}<span class="drawing-local-error">{assetUploadError}</span>{/if}
           <button
             type="button"
             disabled={localStrokesSaving || assetUploadSaving || Boolean(imageDraft) || localOperations.length === 0}
@@ -2738,6 +2727,29 @@
     max-width: min(26rem, 45vw);
     color: #fca5a5;
     font-size: 0.72rem;
+  }
+
+  .drawing-asset-upload-status {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    z-index: 14;
+    display: flex;
+    min-height: 2.25rem;
+    max-width: min(28rem, calc(100vw - 7rem));
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.65rem;
+    background: rgba(15, 15, 23, 0.88);
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.72rem;
+    transform: translateX(-50%);
+  }
+
+  .drawing-asset-upload-error {
+    color: #fca5a5;
   }
 
   .drawing-local-actions {

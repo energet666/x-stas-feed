@@ -588,32 +588,6 @@ export async function createBoardOperations(mediaId: string, operations: BoardOp
   return Array.isArray(data.operations) ? data.operations : [];
 }
 
-export async function createBoardImage(
-  mediaId: string,
-  file: File,
-  placement: Pick<BoardImage, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX'>,
-  author: string
-) {
-  const form = new FormData();
-  form.append('file', file);
-  form.append('x', String(placement.x));
-  form.append('y', String(placement.y));
-  form.append('width', String(placement.width));
-  form.append('height', String(placement.height));
-  form.append('rotation', String(placement.rotation));
-  form.append('flipX', String(placement.flipX));
-  form.append('author', author);
-
-  const response = await fetch(`/api/boards/${encodeURIComponent(mediaId)}/images`, {
-    method: 'POST',
-    body: form
-  });
-  if (!response.ok) {
-    const message = await responseErrorMessage(response);
-    throw new Error(message ?? `Не удалось добавить изображение (${response.status})`);
-  }
-}
-
 export async function fetchBoardAssets() {
   const response = await fetch('/api/board-assets');
   if (!response.ok) {
