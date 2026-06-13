@@ -11,7 +11,8 @@ Feed AI is a local, Instagram-style media feed for photos, videos, audio, files,
 - Filesystem-backed media likes, metadata, audio covers, video posters, and drawing-board strokes.
 - Favorites stored in browser `localStorage` and rendered in the user's saved order.
 - Russian UI strings in `web/src/lib/ui_text.ts`.
-- Dark glass media-first design system documented in `DESIGN.md`.
+- Dark glass media-first design system documented in
+  [`docs/design/design-system.md`](docs/design/design-system.md).
 
 ## Stack
 
@@ -28,8 +29,7 @@ internal/server/     HTTP routes, handlers, middleware, static serving, SSE
 web/                 Svelte SPA
 test-content/        Local test media and server-managed sidecar data
 tools/ffmpeg/        Optional bundled FFmpeg/FFprobe binaries for packaging
-DESIGN.md            Frontend design system notes
-MEMORY.md            Durable project decisions and known risks
+docs/                Engineering knowledge vault and architecture decisions
 ```
 
 ## Requirements
@@ -90,6 +90,7 @@ make check
 This runs:
 
 ```sh
+go run ./tools/docscheck
 cd web && npm run check
 go test ./...
 ```
@@ -180,5 +181,8 @@ Asteroids:
 - Keep production as one Go server that serves the API, media files, and built SPA.
 - Keep WebSocket limited to Asteroids; other one-way live updates use SSE.
 - Keep comments and other v1 state filesystem-backed; do not add a database.
-- Keep UI work aligned with `DESIGN.md` and existing Svelte 5 rune patterns.
-- Record durable decisions, verification outcomes, and known issues in `MEMORY.md`.
+- Start engineering work from [`docs/index.md`](docs/index.md).
+- Keep UI work aligned with the documented design system and existing Svelte 5
+  rune patterns.
+- Update current reference notes with behavior changes; use ADRs only for
+  consequential architectural decisions.

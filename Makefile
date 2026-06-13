@@ -14,11 +14,15 @@ FFPROBE_WIN_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/ffprobe.exe
 FFMPEG_WIN_LICENSE_SRC := tools/ffmpeg/windows-amd64/LICENSE.txt
 FFMPEG_WIN_LICENSE_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/LICENSE.txt
 
-.PHONY: check web-build web-package server-win sticker-pack-win ffmpeg-win package-win zip-win
+.PHONY: check docs-check web-build web-package server-win sticker-pack-win ffmpeg-win package-win zip-win
 
 check:
+	go run ./tools/docscheck
 	cd $(WEB_DIR) && npm run check
 	go test ./...
+
+docs-check:
+	go run ./tools/docscheck
 
 web-build:
 	cd $(WEB_DIR) && npm run build
