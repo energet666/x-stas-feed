@@ -109,6 +109,7 @@
     {ambientActive}
     {overlayVisible}
     {likePending}
+    autoplayEnabled={videoAutoplayEnabled}
     {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}

@@ -267,10 +267,6 @@
     applyEffectivePlaybackRate();
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
-    if (autoplayStarted) {
-      muted = true;
-      video.muted = true;
-    }
     syncAmbientCanvasSize();
     validateDisplayedProgress();
     applySavedStartPosition();
@@ -471,8 +467,7 @@
     if (requestVersion !== autoplayRequestVersion || !autoplayEnabled || !inAutoplayViewport || !video) return;
 
     applySavedStartPosition();
-    muted = true;
-    video.muted = true;
+    applyStoredVolume();
     playBlocked = false;
 
     try {

@@ -1,6 +1,9 @@
 <script module lang="ts">
+  const FEED_MEDIA_CLEAR_ACTIVE_EVENT = 'feed-ai:video-clear-active';
+  const FEED_MEDIA_ACTIVE_EVENT = 'feed-ai:video-active';
   const FEED_AUDIO_PLAYER_PREFIX = 'audio-';
   let nextPlayerId = 0;
+  let activePlayerId: string | undefined = undefined;
 </script>
 
 <script lang="ts">
@@ -32,6 +35,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
+    autoplayEnabled = false,
     suppressFeedChrome = false,
     onReveal,
     onKeep,
@@ -47,6 +51,7 @@
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
+    autoplayEnabled?: boolean;
     suppressFeedChrome?: boolean;
     onReveal: () => void;
     onKeep: () => void;
@@ -69,6 +74,9 @@
   let playbackError = $state<'blocked' | 'unsupported' | 'failed' | ''>('');
   let coverFailed = $state(false);
   let container = $state<HTMLDivElement | undefined>(undefined);
+  let autoplayStarted = false;
+  let inAutoplayViewport = false;
+  let autoplayRequestVersion = 0;
   let lastProgressSaveAt = 0;
   const playerId = `${FEED_AUDIO_PLAYER_PREFIX}${nextPlayerId++}`;
 
@@ -143,6 +151,8 @@
 
   async function togglePlay() {
     if (!audio) return;
+    setActivePlayer();
+    autoplayStarted = false;
     playbackError = '';
     if (audio.paused) {
       try {
@@ -181,7 +191,7 @@
   }
 
   function handleKeyboard(event: KeyboardEvent) {
-    if (!isAudioKeyboardTarget(event.target)) return;
+    if (!isActivePlayer() || !isAudioKeyboardTarget(event.target)) return;
 
     if (event.code === 'Space') {
       event.preventDefault();
@@ -197,8 +207,66 @@
     }
   }
 
+  function setActivePlayer() {
+    window.dispatchEvent(new CustomEvent(FEED_MEDIA_CLEAR_ACTIVE_EVENT));
+    activePlayerId = playerId;
+    window.dispatchEvent(new CustomEvent(FEED_MEDIA_ACTIVE_EVENT, { detail: { mediaType: 'audio' } }));
+  }
+
+  function isActivePlayer() {
+    return activePlayerId === playerId;
+  }
+
+  function clearActivePlayer() {
+    if (isActivePlayer()) activePlayerId = undefined;
+  }
+
+  function clearActivePlayerForVideo(event: Event) {
+    const mediaType = (event as CustomEvent<{ mediaType?: string }>).detail?.mediaType;
+    if (mediaType === 'audio') return;
+    clearActivePlayer();
+  }
+
+  function releaseActivePlayer() {
+    if (!isActivePlayer()) return;
+    activePlayerId = undefined;
+    window.dispatchEvent(new CustomEvent(FEED_MEDIA_CLEAR_ACTIVE_EVENT));
+  }
+
+  function pauseAutoplay() {
+    autoplayRequestVersion += 1;
+    if (!autoplayStarted) return;
+    autoplayStarted = false;
+    if (audio && !audio.paused) audio.pause();
+  }
+
+  async function startAutoplay() {
+    if (!autoplayEnabled || !inAutoplayViewport || document.visibilityState === 'hidden' || !audio || !audio.paused) {
+      return;
+    }
+
+    const requestVersion = ++autoplayRequestVersion;
+    autoplayStarted = true;
+    setActivePlayer();
+    playbackError = '';
+    applyStoredVolume();
+
+    if (currentTime > 0.5 && audio.currentTime <= 0.5) {
+      audio.currentTime = currentTime;
+    }
+
+    try {
+      await audio.play();
+    } catch (error) {
+      if (requestVersion !== autoplayRequestVersion) return;
+      autoplayStarted = false;
+      playbackError = playbackErrorFor(error, audio);
+    }
+  }
+
   function handleSeek(event: Event) {
     if (!audio) return;
+    setActivePlayer();
     const target = event.target as HTMLInputElement;
     currentTime = Number(target.value);
     if (!Number.isFinite(currentTime) || duration <= 0) return;
@@ -208,6 +276,7 @@
 
   function seekBy(seconds: number) {
     if (!audio) return;
+    setActivePlayer();
     const maxTime = duration || audio.duration || 0;
     if (maxTime <= 0) return;
     audio.currentTime = clampTime(audio.currentTime + seconds, maxTime);
@@ -261,10 +330,14 @@
   $effect(() => {
     window.addEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
     window.addEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
+    window.addEventListener(FEED_MEDIA_CLEAR_ACTIVE_EVENT, clearActivePlayer);
+    window.addEventListener(FEED_MEDIA_ACTIVE_EVENT, clearActivePlayerForVideo);
 
     return () => {
       window.removeEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
       window.removeEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
+      window.removeEventListener(FEED_MEDIA_CLEAR_ACTIVE_EVENT, clearActivePlayer);
+      window.removeEventListener(FEED_MEDIA_ACTIVE_EVENT, clearActivePlayerForVideo);
     };
   });
 
@@ -273,10 +346,56 @@
     return attachHorizontalSeekWheel(container, seekBy);
   });
 
+  $effect(() => {
+    if (!container) return;
+    const card = container.closest<HTMLElement>('.ui-media-card') ?? container;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inAutoplayViewport = entry?.isIntersecting === true && entry.intersectionRatio >= 1;
+        if (inAutoplayViewport) {
+          setActivePlayer();
+          void startAutoplay();
+        } else {
+          pauseAutoplay();
+          releaseActivePlayer();
+        }
+      },
+      { threshold: 1 }
+    );
+
+    observer.observe(card);
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    if (autoplayEnabled) {
+      void startAutoplay();
+    } else {
+      pauseAutoplay();
+    }
+  });
+
+  $effect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pauseAutoplay();
+      } else if (inAutoplayViewport) {
+        void startAutoplay();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  });
+
   onDestroy(() => {
     saveProgress();
+    releaseActivePlayer();
   });
 </script>
+
+<svelte:window onkeydown={handleKeyboard} />
 
 <FeedCardFrame
   {item}

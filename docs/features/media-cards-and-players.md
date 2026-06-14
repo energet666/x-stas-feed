@@ -22,10 +22,11 @@ geometry.
 Video cards provide playback, seek, volume, mute, fullscreen, poster, buffered
 state, and per-media progress persistence. Only one feed video is active at a
 time. Browser-owned autoplay is off by default. When enabled, a video starts
-muted after its entire feed card enters the viewport and pauses as soon as the
-card is no longer fully visible; cards taller than the viewport do not
-autoplay. Manual controls remain available. Duration from backend metadata
-avoids requiring Safari to preload solely for control layout.
+with the stored volume and mute state after its entire feed card enters the
+viewport and pauses as soon as the card is no longer fully visible; cards
+taller than the viewport do not autoplay. Manual controls remain available.
+Duration from backend metadata avoids requiring Safari to preload solely for
+control layout.
 
 Up and Down remain reserved for feed navigation. A fully visible video becomes
 the active player even when autoplay is disabled; explicit interaction also
@@ -37,7 +38,10 @@ their playback behavior.
 
 Audio cards use extracted tags, duration, and optional embedded cover art, with
 a designed fallback when extraction is unavailable. Controls share the media
-playback primitives and persist volume/progress in browser storage.
+playback primitives and persist volume/progress in browser storage. Like video,
+a fully visible audio card becomes the active keyboard player. When autoplay is
+enabled, it starts playing on activation and pauses after leaving the fully
+visible viewport.
 
 ## Generic Files And Images
 

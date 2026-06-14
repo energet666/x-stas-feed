@@ -104,8 +104,8 @@ export const uiText = {
     closeFullscreen: 'Закрыть полноэкранное медиа'
   },
   playback: {
-    enableAutoplay: 'Включить автовоспроизведение видео',
-    disableAutoplay: 'Выключить автовоспроизведение видео',
+    enableAutoplay: 'Включить автовоспроизведение медиа',
+    disableAutoplay: 'Выключить автовоспроизведение медиа',
     audioPlayer: (name: string) => `Аудиоплеер: ${name}`,
     videoPlayer: (name: string) => `Видеоплеер: ${name}`,
     play: 'Воспроизвести',
