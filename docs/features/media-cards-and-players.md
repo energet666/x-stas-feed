@@ -21,8 +21,11 @@ geometry.
 
 Video cards provide playback, seek, volume, mute, fullscreen, poster, buffered
 state, and per-media progress persistence. Only one feed video is active at a
-time. Duration from backend metadata avoids requiring Safari to preload solely
-for control layout.
+time. Browser-owned autoplay is off by default. When enabled, a video starts
+muted after its entire feed card enters the viewport and pauses as soon as the
+card is no longer fully visible; cards taller than the viewport do not
+autoplay. Manual controls remain available. Duration from backend metadata
+avoids requiring Safari to preload solely for control layout.
 
 ## Audio
 
@@ -36,4 +39,3 @@ Generic files render metadata and a download action rather than being forced
 into a media renderer. Animated GIFs remain ordinary image cards. Other images
 render through the drawing-board card so they can be annotated in expanded
 mode.
-

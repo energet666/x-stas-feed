@@ -44,6 +44,7 @@
     ambientActive,
     overlayVisible,
     likePending = false,
+    autoplayEnabled = false,
     suppressFeedChrome = false,
     onReveal,
     onKeep,
@@ -59,6 +60,7 @@
     ambientActive: boolean;
     overlayVisible: boolean;
     likePending?: boolean;
+    autoplayEnabled?: boolean;
     suppressFeedChrome?: boolean;
     onReveal: () => void;
     onKeep: () => void;
@@ -114,6 +116,9 @@
   let metadataWanted = $state(false);
   let hasVideoInteraction = $state(false);
   let hasDecodedFrame = $state(false);
+  let autoplayStarted = false;
+  let inAutoplayViewport = false;
+  let autoplayRequestVersion = 0;
   const playerId = nextPlayerId++;
 
   const canPersistProgress = $derived(duration >= MIN_PROGRESS_SAVE_DURATION_SECONDS);
@@ -188,6 +193,7 @@
   function pauseForOtherPlayer(event: Event) {
     const otherPlayerId = (event as CustomEvent<{ playerId: number }>).detail?.playerId;
     if (otherPlayerId === playerId || !video || video.paused) return;
+    autoplayStarted = false;
     video.pause();
   }
 
@@ -231,6 +237,7 @@
 
   async function togglePlay() {
     if (!video) return;
+    autoplayStarted = false;
     setActivePlayer();
     metadataWanted = true;
     markProgressInteraction();
@@ -260,6 +267,10 @@
     applyEffectivePlaybackRate();
     supportsVolumeControl = canSetVolume(video);
     applyStoredVolume();
+    if (autoplayStarted) {
+      muted = true;
+      video.muted = true;
+    }
     syncAmbientCanvasSize();
     validateDisplayedProgress();
     applySavedStartPosition();
@@ -362,6 +373,7 @@
     if (!video || !supportsVolumeControl) return;
     const target = event.target as HTMLInputElement;
     setActivePlayer();
+    autoplayStarted = false;
     markVideoInteraction();
     const nextVolume = Number(target.value);
     applyVolume(nextVolume, nextVolume === 0, true);
@@ -370,6 +382,7 @@
   function toggleMute() {
     if (!video) return;
     setActivePlayer();
+    autoplayStarted = false;
     markVideoInteraction();
     const nextMuted = !muted;
     const nextVolume = !nextMuted && volume === 0 ? 1 : volume;
@@ -418,6 +431,7 @@
 
   function safePlay() {
     if (!video) return;
+    autoplayStarted = false;
     metadataWanted = true;
     markProgressInteraction();
     activateVideoElement().then(() => {
@@ -428,6 +442,41 @@
       playBlocked = true;
       showControls = true;
     });
+  }
+
+  function pauseAutoplay() {
+    autoplayRequestVersion += 1;
+    if (!autoplayStarted) return;
+    autoplayStarted = false;
+    if (video && !video.paused) video.pause();
+  }
+
+  async function startAutoplay() {
+    if (!autoplayEnabled || !inAutoplayViewport || document.visibilityState === 'hidden' || !video || !video.paused) {
+      return;
+    }
+
+    const requestVersion = ++autoplayRequestVersion;
+    autoplayStarted = true;
+    setActivePlayer();
+    metadataWanted = true;
+    markProgressInteraction();
+    await activateVideoElement();
+    if (requestVersion !== autoplayRequestVersion || !autoplayEnabled || !inAutoplayViewport || !video) return;
+
+    applySavedStartPosition();
+    muted = true;
+    video.muted = true;
+    playBlocked = false;
+
+    try {
+      await video.play();
+    } catch {
+      if (requestVersion !== autoplayRequestVersion) return;
+      autoplayStarted = false;
+      playBlocked = true;
+      showControls = true;
+    }
   }
 
   function clampPlaybackTime(nextTime: number) {
@@ -646,6 +695,34 @@
   });
 
   $effect(() => {
+    if (!container) return;
+    const card = container.closest<HTMLElement>('.ui-media-card') ?? container;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inAutoplayViewport = entry?.isIntersecting === true && entry.intersectionRatio >= 1;
+        if (inAutoplayViewport) {
+          void startAutoplay();
+        } else {
+          pauseAutoplay();
+        }
+      },
+      { threshold: 1 }
+    );
+
+    observer.observe(card);
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    if (autoplayEnabled) {
+      void startAutoplay();
+    } else {
+      pauseAutoplay();
+    }
+  });
+
+  $effect(() => {
     window.addEventListener(FEED_VIDEO_PLAY_EVENT, pauseForOtherPlayer);
     window.addEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
     window.addEventListener(FEED_VIDEO_CLEAR_ACTIVE_EVENT, clearActivePlayer);
@@ -655,6 +732,19 @@
       window.removeEventListener(FEED_VIDEO_VOLUME_EVENT, syncVolumeFromOtherPlayer);
       window.removeEventListener(FEED_VIDEO_CLEAR_ACTIVE_EVENT, clearActivePlayer);
     };
+  });
+
+  $effect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pauseAutoplay();
+      } else if (inAutoplayViewport) {
+        void startAutoplay();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   });
 
   function syncAmbientFrame() {

@@ -30,6 +30,7 @@ Important `localStorage` keys include:
 - `feed-ai:comment-username`
 - drawing brush color, size, opacity, and custom colors
 - audio/video volume and per-media progress
+- feed video autoplay preference
 - visitor panel state and page/card appearance preferences
 - debug feature switches and the Asteroids resume token
 
@@ -42,4 +43,3 @@ Desktop layout is a centered grid with a left control/profile rail, a 42rem feed
 column, and a right activity rail. The activity rail becomes a drawer at
 narrower widths. Expanded media lock page scrolling; ordinary in-card comments
 do not. Fullscreen comments render above expanded media in a top-level overlay.
-

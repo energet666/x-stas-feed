@@ -51,6 +51,7 @@
   const backgroundParticlesEnabledStorageKey = 'feed-ai:background-particles-enabled';
   const asteroidsEnabledStorageKey = 'feed-ai:asteroids-enabled';
   const glassEffectsEnabledStorageKey = 'feed-ai:glass-effects-enabled';
+  const videoAutoplayEnabledStorageKey = 'feed-ai:video-autoplay-enabled';
   const favoritesStorageKey = 'feed-ai:favorites';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
@@ -118,6 +119,7 @@
   let backgroundParticlesEnabled = $state(true);
   let asteroidsEnabled = $state(true);
   let glassEffectsMode = $state<GlassEffectsMode>('off');
+  let videoAutoplayEnabled = $state(false);
   let backgroundLayersStorageReady = $state(false);
   let favoriteIDs = $state<string[]>([]);
   let favoritesStorageReady = $state(false);
@@ -222,6 +224,7 @@
     backgroundParticlesEnabled = readStoredBackgroundLayerEnabled(backgroundParticlesEnabledStorageKey);
     asteroidsEnabled = readStoredBackgroundLayerEnabled(asteroidsEnabledStorageKey);
     glassEffectsMode = readStoredGlassEffectsMode();
+    videoAutoplayEnabled = readStoredVideoAutoplayEnabled();
     backgroundLayersStorageReady = true;
     favoriteIDs = readStoredFavoriteIDs();
     favoritesStorageReady = true;
@@ -306,6 +309,7 @@
     persistBackgroundLayerEnabled(backgroundParticlesEnabledStorageKey, backgroundParticlesEnabled);
     persistBackgroundLayerEnabled(asteroidsEnabledStorageKey, asteroidsEnabled);
     persistGlassEffectsMode(glassEffectsMode);
+    persistVideoAutoplayEnabled(videoAutoplayEnabled);
     document.documentElement.classList.toggle('no-glass-effects', glassEffectsMode === 'off');
   });
 
@@ -748,6 +752,14 @@
     }
   }
 
+  function persistVideoAutoplayEnabled(enabled: boolean) {
+    try {
+      window.localStorage.setItem(videoAutoplayEnabledStorageKey, String(enabled));
+    } catch {
+      // Ignore storage failures; the in-memory playback setting still applies.
+    }
+  }
+
   function persistFavoriteIDs(nextIDs: string[]) {
     try {
       window.localStorage.setItem(favoritesStorageKey, JSON.stringify(nextIDs));
@@ -778,6 +790,14 @@
       return window.localStorage.getItem(pageBackgroundModeStorageKey) === 'daylight' ? 'daylight' : 'cosmos';
     } catch {
       return 'cosmos';
+    }
+  }
+
+  function readStoredVideoAutoplayEnabled() {
+    try {
+      return window.localStorage.getItem(videoAutoplayEnabledStorageKey) === 'true';
+    } catch {
+      return false;
     }
   }
 
@@ -1524,10 +1544,12 @@
           {uploadProgress}
           {feedMode}
           {newFeedItemCount}
+          {videoAutoplayEnabled}
           onToggleFavoriteMode={toggleFavoriteMode}
           onRefreshFeed={refreshFeedFromTop}
           onUploadFiles={handleUploadFiles}
           onCreateBoard={handleCreateBoard}
+          onVideoAutoplayEnabledChange={(enabled) => (videoAutoplayEnabled = enabled)}
         />
         <UserSidebar 
           bind:username 
@@ -1593,6 +1615,7 @@
               overlayVisible={activeOverlayID === item.id}
               likePending={(pendingLikeCounts[item.id] ?? 0) > 0}
               username={commentUsername}
+              {videoAutoplayEnabled}
               {debugToolsEnabled}
               onReveal={revealCardOverlay}
               onKeep={keepCardOverlay}

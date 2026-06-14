@@ -15,6 +15,7 @@
     overlayVisible,
     likePending = false,
     username = t.common.guest,
+    videoAutoplayEnabled = false,
     suppressFeedChrome = false,
     debugToolsEnabled = false,
     onReveal,
@@ -32,6 +33,7 @@
     overlayVisible: boolean;
     likePending?: boolean;
     username?: string;
+    videoAutoplayEnabled?: boolean;
     suppressFeedChrome?: boolean;
     debugToolsEnabled?: boolean;
     onReveal: (id: string) => void;
@@ -89,6 +91,7 @@
     {ambientActive}
     {overlayVisible}
     {likePending}
+    autoplayEnabled={videoAutoplayEnabled}
     {suppressFeedChrome}
     onReveal={revealOverlay}
     onKeep={keepOverlay}

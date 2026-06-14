@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pencil, RefreshCw, Star, Upload, X } from 'lucide-svelte';
+  import { AlertCircle, Check, CheckCircle2, LoaderCircle, Pause, Pencil, Play, RefreshCw, Star, Upload, X } from 'lucide-svelte';
   import { uiText as t } from '../lib/ui_text';
 
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
@@ -12,20 +12,24 @@
     uploadProgress,
     feedMode,
     newFeedItemCount,
+    videoAutoplayEnabled,
     onToggleFavoriteMode,
     onRefreshFeed,
     onUploadFiles,
-    onCreateBoard
+    onCreateBoard,
+    onVideoAutoplayEnabledChange
   }: {
     uploadStatus: UploadStatus;
     uploadMessage: string;
     uploadProgress: number | null;
     feedMode: FeedMode;
     newFeedItemCount: number;
+    videoAutoplayEnabled: boolean;
     onToggleFavoriteMode: () => void;
     onRefreshFeed: () => void;
     onUploadFiles: (files: File[]) => void;
     onCreateBoard: (name: string) => Promise<void>;
+    onVideoAutoplayEnabledChange: (enabled: boolean) => void;
   } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
@@ -143,6 +147,24 @@
     <div class="min-w-0">
       <h1 class="truncate text-base font-bold tracking-normal text-fg-primary">Feed+AI</h1>
     </div>
+    <button
+      class="autoplay-toggle"
+      class:autoplay-toggle-enabled={videoAutoplayEnabled}
+      type="button"
+      role="switch"
+      aria-checked={videoAutoplayEnabled}
+      aria-label={videoAutoplayEnabled ? t.playback.disableAutoplay : t.playback.enableAutoplay}
+      title={videoAutoplayEnabled ? t.playback.disableAutoplay : t.playback.enableAutoplay}
+      onclick={() => onVideoAutoplayEnabledChange(!videoAutoplayEnabled)}
+    >
+      <span class="autoplay-toggle-thumb" aria-hidden="true">
+        {#if videoAutoplayEnabled}
+          <Play size={10} fill="currentColor" />
+        {:else}
+          <Pause size={10} fill="currentColor" />
+        {/if}
+      </span>
+    </button>
   </div>
   <div class="feed-toolbar-actions">
       {#if newFeedItemCount > 0 && feedMode === 'all'}
@@ -286,6 +308,59 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
     margin-top: 0.75rem;
+  }
+
+  .autoplay-toggle {
+    position: relative;
+    width: 2.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border-glass-soft);
+    border-radius: 999px;
+    background: var(--color-action-bg);
+    color: var(--color-fg-muted);
+    transition:
+      border-color 140ms ease,
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .autoplay-toggle:hover {
+    border-color: var(--color-border-glass-hover);
+    color: var(--color-fg-primary);
+  }
+
+  .autoplay-toggle:focus-visible {
+    outline: 2px solid var(--color-border-glass-hover);
+    outline-offset: 2px;
+  }
+
+  .autoplay-toggle-enabled {
+    background: var(--color-action-hover-strong);
+    color: var(--color-fg-primary);
+  }
+
+  .autoplay-toggle-thumb {
+    position: absolute;
+    top: 0.125rem;
+    left: 0.125rem;
+    display: grid;
+    width: 0.875rem;
+    height: 0.875rem;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--color-fg-muted);
+    color: var(--color-page);
+    transition: transform 160ms ease;
+  }
+
+  .autoplay-toggle-enabled .autoplay-toggle-thumb {
+    background: var(--color-fg-primary);
+    transform: translateX(1rem);
+  }
+
+  .autoplay-toggle-thumb :global(svg) {
+    display: block;
   }
 
   .feed-toolbar-actions :global(.ui-button) {
