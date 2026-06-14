@@ -429,6 +429,12 @@
     }
   }
 
+  function releaseActivePlayer() {
+    if (!isActivePlayer()) return;
+    activePlayerId = undefined;
+    window.dispatchEvent(new CustomEvent(FEED_VIDEO_CLEAR_ACTIVE_EVENT));
+  }
+
   function safePlay() {
     if (!video) return;
     autoplayStarted = false;
@@ -587,9 +593,9 @@
       return;
     }
 
-    if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+    if (event.shiftKey && (event.code === 'ArrowLeft' || event.code === 'ArrowRight')) {
       event.preventDefault();
-      changePlaybackRate(event.code === 'ArrowUp' ? 1 : -1);
+      changePlaybackRate(event.code === 'ArrowRight' ? 1 : -1);
       return;
     }
 
@@ -702,9 +708,11 @@
       ([entry]) => {
         inAutoplayViewport = entry?.isIntersecting === true && entry.intersectionRatio >= 1;
         if (inAutoplayViewport) {
+          setActivePlayer();
           void startAutoplay();
         } else {
           pauseAutoplay();
+          releaseActivePlayer();
         }
       },
       { threshold: 1 }
@@ -836,7 +844,7 @@
     clearTimeout(seekFeedbackTimer);
     clearTimeout(spaceTimer);
     clearTimeout(arrowRightTimer);
-    if (activePlayerId === playerId) activePlayerId = undefined;
+    releaseActivePlayer();
     stopAmbientSync();
   });
 </script>

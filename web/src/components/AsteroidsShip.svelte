@@ -44,7 +44,7 @@
   const resumeTokenKey = 'feed-ai:ship-resume-token';
   const activeVideoEvent = 'feed-ai:video-active';
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
-  const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
+  const backgroundKeyboardControlEvent = 'feed-ai:background-keyboard-control';
   const gameStartedEvent = 'feed-ai:game-started';
   const gameExitedEvent = 'feed-ai:game-exited';
 
@@ -77,7 +77,7 @@
   let roundSaved = $state(false);
   let gameVisible = $state(false);
   let gameDismissed = false;
-  let backgroundKeyboardFocused = false;
+  let keyboardControlArmed = false;
   let videoActive = false;
   let animationFrameId: number | undefined;
   let lastFrameAt = 0;
@@ -147,7 +147,13 @@
   }
 
   function isShipKey(event: KeyboardEvent) {
-    return event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.code === 'Space';
+    return (
+      event.key === 'ArrowUp' ||
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight' ||
+      event.code === 'Space'
+    );
   }
 
   function currentInput(): ShipInput {
@@ -210,20 +216,17 @@
       event.stopImmediatePropagation();
       return;
     }
-    if (roundStatus === 'playing' && mode === 'solo' && event.code === 'Enter' && backgroundKeyboardFocused && !videoActive) {
+    if (roundStatus === 'playing' && mode === 'solo' && event.code === 'Enter' && keyboardControlArmed && !videoActive) {
       sendCommand({ type: 'finish' });
       event.preventDefault();
       return;
     }
     if (!isShipKey(event) || isTextEntryTarget(event.target)) return;
-    if (videoActive || !backgroundKeyboardFocused) {
-      event.preventDefault();
-      return;
-    }
+    if (videoActive || !keyboardControlArmed) return;
     if (roundStatus === 'finished') restartGame();
     primeAudio();
+    showGame(true);
     if (event.code === 'Space') {
-      showGame(true);
       sendCommand({ type: 'shoot' });
       playShootSound();
     } else {
@@ -241,7 +244,7 @@
       event.stopImmediatePropagation();
       return;
     }
-    if (!isShipKey(event)) return;
+    if (!gameVisible || !keyboardControlArmed || videoActive || !isShipKey(event)) return;
     if (event.code !== 'Space') {
       keys.delete(event.key);
       sendInput();
@@ -267,6 +270,7 @@
     keys.clear();
     lastSentInput = JSON.stringify(currentInput());
     gameDismissed = true;
+    keyboardControlArmed = false;
     sendCommand({ type: 'leave' });
     gameVisible = false;
     particles = [];
@@ -358,7 +362,6 @@
           angle: localShip.angle + angleDelta(localShip.angle, authoritativeLocal.angle) * 0.45
         };
       }
-      if (authoritativeLocal.active) showGame();
     }
     remoteShips = snapshot.players.filter((player) => player.id !== playerId).map((player) => ({ ...player }));
     bullets = (snapshot.bullets ?? []).map((bullet) => ({ ...bullet }));
@@ -645,9 +648,9 @@
     const markVideoInactive = () => {
       videoActive = false;
     };
-    const markBackgroundFocus = (event: Event) => {
-      backgroundKeyboardFocused = Boolean((event as CustomEvent<{ focused?: boolean }>).detail?.focused);
-      if (!backgroundKeyboardFocused) clearInput();
+    const updateKeyboardControl = (event: Event) => {
+      keyboardControlArmed = Boolean((event as CustomEvent<{ armed?: boolean }>).detail?.armed);
+      if (!keyboardControlArmed) clearInput();
     };
     const visibilityChange = () => {
       if (document.visibilityState === 'hidden') {
@@ -664,7 +667,7 @@
     window.addEventListener('keyup', handleKeyup);
     window.addEventListener(activeVideoEvent, markVideoActive);
     window.addEventListener(clearActiveVideoEvent, markVideoInactive);
-    window.addEventListener(backgroundKeyboardFocusEvent, markBackgroundFocus);
+    window.addEventListener(backgroundKeyboardControlEvent, updateKeyboardControl);
     document.addEventListener('visibilitychange', visibilityChange);
 
     return () => {
@@ -680,7 +683,7 @@
       window.removeEventListener('keyup', handleKeyup);
       window.removeEventListener(activeVideoEvent, markVideoActive);
       window.removeEventListener(clearActiveVideoEvent, markVideoInactive);
-      window.removeEventListener(backgroundKeyboardFocusEvent, markBackgroundFocus);
+      window.removeEventListener(backgroundKeyboardControlEvent, updateKeyboardControl);
       document.removeEventListener('visibilitychange', visibilityChange);
     };
   });

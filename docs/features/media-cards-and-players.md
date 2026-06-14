@@ -27,6 +27,12 @@ card is no longer fully visible; cards taller than the viewport do not
 autoplay. Manual controls remain available. Duration from backend metadata
 avoids requiring Safari to preload solely for control layout.
 
+Up and Down remain reserved for feed navigation. A fully visible video becomes
+the active player even when autoplay is disabled; explicit interaction also
+activates it immediately. Playback speed changes with Shift+Right and
+Shift+Left. Its unmodified Left and Right, Space, and long-press shortcuts keep
+their playback behavior.
+
 ## Audio
 
 Audio cards use extracted tags, duration, and optional embedded cover art, with

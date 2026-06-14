@@ -13,9 +13,15 @@ state, reconciles through `ackSeq`, and keeps particles and audio local.
 
 ## Presence And Rounds
 
-Opening the site creates a spectator. First control joins the game. Player
-states are `spectator`, `active`, `inactive`, and `away`. A crash leaves a
-player inactive in the same round; the next control respawns with collision
+Opening the site creates a spectator, but keyboard controls remain owned by the
+page. An explicit click on the unobstructed page background arms Asteroids;
+only then can the game keys start or control the local ship. Clicking any feed
+card, panel, button, form control, dialog, or other application UI disarms game
+controls. Restoring a server or session state never opens the local game before
+that background click and a subsequent game key.
+
+Player states are `spectator`, `active`, `inactive`, and `away`. A crash leaves
+a player inactive in the same round; the next control respawns with collision
 grace. Escape or disconnect keeps membership for a 10-second resume window.
 
 Solo rounds last 60 seconds and save scores on the server. A finished round
@@ -38,4 +44,3 @@ ships, bypasses shields, and credits normal authoritative scores or kills.
 
 Remote entities may render behind the feed for spectators. Background rendering
 must not restart the dismissed local game or keep an idle animation loop alive.
-

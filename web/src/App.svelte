@@ -56,7 +56,7 @@
   const clearActiveVideoEvent = 'feed-ai:video-clear-active';
   const gameStartedEvent = 'feed-ai:game-started';
   const gameExitedEvent = 'feed-ai:game-exited';
-  const backgroundKeyboardFocusEvent = 'feed-ai:background-keyboard-focus';
+  const backgroundKeyboardControlEvent = 'feed-ai:background-keyboard-control';
 
   type CardBackgroundMode = 'simple' | 'ambient';
   type PageBackgroundMode = 'cosmos' | 'daylight';
@@ -234,7 +234,7 @@
     window.addEventListener('storage', syncDebugToolsEnabled);
     window.addEventListener('focus', syncDebugToolsEnabled);
     document.addEventListener('visibilitychange', syncDebugToolsEnabled);
-    window.addEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
+    window.addEventListener('pointerdown', updateAsteroidsKeyboardControl, { capture: true });
     window.addEventListener(gameStartedEvent, activateGameMode);
     window.addEventListener(gameExitedEvent, deactivateGameMode);
     subscribeToCommentEvents();
@@ -260,7 +260,7 @@
       window.removeEventListener('storage', syncDebugToolsEnabled);
       window.removeEventListener('focus', syncDebugToolsEnabled);
       document.removeEventListener('visibilitychange', syncDebugToolsEnabled);
-      window.removeEventListener('pointerdown', updateBackgroundKeyboardFocus, { capture: true });
+      window.removeEventListener('pointerdown', updateAsteroidsKeyboardControl, { capture: true });
       window.removeEventListener(gameStartedEvent, activateGameMode);
       window.removeEventListener(gameExitedEvent, deactivateGameMode);
     };
@@ -1398,7 +1398,86 @@
     }
     if (event.key === 'Escape' && masterBoardExpanded) {
       toggleMasterBoard();
+      return;
     }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      void navigateFeedByKeyboard(event);
+    }
+  }
+
+  async function navigateFeedByKeyboard(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      gameActive ||
+      expandedItemID ||
+      commentsPanelItemID ||
+      activityModalOpen ||
+      activityBoardExpandedID ||
+      masterBoardExpanded ||
+      isFeedNavigationInput(event.target) ||
+      rows.length === 0
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.key === 'ArrowDown' ? 1 : -1;
+    const relativeViewportCenter = window.scrollY + window.innerHeight / 2 - currentListTop();
+    let currentIndex = nearestRowIndex(relativeViewportCenter);
+    let targetIndex = relativeViewportCenter < rowCenter(rows[0]) ? 0 : currentIndex + direction;
+
+    if (direction > 0 && targetIndex >= rows.length && hasMore) {
+      await loadPage();
+      currentIndex = Math.min(currentIndex, rows.length - 1);
+      targetIndex = currentIndex + 1;
+    }
+
+    targetIndex = Math.min(rows.length - 1, Math.max(0, targetIndex));
+    const targetScrollTop = currentListTop() + rowCenter(rows[targetIndex]) - window.innerHeight / 2;
+    const maxScrollTop = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    window.scrollTo({
+      top: Math.min(maxScrollTop, Math.max(0, targetScrollTop)),
+      left: 0,
+      behavior: 'smooth'
+    });
+  }
+
+  function nearestRowIndex(relativeViewportCenter: number) {
+    let nearestIndex = 0;
+    let nearestDistance = Math.abs(rowCenter(rows[0]) - relativeViewportCenter);
+
+    for (let index = 1; index < rows.length; index += 1) {
+      const distance = Math.abs(rowCenter(rows[index]) - relativeViewportCenter);
+      if (distance >= nearestDistance) break;
+      nearestIndex = index;
+      nearestDistance = distance;
+    }
+
+    return nearestIndex;
+  }
+
+  function rowCenter(row: FeedRow) {
+    return row.top + (row.height - itemGap) / 2;
+  }
+
+  function currentListTop() {
+    if (!listEl) return listTop;
+    const paddingTop = Number.parseFloat(window.getComputedStyle(listEl).paddingTop) || 0;
+    return listEl.getBoundingClientRect().top + window.scrollY + paddingTop;
+  }
+
+  function isFeedNavigationInput(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(
+      target.closest(
+        'input, textarea, select, [contenteditable="true"], [role="application"], [role="dialog"], [role="listbox"], [role="menu"], [role="slider"], [role="tablist"]'
+      )
+    );
   }
 
   function handleWindowDragEnter(event: DragEvent) {
@@ -1454,22 +1533,22 @@
     return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
   }
 
-  function updateBackgroundKeyboardFocus(event: PointerEvent) {
+  function updateAsteroidsKeyboardControl(event: PointerEvent) {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const backgroundFocused = !target.closest(
+    if (!(target instanceof Element)) return;
+    if (!target.closest('.feed-video-player')) {
+      window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
+    }
+    const armed = !target.closest(
       'article, header, aside, .ui-panel, .drawing-board, .debug-overlay, button, input, textarea, select, a, [role="button"], [role="application"], [role="dialog"]'
     );
 
     window.dispatchEvent(
-      new CustomEvent(backgroundKeyboardFocusEvent, {
-        detail: { focused: backgroundFocused }
+      new CustomEvent(backgroundKeyboardControlEvent, {
+        detail: { armed }
       })
     );
 
-    if (backgroundFocused) {
-      window.dispatchEvent(new CustomEvent(clearActiveVideoEvent));
-    }
   }
 
   function activateGameMode() {

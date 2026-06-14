@@ -11,6 +11,12 @@ returns `firstIndex` and `lastIndex`; non-negative indexes resolve exactly one
 item. The frontend fetches small batches by repeatedly requesting decreasing
 indexes and gracefully handles an empty content directory.
 
+Up and Down move between adjacent feed cards and vertically center the selected
+card in the viewport. Keyboard navigation follows the retained virtual row
+geometry, loads the next item at the current loaded boundary, and yields to
+media controls, text entry, dialogs, expanded cards, drawing boards, and
+Asteroids after the user explicitly gives the page background keyboard control.
+
 Feed responses include display metadata, safe media URLs, counts, and the latest
 comment summary. Cards use `displayName` for visible titles and accessibility
 labels, not technical storage names.
@@ -33,4 +39,3 @@ index alignment.
 
 The legacy favorite-page backend endpoint is not the source of truth for the
 current UI. See [ADR 0006](../decisions/0006-browser-owned-favorites.md).
-
