@@ -497,6 +497,60 @@ func TestActivityEndpointIgnoresStaleCommentFilesAndCapsLimit(t *testing.T) {
 	}
 }
 
+func TestActivityEndpointReturnsLatestBoardStroke(t *testing.T) {
+	dir := t.TempDir()
+	server := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0))
+	board, err := server.boards.Create("activity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := server.boards.AddStroke(board.ID, "freeform", [][]float64{{1, 2}}, "#fff", 4, 1, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.publishBoardStroke(board.ID, first)
+	time.Sleep(time.Millisecond)
+	second, err := server.boards.AddStroke(board.ID, "freeform", [][]float64{{3, 4}}, "#fff", 4, 1, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.publishBoardStroke(board.ID, second)
+	asset, err := server.boards.AddAsset("image/png", strings.NewReader("sticker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	image, err := server.boards.AddExistingImage(board.ID, asset.ID, 10, 20, 30, 40, 0, false, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.publishBoardImage(board.ID, image)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/activity?limit=10", nil)
+	res := httptest.NewRecorder()
+	server.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	var response struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 1 {
+		t.Fatalf("expected one board activity item, got %#v", response.Items)
+	}
+	item := response.Items[0]
+	if item["type"] != "board" || item["mediaId"] != board.ID || item["mediaDisplayName"] != "activity" || item["updatedAt"] != image.CreatedAt.Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected board activity item: %#v", item)
+	}
+	if _, ok := item["comment"]; ok {
+		t.Fatalf("expected board activity without comment data, got %#v", item)
+	}
+}
+
 func TestMediaItemEndpointReturnsItemWithCommentSummary(t *testing.T) {
 	dir := t.TempDir()
 	writeServerTestFile(t, dir, "photo.txt")

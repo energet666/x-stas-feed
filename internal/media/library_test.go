@@ -698,6 +698,69 @@ func TestActivityInsertsOutOfOrderCommentsAndReturnsLatestLimit(t *testing.T) {
 	}
 }
 
+func TestActivityLoadsAndReplacesLatestBoardOperation(t *testing.T) {
+	dir := t.TempDir()
+	boards := NewBoardStore(dir)
+	if err := boards.Init(); err != nil {
+		t.Fatal(err)
+	}
+	board, err := boards.Create("activity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := boards.AddStroke(board.ID, "freeform", [][]float64{{1, 2}}, "#fff", 4, 1, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	second, err := boards.AddStroke(board.ID, "freeform", [][]float64{{3, 4}}, "#fff", 4, 1, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.CreatedAt.After(first.CreatedAt) {
+		t.Fatalf("expected second stroke after first, first=%s second=%s", first.CreatedAt, second.CreatedAt)
+	}
+	asset, err := boards.AddAsset("image/png", strings.NewReader("sticker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	image, err := boards.AddExistingImage(board.ID, asset.ID, 10, 20, 30, 40, 0, false, "Tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !image.CreatedAt.After(second.CreatedAt) {
+		t.Fatalf("expected image after second stroke, stroke=%s image=%s", second.CreatedAt, image.CreatedAt)
+	}
+
+	reloadedBoards := NewBoardStore(dir)
+	if err := reloadedBoards.Init(); err != nil {
+		t.Fatal(err)
+	}
+	library := NewLibrary(dir)
+	library.UseBoardStore(reloadedBoards)
+
+	activity, err := library.Activity(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 1 || activity[0].Type != "board" || activity[0].MediaID != board.ID || !activity[0].UpdatedAt.Equal(image.CreatedAt) {
+		t.Fatalf("expected latest persisted board operation activity, got %#v", activity)
+	}
+
+	nextTime := image.CreatedAt.Add(time.Minute)
+	if err := library.RecordBoardActivity(board.ID, nextTime); err != nil {
+		t.Fatal(err)
+	}
+	activity, err = library.Activity(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 1 || !activity[0].UpdatedAt.Equal(nextTime) {
+		t.Fatalf("expected one replaced board activity item, got %#v", activity)
+	}
+}
+
 func TestRuntimeIndexTreatsMissingLongCommentPathAsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

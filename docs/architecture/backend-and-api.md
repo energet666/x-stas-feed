@@ -21,7 +21,8 @@ Feed and media:
 - `GET /api/media/{id}/poster?time=T` and `/cover` serve generated artifacts.
 - `POST /api/uploads` accepts one multipart `files` part, plus optional
   `modifiedAt`, with a 5 GiB request limit.
-- `GET /api/activity?limit=N` returns persisted comment activity, capped at 100.
+- `GET /api/activity?limit=N` returns comments plus the latest board operation
+  activity for each board, capped at 100.
 
 Comments and likes:
 
@@ -56,4 +57,3 @@ asset handlers resolve server-controlled IDs through their owning stores.
 Uploads reject empty or path-like names, allocate OS-style collision suffixes,
 and enter the runtime index immediately. Empty content directories and missing
 optional generated artifacts are normal states.
-

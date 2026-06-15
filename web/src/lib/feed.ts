@@ -37,10 +37,8 @@ export type CommentActivityItem = {
 export type BoardActivityItem = {
   type: 'board';
   mediaId: string;
+  mediaDisplayName: string;
   boardName: string;
-  strokeCount: number;
-  authors: string[];
-  lastAuthor: string;
   updatedAt: string;
 };
 
@@ -231,12 +229,26 @@ export async function fetchActivity({ limit }: { limit: number }) {
     throw new Error(message ?? uiText.errors.activityRequest(response.status));
   }
 
-  const data = (await response.json()) as { items: Omit<CommentActivityItem, 'type'>[] };
-  return {
-    items: Array.isArray(data.items)
-      ? data.items.map((item) => ({ ...item, type: 'comment' as const }))
-      : []
+  const data = (await response.json()) as {
+    items: Array<CommentActivityItem | Omit<BoardActivityItem, 'boardName'>>;
   };
+  const items: ActivityItem[] = [];
+  if (Array.isArray(data.items)) {
+    for (const item of data.items) {
+      if (item.type === 'board') {
+        items.push({
+          type: 'board',
+          mediaId: item.mediaId,
+          mediaDisplayName: item.mediaDisplayName,
+          boardName: item.mediaDisplayName,
+          updatedAt: item.updatedAt
+        });
+      } else if ('comment' in item) {
+        items.push({ ...item, type: 'comment' });
+      }
+    }
+  }
+  return { items };
 }
 
 export async function fetchMediaItem(mediaId: string) {

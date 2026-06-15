@@ -3,6 +3,7 @@ package media
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"log"
@@ -109,10 +110,41 @@ type IndexedItem struct {
 }
 
 type ActivityItem struct {
-	MediaID          string  `json:"mediaId"`
-	MediaDisplayName string  `json:"mediaDisplayName"`
-	MediaType        string  `json:"mediaType"`
-	Comment          Comment `json:"comment"`
+	Type             string    `json:"type"`
+	MediaID          string    `json:"mediaId"`
+	MediaDisplayName string    `json:"mediaDisplayName,omitempty"`
+	MediaType        string    `json:"mediaType,omitempty"`
+	Comment          Comment   `json:"comment,omitempty"`
+	UpdatedAt        time.Time `json:"updatedAt,omitempty"`
+}
+
+func (item ActivityItem) MarshalJSON() ([]byte, error) {
+	if item.Type == "board" {
+		return json.Marshal(struct {
+			Type             string    `json:"type"`
+			MediaID          string    `json:"mediaId"`
+			MediaDisplayName string    `json:"mediaDisplayName"`
+			UpdatedAt        time.Time `json:"updatedAt"`
+		}{
+			Type:             item.Type,
+			MediaID:          item.MediaID,
+			MediaDisplayName: item.MediaDisplayName,
+			UpdatedAt:        item.UpdatedAt,
+		})
+	}
+	return json.Marshal(struct {
+		Type             string  `json:"type"`
+		MediaID          string  `json:"mediaId"`
+		MediaDisplayName string  `json:"mediaDisplayName"`
+		MediaType        string  `json:"mediaType"`
+		Comment          Comment `json:"comment"`
+	}{
+		Type:             "comment",
+		MediaID:          item.MediaID,
+		MediaDisplayName: item.MediaDisplayName,
+		MediaType:        item.MediaType,
+		Comment:          item.Comment,
+	})
 }
 
 func NewLibrary(root string) *Library {
@@ -245,9 +277,33 @@ func (l *Library) Activity(requestedLimit int) ([]ActivityItem, error) {
 	}
 	activity := make([]ActivityItem, limit)
 	for i := range limit {
-		activity[i] = l.activity[len(l.activity)-1-i]
+		item := l.activity[len(l.activity)-1-i]
+		if item.Type == "board" {
+			if mediaItem, ok := l.itemsByID[item.MediaID]; ok {
+				item.MediaDisplayName = mediaItem.DisplayName
+			} else if l.boards != nil {
+				if board, err := l.boards.Get(item.MediaID); err == nil {
+					item.MediaDisplayName = board.Name
+				}
+			}
+		}
+		activity[i] = item
 	}
 	return activity, nil
+}
+
+func (l *Library) RecordBoardActivity(mediaID string, updatedAt time.Time) error {
+	if err := l.ensureIndex(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(mediaID) == "" || updatedAt.IsZero() {
+		return nil
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.upsertBoardActivityLocked(mediaID, updatedAt.UTC())
+	return nil
 }
 
 func (l *Library) CommentsForID(id string) ([]Comment, error) {
@@ -552,6 +608,11 @@ func (l *Library) ensureIndex() error {
 			l.activity = append(l.activity, activityItem(item, comment))
 		}
 	}
+	if l.boards != nil {
+		for mediaID, updatedAt := range l.boards.LatestChangeTimes() {
+			l.activity = append(l.activity, boardActivityItem(mediaID, updatedAt))
+		}
+	}
 	sortActivity(l.activity)
 	l.initialized = true
 	l.logf("runtime index initialization completed root=%q duration=%s mediaItems=%d commentFilesFound=%d mediaWithoutCommentFile=%d commentFilesFailed=%d comments=%d activityItems=%d", root, time.Since(started).Round(time.Millisecond), len(l.items), commentFilesFound, mediaWithoutCommentFile, commentsFailed, commentCount, len(l.activity))
@@ -696,6 +757,23 @@ func (l *Library) updateActivityCommentLocked(mediaID string, comment Comment) {
 	}
 }
 
+func (l *Library) upsertBoardActivityLocked(mediaID string, updatedAt time.Time) {
+	nextActivity := l.activity[:0]
+	for _, item := range l.activity {
+		if item.Type != "board" || item.MediaID != mediaID {
+			nextActivity = append(nextActivity, item)
+		}
+	}
+	l.activity = nextActivity
+	next := boardActivityItem(mediaID, updatedAt)
+	index := sort.Search(len(l.activity), func(i int) bool {
+		return !activityLess(l.activity[i], next)
+	})
+	l.activity = append(l.activity, ActivityItem{})
+	copy(l.activity[index+1:], l.activity[index:])
+	l.activity[index] = next
+}
+
 func itemWithCommentSummary(item Item, comments []Comment) Item {
 	item.Comments = latestComments(comments, 2)
 	item.CommentCount = len(comments)
@@ -738,10 +816,19 @@ func cloneComments(comments []Comment) []Comment {
 
 func activityItem(item Item, comment Comment) ActivityItem {
 	return ActivityItem{
+		Type:             "comment",
 		MediaID:          item.ID,
 		MediaDisplayName: item.DisplayName,
 		MediaType:        item.Type,
 		Comment:          comment,
+	}
+}
+
+func boardActivityItem(mediaID string, updatedAt time.Time) ActivityItem {
+	return ActivityItem{
+		Type:      "board",
+		MediaID:   mediaID,
+		UpdatedAt: updatedAt.UTC(),
 	}
 }
 
@@ -770,13 +857,28 @@ func sortActivity(activity []ActivityItem) {
 }
 
 func activityLess(left, right ActivityItem) bool {
-	if !left.Comment.CreatedAt.Equal(right.Comment.CreatedAt) {
-		return left.Comment.CreatedAt.Before(right.Comment.CreatedAt)
+	leftTime := activityTime(left)
+	rightTime := activityTime(right)
+	if !leftTime.Equal(rightTime) {
+		return leftTime.Before(rightTime)
+	}
+	if left.Type != right.Type {
+		return left.Type < right.Type
 	}
 	if left.MediaDisplayName != right.MediaDisplayName {
 		return left.MediaDisplayName > right.MediaDisplayName
 	}
+	if left.MediaID != right.MediaID {
+		return left.MediaID < right.MediaID
+	}
 	return left.Comment.ID < right.Comment.ID
+}
+
+func activityTime(item ActivityItem) time.Time {
+	if item.Type == "board" {
+		return item.UpdatedAt
+	}
+	return item.Comment.CreatedAt
 }
 
 func validateMediaID(id string) error {

@@ -462,6 +462,34 @@ func (bs *BoardStore) ListBoards() []BoardInfo {
 	return boards
 }
 
+// LatestChangeTimes returns the time of the final persisted operation for each board.
+func (bs *BoardStore) LatestChangeTimes() map[string]time.Time {
+	bs.mu.RLock()
+	defer bs.mu.RUnlock()
+
+	result := make(map[string]time.Time)
+	for mediaID, state := range bs.boards {
+		for i := len(state.operations) - 1; i >= 0; i-- {
+			updatedAt := boardOperationTime(state.operations[i])
+			if !updatedAt.IsZero() {
+				result[mediaID] = updatedAt
+				break
+			}
+		}
+	}
+	return result
+}
+
+func boardOperationTime(operation BoardOperation) time.Time {
+	if operation.Stroke != nil {
+		return operation.Stroke.CreatedAt
+	}
+	if operation.Image != nil {
+		return operation.Image.CreatedAt
+	}
+	return time.Time{}
+}
+
 // Strokes returns all strokes for a board.
 func (bs *BoardStore) Strokes(mediaID string) ([]Stroke, error) {
 	bs.mu.RLock()

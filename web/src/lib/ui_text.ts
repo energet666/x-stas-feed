@@ -91,7 +91,7 @@ export const uiText = {
     boardActivity: 'Активность доски',
     commentActivity: 'Комментарий из активности',
     mediaLoadFallback: 'Не удалось загрузить медиа',
-    addedStrokes: (count: number) => `добавлено ${count} ${plural(count, ['штрих', 'штриха', 'штрихов'])}`
+    boardChanged: 'Доска изменена'
   },
   media: {
     information: 'Информация о медиа',

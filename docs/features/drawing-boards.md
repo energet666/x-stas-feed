@@ -59,8 +59,9 @@ the repository and Windows package. Its attribution files must remain intact.
 ## Collaboration
 
 Stroke and image POSTs persist the operation and return through the global board
-SSE stream. Every visible board may subscribe for live previews. The frontend
-aggregates live board edits into one activity item per board.
+SSE stream. Every visible board may subscribe for live previews. The server
+derives one activity item per board from its latest persisted stroke or image
+placement and replaces that item after each new operation.
 
 `POST /api/boards/{id}/operations/batch` validates a complete mixed group of
 strokes and existing-asset placements before appending it in order and returning

@@ -20,8 +20,13 @@ Media and comment likes are anonymous one-way increments. Media counts live in
 metadata JSON. Comment counts live in comment records, so liking a comment
 atomically rewrites the thread file. Both publish live events.
 
-Persisted activity is comment-only and returned newest first for valid indexed
-media. The frontend merges it with session-only aggregated board activity from
-board SSE events. Selecting comment activity opens a media/comments modal;
-selecting board activity opens the expanded board.
-
+Activity is returned newest first and combines comments for valid indexed media
+with the latest persisted operation time for each board. Board activity stores no
+separate history: server startup derives one item per board from its final
+stroke or image placement, and each new operation replaces that board's
+previous in-memory activity item. The frontend applies the same replacement
+rule to board SSE events.
+Board names are resolved from current feed metadata when the activity response
+is built and are not stored in the activity index.
+Selecting comment activity opens a media/comments modal; selecting board
+activity opens the expanded board.

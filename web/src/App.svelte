@@ -22,12 +22,12 @@
     createBoard,
     createLike,
     fetchActivity,
-    fetchBoard,
     fetchFeedItem,
     fetchMediaItem,
     maxUploadBytes,
     uploadMedia,
     type ActivityItem,
+    type BoardEvent,
     type BoardInfo,
     type Comment,
     type CommentLikeEvent,
@@ -146,6 +146,7 @@
   let activityPanelOpen = $state(false);
   let unsubscribeBoardActivity: (() => void) | undefined = undefined;
   const pendingBoardActivityFetches = new Set<string>();
+  const pendingBoardActivityEvents = new Map<string, BoardEvent>();
 
   const isFavoriteMode = $derived(feedMode === 'favorites');
   const hasMore = $derived(
@@ -353,6 +354,7 @@
       topFeedIndex = topFeedIndex === undefined ? result.index : topFeedIndex;
       bottomFeedIndex = result.index;
       items = [...items, result.item];
+      syncBoardActivityName(result.item);
       initialLoaded = true;
       scheduleViewportUpdate();
       scheduleLoadMoreCheck();
@@ -431,8 +433,13 @@
 
     try {
       const response = await fetchActivity({ limit: activityLimit });
-      const boardActivityItems = activityItems.filter((item) => item.type === 'board');
-      activityItems = sortActivityItems([...response.items, ...boardActivityItems]).slice(0, activityLimit);
+      const loadedItems = response.items.map((item) =>
+        item.type === 'board'
+          ? { ...item, boardName: item.mediaDisplayName || boardActivityName(item.mediaId) }
+          : item
+      );
+      const liveBoardItems = activityItems.filter((item) => item.type === 'board');
+      activityItems = mergeActivityItems([...loadedItems, ...liveBoardItems]).slice(0, activityLimit);
     } catch (err) {
       activityError = err instanceof Error ? err.message : t.activity.loadFallback;
     } finally {
@@ -945,7 +952,6 @@
   function toggleMasterBoard() {
     masterBoardExpanded = !masterBoardExpanded;
     if (masterBoardExpanded) {
-      removeBoardActivity('master');
       expandedItemID = null;
       commentsPanelItemID = null;
       selectedActivityMedia = null;
@@ -954,7 +960,6 @@
   }
 
   function openActivityBoard(mediaId: string) {
-    removeBoardActivity(mediaId);
     activityBoardExpandedID = mediaId;
     masterBoardExpanded = false;
     activityModalOpen = false;
@@ -963,18 +968,6 @@
     activityMediaError = null;
     expandedItemID = null;
     commentsPanelItemID = null;
-  }
-
-  function removeBoardActivity(mediaId: string) {
-    activityItems = activityItems.filter((item) => item.type !== 'board' || item.mediaId !== mediaId);
-  }
-
-  function editedBoardId() {
-    if (masterBoardExpanded) return 'master';
-    if (activityBoardExpandedID) return activityBoardExpandedID;
-
-    const expandedItem = expandedItemID ? items.find((item) => item.id === expandedItemID) : undefined;
-    return isDrawableMediaItem(expandedItem) ? expandedItem.id : null;
   }
 
   function openActivityBoardFromMedia(mediaId: string) {
@@ -989,12 +982,6 @@
   function toggleExpandedItem(id: string) {
     const nextExpandedID = expandedItemID === id ? null : id;
     expandedItemID = nextExpandedID;
-    if (nextExpandedID) {
-      const item = items.find((candidate) => candidate.id === nextExpandedID);
-      if (isDrawableMediaItem(item)) {
-        removeBoardActivity(item.id);
-      }
-    }
     revealCardOverlay(id);
   }
 
@@ -1017,8 +1004,6 @@
 
   async function openActivityMedia(activityItem: ActivityItem) {
     if (activityItem.type === 'board') {
-      removeBoardActivity(activityItem.mediaId);
-
       if (activityItem.mediaId === 'master') {
         masterBoardExpanded = true;
         activityBoardExpandedID = null;
@@ -1225,6 +1210,18 @@
     });
   }
 
+  function mergeActivityItems(nextItems: ActivityItem[]) {
+    const itemsByKey = new Map<string, ActivityItem>();
+    for (const item of nextItems) {
+      const key = activityItemKey(item);
+      const existing = itemsByKey.get(key);
+      if (!existing || activityItemTime(item) > activityItemTime(existing)) {
+        itemsByKey.set(key, item);
+      }
+    }
+    return sortActivityItems([...itemsByKey.values()]);
+  }
+
   async function prependActivityFromComment(event: CommentEvent) {
     const item =
       items.find((candidate) => candidate.id === event.mediaId) ??
@@ -1255,20 +1252,36 @@
     }
   }
 
-  function upsertBoardActivity(event: StrokeEvent, boardName: string) {
-    const existing = activityItems.find((item) => item.type === 'board' && item.mediaId === event.mediaId);
-    const author = event.stroke.author || t.common.guest;
-    const authors = existing?.type === 'board'
-      ? [...existing.authors.filter((existingAuthor) => existingAuthor !== author), author]
-      : [author];
+  function boardActivityName(mediaId: string) {
+    if (mediaId === 'master') return t.common.masterBoard;
+    const item = boardMediaItem(mediaId);
+    return item?.displayName || item?.filename || t.common.board;
+  }
+
+  function syncBoardActivityName(item: MediaItem) {
+    if (!isDrawableMediaItem(item)) return;
+    activityItems = activityItems.map((activityItem) =>
+      activityItem.type === 'board' && activityItem.mediaId === item.id
+        ? {
+            ...activityItem,
+            mediaDisplayName: item.displayName,
+            boardName: item.displayName
+          }
+        : activityItem
+    );
+  }
+
+  function boardEventTime(event: BoardEvent) {
+    return event.type === 'stroke' ? event.stroke.createdAt : event.image.createdAt;
+  }
+
+  function upsertBoardActivity(event: BoardEvent, boardName: string) {
     const updatedItem: ActivityItem = {
       type: 'board',
       mediaId: event.mediaId,
+      mediaDisplayName: boardName,
       boardName,
-      strokeCount: existing?.type === 'board' ? existing.strokeCount + 1 : 1,
-      authors,
-      lastAuthor: author,
-      updatedAt: event.stroke.createdAt
+      updatedAt: boardEventTime(event)
     };
 
     prependActivityItem(updatedItem);
@@ -1278,12 +1291,7 @@
     return items.find((item) => isDrawableMediaItem(item) && item.id === mediaId);
   }
 
-  function handleBoardActivity(event: StrokeEvent) {
-    if (event.mediaId === editedBoardId()) {
-      removeBoardActivity(event.mediaId);
-      return;
-    }
-
+  function handleBoardActivity(event: BoardEvent) {
     const item = boardMediaItem(event.mediaId);
     if (item) {
       upsertBoardActivity(event, item.displayName || item.filename || t.common.board);
@@ -1295,33 +1303,36 @@
       return;
     }
 
-    upsertBoardActivity(event, t.common.board);
+    const existing = activityItems.find(
+      (activityItem) => activityItem.type === 'board' && activityItem.mediaId === event.mediaId
+    );
+    if (existing?.type === 'board' && existing.mediaDisplayName) {
+      upsertBoardActivity(event, existing.mediaDisplayName);
+      return;
+    }
+
+    pendingBoardActivityEvents.set(event.mediaId, event);
     if (pendingBoardActivityFetches.has(event.mediaId)) return;
     pendingBoardActivityFetches.add(event.mediaId);
 
-    void fetchBoard(event.mediaId)
-      .then((data) => {
-        activityItems = activityItems.map((activityItem) =>
-          activityItem.type === 'board' && activityItem.mediaId === event.mediaId
-            ? {
-                ...activityItem,
-                boardName: data.board.name || activityItem.boardName
-              }
-            : activityItem
-        );
+    void fetchMediaItem(event.mediaId)
+      .then((mediaItem) => {
+        const latestEvent = pendingBoardActivityEvents.get(event.mediaId);
+        if (!latestEvent) return;
+        upsertBoardActivity(latestEvent, mediaItem.displayName || mediaItem.filename || t.common.board);
       })
       .catch(() => {
-        // Stale board events can outlive a board fetch.
+        // Stale board events can outlive the corresponding feed item.
       })
       .finally(() => {
         pendingBoardActivityFetches.delete(event.mediaId);
+        pendingBoardActivityEvents.delete(event.mediaId);
       });
   }
 
   function subscribeToBoardActivity() {
     unsubscribeBoardActivity?.();
     unsubscribeBoardActivity = boardEvents.subscribe((event) => {
-      if (event.type !== 'stroke') return;
       handleBoardActivity(event);
     });
   }

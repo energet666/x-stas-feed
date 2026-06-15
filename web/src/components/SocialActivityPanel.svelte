@@ -41,12 +41,6 @@
     onSelect(item);
   }
 
-  function formatBoardAuthors(authors: string[]) {
-    const names = authors.filter(Boolean);
-    if (names.length === 0) return t.common.guest;
-    if (names.length <= 3) return names.join(', ');
-    return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
-  }
 </script>
 
 {#if mobileOpen}
@@ -94,17 +88,10 @@
           {:else}
             <span class="activity-row-media">
               <PencilLine size={13} />
-              <span class="truncate">{item.boardName}</span>
-            </span>
-            <span class="activity-row-author">
-              <span class="activity-row-author-name truncate font-semibold text-fg-primary" title={item.authors.join(', ') || t.common.guest}>
-                {formatBoardAuthors(item.authors)}
-              </span>
+              <span class="truncate">{item.boardName || t.common.board}</span>
               <time datetime={item.updatedAt}>{formatActivityTime(item.updatedAt)}</time>
             </span>
-            <span class="activity-row-text">
-              {t.activity.addedStrokes(item.strokeCount)}
-            </span>
+            <span class="activity-row-text">{t.activity.boardChanged}</span>
           {/if}
         </button>
       {/each}
@@ -203,11 +190,8 @@
     stroke: var(--color-fg-danger);
   }
 
-  .activity-row-author-name {
-    min-width: 0;
-  }
-
-  .activity-row-author time {
+  .activity-row-author time,
+  .activity-row-media time {
     position: absolute;
     height: 1px;
     width: 1px;

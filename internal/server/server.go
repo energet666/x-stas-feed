@@ -694,7 +694,7 @@ func (s *Server) handleCreateStroke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.boardHub.publishStroke(id, stroke)
+	s.publishBoardStroke(id, stroke)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -722,7 +722,7 @@ func (s *Server) handleCreateStrokes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, stroke := range strokes {
-		s.boardHub.publishStroke(id, stroke)
+		s.publishBoardStroke(id, stroke)
 	}
 	writeJSON(w, http.StatusCreated, map[string][]media.Stroke{"strokes": strokes})
 }
@@ -752,12 +752,28 @@ func (s *Server) handleCreateBoardOperations(w http.ResponseWriter, r *http.Requ
 	}
 	for _, operation := range operations {
 		if operation.Stroke != nil {
-			s.boardHub.publishStroke(id, *operation.Stroke)
+			s.publishBoardStroke(id, *operation.Stroke)
 		} else if operation.Image != nil {
-			s.boardHub.publishImage(id, *operation.Image)
+			s.publishBoardImage(id, *operation.Image)
 		}
 	}
 	writeJSON(w, http.StatusCreated, map[string][]media.BoardOperation{"operations": operations})
+}
+
+func (s *Server) publishBoardStroke(mediaID string, stroke media.Stroke) {
+	s.recordBoardActivity(mediaID, stroke.ID, stroke.CreatedAt)
+	s.boardHub.publishStroke(mediaID, stroke)
+}
+
+func (s *Server) publishBoardImage(mediaID string, image media.BoardImage) {
+	s.recordBoardActivity(mediaID, image.ID, image.CreatedAt)
+	s.boardHub.publishImage(mediaID, image)
+}
+
+func (s *Server) recordBoardActivity(mediaID, operationID string, updatedAt time.Time) {
+	if err := s.library.RecordBoardActivity(mediaID, updatedAt); err != nil {
+		s.logger.Printf("board activity update failed mediaID=%s operationID=%s error=%v", mediaID, operationID, err)
+	}
 }
 
 func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) {
@@ -854,7 +870,7 @@ func (s *Server) handleCreateBoardImage(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.boardHub.publishImage(id, image)
+	s.publishBoardImage(id, image)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -882,7 +898,7 @@ func (s *Server) handleCreateExistingBoardImage(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.boardHub.publishImage(id, image)
+	s.publishBoardImage(id, image)
 	w.WriteHeader(http.StatusNoContent)
 }
 

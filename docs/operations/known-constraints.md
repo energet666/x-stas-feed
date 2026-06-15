@@ -10,8 +10,8 @@ status: active
   additions, removals, or renames.
 - Media probing, poster generation, and cover extraction depend on optional
   FFmpeg tools and intentionally degrade without them.
-- Persisted social activity includes comments only; board activity is live and
-  session-local.
+- Board activity represents only the latest persisted operation per board; it is derived
+  from board history at startup rather than stored as a separate log.
 - Legacy favorite and board listing/background endpoints remain for
   compatibility but are not primary UI data flows.
 - Browser preferences and favorites do not synchronize between browsers.
@@ -23,4 +23,3 @@ status: active
   than a general application localization framework.
 - The committed board sticker pack is deliberately exposed through `.gitignore`;
   additions and deletions under that pack must be included with related changes.
-
