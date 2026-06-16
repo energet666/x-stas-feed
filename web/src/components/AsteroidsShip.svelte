@@ -1291,6 +1291,16 @@
     box-shadow: inset 0 0 2.5rem rgb(148 163 184 / 0.06), 0 0 1.5rem rgb(148 163 184 / 0.08);
   }
 
+  .asteroids-control-zone::before {
+    position: absolute;
+    inset: -7%;
+    border: 2px solid rgb(148 163 184 / 0.16);
+    border-radius: inherit;
+    box-shadow: 0 0 1.4rem rgb(148 163 184 / 0.12);
+    content: '';
+    animation: control-zone-breathe 2.8s ease-in-out infinite;
+  }
+
   .asteroids-control-zone-held {
     border-color: rgb(253 224 71 / 0.52);
     background:
@@ -1299,9 +1309,20 @@
     box-shadow: inset 0 0 3rem rgb(253 224 71 / 0.1), 0 0 1.8rem rgb(253 224 71 / 0.14);
   }
 
+  .asteroids-control-zone-held::before {
+    border-color: rgb(253 224 71 / 0.3);
+    box-shadow: 0 0 1.8rem rgb(253 224 71 / 0.2);
+    animation-duration: 1.7s;
+  }
+
   .asteroids-control-zone-local {
     border-color: rgb(45 212 191 / 0.7);
     box-shadow: inset 0 0 3rem rgb(20 184 166 / 0.14), 0 0 1.9rem rgb(45 212 191 / 0.2);
+  }
+
+  .asteroids-control-zone-local::before {
+    border-color: rgb(45 212 191 / 0.38);
+    box-shadow: 0 0 2rem rgb(45 212 191 / 0.26);
   }
 
   .asteroids-control-zone-contested {
@@ -1310,6 +1331,12 @@
       radial-gradient(circle, rgb(244 114 182 / 0.12) 0 48%, transparent 49%),
       repeating-radial-gradient(circle, transparent 0 1.2rem, rgb(244 114 182 / 0.1) 1.25rem 1.32rem);
     box-shadow: inset 0 0 3rem rgb(244 114 182 / 0.1), 0 0 1.8rem rgb(244 114 182 / 0.16);
+  }
+
+  .asteroids-control-zone-contested::before {
+    border-color: rgb(244 114 182 / 0.42);
+    box-shadow: 0 0 2.2rem rgb(244 114 182 / 0.26);
+    animation: control-zone-contested 760ms ease-in-out infinite;
   }
 
   .asteroids-arena-corner {
@@ -1561,6 +1588,28 @@
     to { scale: 1.06; opacity: 1; }
   }
 
+  @keyframes control-zone-breathe {
+    0%, 100% {
+      opacity: 0.52;
+      transform: scale(0.96);
+    }
+    50% {
+      opacity: 0.98;
+      transform: scale(1.04);
+    }
+  }
+
+  @keyframes control-zone-contested {
+    0%, 100% {
+      opacity: 0.58;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+
   @keyframes control-score-pulse {
     0% {
       background: rgb(20 184 166 / 0.32);
@@ -1591,6 +1640,7 @@
 
     .asteroids-power-up,
     .asteroids-ship-shielded::before,
+    .asteroids-control-zone::before,
     .asteroids-control-score-pulse {
       animation: none;
     }
