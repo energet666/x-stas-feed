@@ -30,10 +30,14 @@ const (
 	rapidFireCooldown    = 180 * time.Millisecond
 	maxPowerUps          = 3
 	maxNameRunes         = 40
+	controlScoreLimit    = 100
 
 	shipRadius          = 18.0
 	powerUpPickupRadius = 34.0
 	shipNoseOffset      = 25.0
+	controlZoneX        = ArenaWidth / 2
+	controlZoneY        = ArenaHeight / 2
+	controlZoneRadius   = 150.0
 	maxSpeed            = 8.5
 	turnSpeed           = 0.105
 	thrust              = 0.18
@@ -77,32 +81,36 @@ type Snapshot struct {
 	Mode        string        `json:"mode"`
 	Status      string        `json:"status"`
 	RemainingMS int64         `json:"remainingMs"`
+	WinnerID    string        `json:"winnerId,omitempty"`
+	WinnerName  string        `json:"winnerName,omitempty"`
 	Players     []PlayerState `json:"players"`
 	Bullets     []BulletState `json:"bullets,omitempty"`
 	Asteroids   []Asteroid    `json:"asteroids,omitempty"`
 	Events      []Event       `json:"events,omitempty"`
 	PowerUps    []PowerUp     `json:"powerUps,omitempty"`
+	ControlZone *ControlZone  `json:"controlZone,omitempty"`
 }
 
 type PlayerState struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	State      string  `json:"state"`
-	X          float64 `json:"x"`
-	Y          float64 `json:"y"`
-	VX         float64 `json:"vx"`
-	VY         float64 `json:"vy"`
-	Angle      float64 `json:"angle"`
-	Thrusting  bool    `json:"thrusting"`
-	Active     bool    `json:"active"`
-	Score      int     `json:"score"`
-	Kills      int     `json:"kills"`
-	AckSeq     uint64  `json:"ackSeq"`
-	PingEcho   int64   `json:"pingEcho,omitempty"`
-	Shield     int     `json:"shield"`
-	RapidFire  bool    `json:"rapidFire"`
-	TripleShot bool    `json:"tripleShot"`
-	Overdrive  bool    `json:"overdrive"`
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	State        string  `json:"state"`
+	X            float64 `json:"x"`
+	Y            float64 `json:"y"`
+	VX           float64 `json:"vx"`
+	VY           float64 `json:"vy"`
+	Angle        float64 `json:"angle"`
+	Thrusting    bool    `json:"thrusting"`
+	Active       bool    `json:"active"`
+	Score        int     `json:"score"`
+	Kills        int     `json:"kills"`
+	ControlScore int     `json:"controlScore"`
+	AckSeq       uint64  `json:"ackSeq"`
+	PingEcho     int64   `json:"pingEcho,omitempty"`
+	Shield       int     `json:"shield"`
+	RapidFire    bool    `json:"rapidFire"`
+	TripleShot   bool    `json:"tripleShot"`
+	Overdrive    bool    `json:"overdrive"`
 }
 
 type BulletState struct {
@@ -135,6 +143,15 @@ type PowerUp struct {
 	ExpiresAt int64   `json:"expiresAt"`
 }
 
+type ControlZone struct {
+	X           float64 `json:"x"`
+	Y           float64 `json:"y"`
+	Radius      float64 `json:"radius"`
+	State       string  `json:"state"`
+	OwnerID     string  `json:"ownerId,omitempty"`
+	TargetScore int     `json:"targetScore"`
+}
+
 type Event struct {
 	ID          uint64  `json:"id"`
 	Type        string  `json:"type"`
@@ -145,6 +162,8 @@ type Event struct {
 	ShooterName string  `json:"shooterName,omitempty"`
 	VictimID    string  `json:"victimId,omitempty"`
 	VictimName  string  `json:"victimName,omitempty"`
+	WinnerID    string  `json:"winnerId,omitempty"`
+	WinnerName  string  `json:"winnerName,omitempty"`
 	Saved       bool    `json:"saved,omitempty"`
 	PowerUpKind string  `json:"powerUpKind,omitempty"`
 }
@@ -168,6 +187,8 @@ type player struct {
 	collisionAfter  time.Time
 	score           int
 	kills           int
+	controlScore    int
+	controlTicks    int
 	ackSeq          uint64
 	pingEcho        int64
 	asteroid        *Asteroid
@@ -195,6 +216,8 @@ type World struct {
 	mode          string
 	status        string
 	roundEndsAt   time.Time
+	winnerID      string
+	winnerName    string
 	tick          uint64
 	nextEntity    uint64
 	nextEvent     uint64
@@ -409,6 +432,7 @@ func (w *World) step() {
 		}
 	}
 	w.detectCollisionsLocked(now)
+	w.updateControlZoneLocked()
 	if w.tick%snapshotEveryTicks == 0 || len(w.events) > 0 {
 		w.publishLocked(w.takeEventsLocked())
 	}
@@ -422,14 +446,20 @@ func (w *World) activateLocked(p *player, now time.Time) {
 	p.inGame = true
 	p.awaySince = time.Time{}
 	if w.status != "playing" {
-		w.mode = "solo"
+		if w.gamePlayerCountLocked() > 1 {
+			w.mode = "multiplayer"
+			w.roundEndsAt = time.Time{}
+		} else {
+			w.mode = "solo"
+			w.roundEndsAt = now.Add(roundDuration)
+		}
 		w.status = "playing"
-		w.roundEndsAt = now.Add(roundDuration)
+		w.winnerID = ""
+		w.winnerName = ""
 		w.nextPowerUpAt = now.Add(powerUpSpawnInterval / 2)
 		w.powerUps = make(map[uint64]PowerUp)
 		for _, other := range w.players {
-			other.score = 0
-			other.kills = 0
+			resetRoundScores(other)
 			resetPowerUps(other)
 		}
 	} else if joining && w.mode == "solo" && w.gamePlayerCountLocked() > 1 {
@@ -437,8 +467,7 @@ func (w *World) activateLocked(p *player, now time.Time) {
 		w.roundEndsAt = time.Time{}
 		for _, reset := range w.players {
 			if reset.inGame {
-				reset.score = 0
-				reset.kills = 0
+				resetRoundScores(reset)
 			}
 		}
 	}
@@ -675,6 +704,52 @@ func (w *World) detectCollisionsLocked(now time.Time) {
 	}
 }
 
+func (w *World) updateControlZoneLocked() {
+	if w.mode != "multiplayer" || w.status != "playing" {
+		return
+	}
+	controller := w.controlZoneControllerLocked()
+	if controller == nil {
+		w.resetControlTicksLocked(nil)
+		return
+	}
+	w.resetControlTicksLocked(controller)
+	controller.controlTicks++
+	for controller.controlTicks >= tickRate {
+		controller.controlTicks -= tickRate
+		controller.controlScore++
+		if controller.controlScore >= controlScoreLimit {
+			w.finishMultiplayerLocked(controller)
+			return
+		}
+	}
+}
+
+func (w *World) resetControlTicksLocked(except *player) {
+	for _, p := range w.players {
+		if p != except {
+			p.controlTicks = 0
+		}
+	}
+}
+
+func (w *World) controlZoneControllerLocked() *player {
+	var controller *player
+	for _, p := range w.players {
+		if !p.connected || !p.active {
+			continue
+		}
+		if toroidalDistance(p.x, p.y, controlZoneX, controlZoneY) > controlZoneRadius {
+			continue
+		}
+		if controller != nil {
+			return nil
+		}
+		controller = p
+	}
+	return controller
+}
+
 func (w *World) crashPlayerLocked(victim, shooter *player, x, y float64, now time.Time) {
 	if !victim.active {
 		return
@@ -765,6 +840,26 @@ func (w *World) finishSoloLocked(p *player, save bool) {
 	w.publishLocked(events)
 }
 
+func (w *World) finishMultiplayerLocked(winner *player) {
+	for _, p := range w.players {
+		p.active = false
+		p.awaitingRespawn = false
+		p.input = Input{}
+		p.asteroid = nil
+		resetPowerUps(p)
+		deleteBulletsForOwner(w.bullets, p.id)
+	}
+	w.bullets = make(map[uint64]*bullet)
+	w.powerUps = make(map[uint64]PowerUp)
+	w.status = "finished"
+	w.roundEndsAt = time.Time{}
+	w.winnerID = winner.id
+	w.winnerName = winner.name
+	w.addEventLocked(Event{Type: "round-finished", WinnerID: winner.id, WinnerName: winner.name})
+	events := w.takeEventsLocked()
+	w.publishLocked(events)
+}
+
 func (w *World) cleanupLocked(now time.Time) {
 	for id, p := range w.players {
 		if p.inGame && !p.awaySince.IsZero() && now.Sub(p.awaySince) > reconnectGrace {
@@ -774,8 +869,7 @@ func (w *World) cleanupLocked(now time.Time) {
 			p.awaySince = time.Time{}
 			p.asteroid = nil
 			p.respawnAt = time.Time{}
-			p.score = 0
-			p.kills = 0
+			resetRoundScores(p)
 			resetPowerUps(p)
 			deleteBulletsForOwner(w.bullets, id)
 		}
@@ -811,10 +905,11 @@ func (w *World) reconcileModeLocked(now time.Time) {
 		if w.status == "playing" && w.mode == "multiplayer" {
 			w.mode = "solo"
 			w.roundEndsAt = now.Add(roundDuration)
+			w.winnerID = ""
+			w.winnerName = ""
 			for _, p := range w.players {
 				if p.inGame {
-					p.score = 0
-					p.kills = 0
+					resetRoundScores(p)
 				}
 			}
 		}
@@ -823,6 +918,8 @@ func (w *World) reconcileModeLocked(now time.Time) {
 	w.mode = "idle"
 	w.status = "idle"
 	w.roundEndsAt = time.Time{}
+	w.winnerID = ""
+	w.winnerName = ""
 	w.bullets = make(map[uint64]*bullet)
 	w.powerUps = make(map[uint64]PowerUp)
 	w.nextPowerUpAt = time.Time{}
@@ -850,7 +947,7 @@ func (w *World) snapshotLocked(events []Event) Snapshot {
 		}
 		players = append(players, PlayerState{
 			ID: p.id, Name: p.name, State: playerState(p), X: p.x, Y: p.y, VX: p.vx, VY: p.vy, Angle: p.angle,
-			Thrusting: p.input.Thrust && p.active, Active: p.active, Score: p.score, Kills: p.kills, AckSeq: p.ackSeq,
+			Thrusting: p.input.Thrust && p.active, Active: p.active, Score: p.score, Kills: p.kills, ControlScore: p.controlScore, AckSeq: p.ackSeq,
 			PingEcho: p.pingEcho,
 			Shield:   p.shield, RapidFire: now.Before(p.rapidFireUntil), TripleShot: now.Before(p.tripleShotUntil),
 			Overdrive: now.Before(p.overdriveUntil),
@@ -875,10 +972,44 @@ func (w *World) snapshotLocked(events []Event) Snapshot {
 	if w.mode == "solo" && w.status == "playing" {
 		remaining = max(0, w.roundEndsAt.Sub(now).Milliseconds())
 	}
-	return Snapshot{
-		Type: "snapshot", Tick: w.tick, Mode: w.mode, Status: w.status, RemainingMS: remaining,
-		Players: players, Bullets: bullets, Asteroids: asteroids, PowerUps: powerUps, Events: events,
+	var controlZone *ControlZone
+	if w.mode == "multiplayer" {
+		state := "empty"
+		ownerID := ""
+		if controller := w.controlZoneControllerLocked(); controller != nil {
+			state = "controlled"
+			ownerID = controller.id
+		} else if w.controlZoneContestedLocked() {
+			state = "contested"
+		}
+		controlZone = &ControlZone{
+			X: controlZoneX, Y: controlZoneY, Radius: controlZoneRadius, State: state, OwnerID: ownerID, TargetScore: controlScoreLimit,
+		}
 	}
+	return Snapshot{
+		Type: "snapshot", Tick: w.tick, Mode: w.mode, Status: w.status, RemainingMS: remaining, WinnerID: w.winnerID, WinnerName: w.winnerName,
+		Players: players, Bullets: bullets, Asteroids: asteroids, PowerUps: powerUps, Events: events, ControlZone: controlZone,
+	}
+}
+
+func (w *World) controlZoneContestedLocked() bool {
+	count := 0
+	for _, p := range w.players {
+		if p.connected && p.active && toroidalDistance(p.x, p.y, controlZoneX, controlZoneY) <= controlZoneRadius {
+			count++
+			if count > 1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func resetRoundScores(p *player) {
+	p.score = 0
+	p.kills = 0
+	p.controlScore = 0
+	p.controlTicks = 0
 }
 
 func resetPowerUps(p *player) {

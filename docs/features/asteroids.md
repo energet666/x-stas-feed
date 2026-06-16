@@ -26,7 +26,11 @@ grace. Escape or disconnect keeps membership for a 10-second resume window.
 
 Solo rounds last 60 seconds and save scores on the server. A finished round
 stays finished while its player remains connected so the leaderboard remains
-visible. Multiplayer uses server-owned kill counters and disables solo scoring.
+visible. Multiplayer disables solo scoring and uses a server-owned control
+zone as its win condition. The first player to reach 100 control points wins
+the round. Control points accrue only while exactly one active ship is inside
+the zone; an empty or contested zone does not score. The multiplayer HUD ranks
+players by control points and pulses the scoring row when a new point lands.
 
 ## Commands And Authority
 

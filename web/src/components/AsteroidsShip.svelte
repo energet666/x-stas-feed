@@ -7,6 +7,7 @@
     type ShipAsteroid,
     type ShipBullet,
     type ShipCommand,
+    type ShipControlZone,
     type ShipInput,
     type ShipPowerUp,
     type ShipScore,
@@ -67,6 +68,7 @@
   let bullets = $state<ShipBullet[]>([]);
   let asteroids = $state<ShipAsteroid[]>([]);
   let powerUps = $state<ShipPowerUp[]>([]);
+  let controlZone = $state<ShipControlZone | undefined>();
   let particles = $state<Particle[]>([]);
   let explosions = $state<Explosion[]>([]);
   let mode = $state<'idle' | 'solo' | 'multiplayer'>('idle');
@@ -75,6 +77,8 @@
   let leaderboard = $state<ShipScore[]>([]);
   let leaderboardStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
   let roundSaved = $state(false);
+  let winnerId = $state('');
+  let winnerName = $state('');
   let gameVisible = $state(false);
   let gameDismissed = false;
   let keyboardControlArmed = false;
@@ -89,6 +93,8 @@
   let lastEventId = 0;
   let lastSentInput = '';
   let lastPingEcho = 0;
+  let previousControlScores = new Map<string, number>();
+  let controlScorePulses = $state<Record<string, number>>({});
   let pingMs = $state<number | undefined>();
   const keys = new Set<string>();
   const pendingCommands: ShipCommand[] = [];
@@ -97,8 +103,19 @@
   const arenaLeft = $derived((viewportWidth - arenaWidth * scale) / 2);
   const arenaTop = $derived((viewportHeight - arenaHeight * scale) / 2);
   const score = $derived(localShip?.score ?? 0);
+  const controlScore = $derived(localShip?.controlScore ?? 0);
+  const controlTargetScore = $derived(controlZone?.targetScore ?? 100);
   const secondsLeft = $derived(Math.max(0, Math.ceil(remainingMs / 1000)));
   const pingLabel = $derived(pingMs === undefined ? '— ms' : `${Math.round(pingMs)} ms`);
+  const controlZoneStateLabel = $derived(
+    controlZone?.state === 'controlled'
+      ? controlZone.ownerId === playerId
+        ? t.game.control.youHold
+        : t.game.control.enemyHolds
+      : controlZone?.state === 'contested'
+        ? t.game.control.contested
+        : t.game.control.empty
+  );
   const spectatorWorldVisible = $derived(
     remoteShips.some((player) => player.active) ||
       bullets.some((bullet) => bullet.ownerId !== playerId) ||
@@ -119,13 +136,13 @@
         ]
       : []
   );
-  const killRows = $derived(
+  const controlRows = $derived(
     [localShip, ...remoteShips]
       .filter((player): player is ShipState => player !== undefined && player.state !== 'spectator')
       .sort((a, b) => {
+        if ((b.controlScore ?? 0) !== (a.controlScore ?? 0)) return (b.controlScore ?? 0) - (a.controlScore ?? 0);
         if (a.id === playerId) return -1;
         if (b.id === playerId) return 1;
-        if (b.kills !== a.kills) return b.kills - a.kills;
         return a.name.localeCompare(b.name);
       })
   );
@@ -262,6 +279,8 @@
     leaderboard = [];
     leaderboardStatus = 'idle';
     roundSaved = false;
+    winnerId = '';
+    winnerName = '';
     showGame(true);
     sendCommand({ type: 'restart' });
   }
@@ -332,10 +351,13 @@
     mode = snapshot.mode;
     roundStatus = snapshot.status;
     remainingMs = snapshot.remainingMs;
+    winnerId = snapshot.winnerId ?? '';
+    winnerName = snapshot.winnerName ?? '';
     if (snapshot.status === 'finished' && previousRoundStatus !== 'finished') {
       keys.clear();
       lastSentInput = JSON.stringify(currentInput());
     }
+    updateControlScorePulses(snapshot.players);
     const authoritativeLocal = snapshot.players.find((player) => player.id === playerId);
     if (authoritativeLocal) {
       if (
@@ -367,6 +389,7 @@
     bullets = (snapshot.bullets ?? []).map((bullet) => ({ ...bullet }));
     asteroids = (snapshot.asteroids ?? []).map((asteroid) => ({ ...asteroid }));
     powerUps = (snapshot.powerUps ?? []).map((powerUp) => ({ ...powerUp }));
+    controlZone = snapshot.controlZone ? { ...snapshot.controlZone } : undefined;
     for (const event of snapshot.events ?? []) {
       if (event.id <= lastEventId) continue;
       lastEventId = event.id;
@@ -375,7 +398,29 @@
     requestAnimationLoop();
   }
 
+  function updateControlScorePulses(players: ShipState[]) {
+    const nextScores = new Map<string, number>();
+    const pulses: Record<string, number> = {};
+    for (const player of players) {
+      const score = player.controlScore ?? 0;
+      const previousScore = previousControlScores.get(player.id);
+      nextScores.set(player.id, score);
+      if (mode === 'multiplayer' && roundStatus === 'playing' && previousScore !== undefined && score > previousScore) {
+        pulses[player.id] = Date.now();
+      }
+    }
+    previousControlScores = nextScores;
+    if (Object.keys(pulses).length > 0) {
+      controlScorePulses = { ...controlScorePulses, ...pulses };
+    }
+  }
+
   function handleServerEvent(event: NonNullable<ShipSnapshot['events']>[number]) {
+    if (event.type === 'round-finished' && event.winnerId) {
+      winnerId = event.winnerId;
+      winnerName = event.winnerName ?? '';
+      return;
+    }
     if (event.type === 'round-finished' && event.victimId === playerId) {
       roundSaved = Boolean(event.saved);
       void loadLeaderboard();
@@ -699,15 +744,29 @@
   {#if mode === 'multiplayer'}
     <div class="asteroids-hud asteroids-killboard" aria-live="polite">
       <div class="asteroids-hud-heading">
-        <span class="asteroids-killboard-title">{t.game.kills}</span>
+        <span class="asteroids-killboard-title">{t.game.control.title}</span>
         <span class="asteroids-ping"><RadioTower size={11} strokeWidth={1.8} />{pingLabel}</span>
       </div>
+      <div class="asteroids-control-status">
+        <span>{controlZoneStateLabel}</span>
+        <strong>{controlScore}/{controlTargetScore}</strong>
+      </div>
       <ol>
-        {#each killRows as player (player.id)}
-          <li class:asteroids-local-kill-row={player.id === playerId}>
-            <span>{player.name}</span>
-            <strong>{player.kills}</strong>
-          </li>
+        {#each controlRows as player (player.id)}
+          {#key controlScorePulses[player.id] ?? 0}
+            <li
+              class="asteroids-control-progress-row"
+              class:asteroids-local-kill-row={player.id === playerId}
+              class:asteroids-control-score-pulse={controlScorePulses[player.id]}
+              style:--control-progress={`${Math.min(100, Math.max(0, ((player.controlScore ?? 0) / controlTargetScore) * 100))}%`}
+              style:--control-progress-alpha={Math.min(1, Math.max(0.1, (player.controlScore ?? 0) / controlTargetScore))}
+            >
+              <span class="asteroids-control-player-name">{player.name}</span>
+              <div class="asteroids-control-row-score">
+                <strong>{player.controlScore ?? 0}</strong>
+              </div>
+            </li>
+          {/key}
         {/each}
       </ol>
       {#if activeBoosts.length > 0}
@@ -735,30 +794,48 @@
 {/if}
 
 {#if gameVisible && roundStatus === 'finished'}
-  <section class="asteroids-leaderboard" aria-live="polite">
-    <div class="asteroids-leaderboard-header">
-      <span>{t.game.time}</span>
-      <strong>{score}</strong>
-    </div>
-    <div class="asteroids-leaderboard-title">{t.game.leaders}</div>
-    {#if !roundSaved}<p>{t.game.resultNotSaved}</p>{/if}
-    {#if leaderboardStatus === 'loading'}
-      <p>{t.game.loadingLeaders}</p>
-    {:else if leaderboardStatus === 'error'}
-      <p>{t.game.leadersUnavailable}</p>
-    {:else if leaderboard.length === 0}
-      <p>{t.game.noScores}</p>
-    {:else}
+  {#if mode === 'multiplayer'}
+    <section class="asteroids-leaderboard asteroids-multiplayer-result" aria-live="polite">
+      <div class="asteroids-leaderboard-header">
+        <span>{t.game.control.winner}</span>
+        <strong class="asteroids-winner-name">{winnerId === playerId ? t.game.control.youWon : winnerName || t.common.guest}</strong>
+      </div>
+      <div class="asteroids-leaderboard-title">{t.game.control.final}</div>
       <ol>
-        {#each leaderboard as item, index (`${item.createdAt}-${index}`)}
-          <li class:currentScore={roundSaved && item.name === (username.trim() || t.common.guest) && item.score === score}>
-            <span>{index + 1}. {item.name}</span><strong>{item.score}</strong>
+        {#each controlRows as player (player.id)}
+          <li class:currentScore={player.id === winnerId}>
+            <span class="asteroids-result-player-name">{player.name}</span><strong>{player.controlScore ?? 0}</strong>
           </li>
         {/each}
       </ol>
-    {/if}
-    <div class="asteroids-restart">{t.game.enterToRestart}</div>
-  </section>
+      <div class="asteroids-restart">{t.game.enterToRestart}</div>
+    </section>
+  {:else}
+    <section class="asteroids-leaderboard" aria-live="polite">
+      <div class="asteroids-leaderboard-header">
+        <span>{t.game.time}</span>
+        <strong>{score}</strong>
+      </div>
+      <div class="asteroids-leaderboard-title">{t.game.leaders}</div>
+      {#if !roundSaved}<p>{t.game.resultNotSaved}</p>{/if}
+      {#if leaderboardStatus === 'loading'}
+        <p>{t.game.loadingLeaders}</p>
+      {:else if leaderboardStatus === 'error'}
+        <p>{t.game.leadersUnavailable}</p>
+      {:else if leaderboard.length === 0}
+        <p>{t.game.noScores}</p>
+      {:else}
+        <ol>
+          {#each leaderboard as item, index (`${item.createdAt}-${index}`)}
+            <li class:currentScore={roundSaved && item.name === (username.trim() || t.common.guest) && item.score === score}>
+              <span>{index + 1}. {item.name}</span><strong>{item.score}</strong>
+            </li>
+          {/each}
+        </ol>
+      {/if}
+      <div class="asteroids-restart">{t.game.enterToRestart}</div>
+    </section>
+  {/if}
 {/if}
 
 {#if worldVisible}
@@ -776,6 +853,19 @@
     <span class="asteroids-arena-corner asteroids-arena-corner-bl"></span>
     <span class="asteroids-arena-corner asteroids-arena-corner-br"></span>
   </div>
+
+  {#if controlZone}
+    <div
+      class="asteroids-control-zone"
+      class:asteroids-control-zone-held={controlZone.state === 'controlled'}
+      class:asteroids-control-zone-local={controlZone.ownerId === playerId}
+      class:asteroids-control-zone-contested={controlZone.state === 'contested'}
+      aria-hidden="true"
+      style:width={`${screenSize(controlZone.radius * 2)}px`}
+      style:height={`${screenSize(controlZone.radius * 2)}px`}
+      style:transform={`translate3d(${screenX(controlZone.x)}px, ${screenY(controlZone.y)}px, 0) translate(-50%, -50%)`}
+    ></div>
+  {/if}
 
   {#each visibleAsteroids as asteroid (asteroid.id)}
     <svg
@@ -930,10 +1020,11 @@
   }
 
   .asteroids-killboard {
-    min-width: min(18rem, calc(100vw - 2rem));
+    min-width: min(16.5rem, calc(100vw - 2rem));
     flex-direction: column;
     align-items: stretch;
-    gap: 0.45rem;
+    gap: 0.28rem;
+    padding: 0.42rem 0.58rem;
   }
 
   .asteroids-killboard-title,
@@ -949,6 +1040,37 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+  }
+
+  .asteroids-killboard .asteroids-hud-heading {
+    gap: 0.7rem;
+    line-height: 1;
+  }
+
+  .asteroids-killboard .asteroids-killboard-title {
+    font-size: 0.74rem;
+  }
+
+  .asteroids-killboard .asteroids-ping {
+    font-size: 0.62rem;
+  }
+
+  .asteroids-control-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 0.35rem;
+    background: rgb(15 23 42 / 0.72);
+    padding: 0.26rem 0.42rem;
+    color: rgb(203 213 225);
+    font-size: 0.72rem;
+  }
+
+  .asteroids-control-status strong {
+    color: rgb(253 224 71);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .asteroids-ping {
@@ -971,6 +1093,10 @@
     list-style: none;
   }
 
+  .asteroids-killboard ol {
+    gap: 0.22rem;
+  }
+
   .asteroids-killboard li,
   .asteroids-leaderboard li {
     display: flex;
@@ -982,7 +1108,66 @@
     padding: 0.4rem 0.5rem;
   }
 
-  .asteroids-local-kill-row,
+  .asteroids-killboard li {
+    min-height: 1.7rem;
+    gap: 0.65rem;
+    padding: 0.24rem 0.42rem;
+    font-size: 0.78rem;
+  }
+
+  .asteroids-control-progress-row {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(90deg, rgb(20 184 166 / 0.34) 0 var(--control-progress), transparent var(--control-progress) 100%),
+      rgb(15 23 42 / 0.65) !important;
+  }
+
+  .asteroids-control-progress-row::before {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgb(45 212 191 / 0.16), rgb(253 224 71 / 0.13));
+    opacity: var(--control-progress-alpha);
+    content: '';
+    pointer-events: none;
+  }
+
+  .asteroids-control-player-name,
+  .asteroids-control-row-score {
+    position: relative;
+    z-index: 1;
+  }
+
+  .asteroids-control-player-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asteroids-control-row-score {
+    display: flex;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .asteroids-control-row-score strong {
+    color: rgb(253 224 71);
+    font-size: 0.9rem;
+    text-align: right;
+    min-width: 2.35rem;
+  }
+
+  .asteroids-control-score-pulse {
+    animation: control-score-pulse 520ms ease-out;
+  }
+
+  .asteroids-local-kill-row {
+    color: rgb(153 246 228);
+    box-shadow: inset 0 0 0 1px rgb(45 212 191 / 0.22);
+  }
+
   .asteroids-leaderboard li.currentScore {
     background: rgb(20 184 166 / 0.16) !important;
     color: rgb(153 246 228);
@@ -1015,6 +1200,42 @@
     font-size: 2rem;
   }
 
+  .asteroids-multiplayer-result .asteroids-leaderboard-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .asteroids-multiplayer-result .asteroids-leaderboard-header span {
+    color: rgb(203 213 225);
+    font-size: 1rem;
+  }
+
+  .asteroids-winner-name {
+    display: block;
+    overflow-wrap: anywhere;
+    color: rgb(253 224 71);
+    font-size: clamp(1.5rem, 7vw, 2rem) !important;
+    line-height: 1.08;
+  }
+
+  .asteroids-result-player-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asteroids-multiplayer-result li {
+    min-width: 0;
+  }
+
+  .asteroids-multiplayer-result li strong {
+    flex: 0 0 auto;
+    min-width: 2.4rem;
+    text-align: right;
+  }
+
   .asteroids-leaderboard-title {
     margin: 0.9rem 0 0.65rem;
     text-transform: uppercase;
@@ -1028,6 +1249,7 @@
   .asteroids-ship,
   .asteroids-remote-ship,
   .asteroids-arena-boundary,
+  .asteroids-control-zone,
   .asteroids-rock,
   .asteroids-bullet,
   .asteroids-power-up,
@@ -1057,6 +1279,37 @@
       inset 0 0 2.5rem rgb(34 211 238 / 0.04),
       0 0 1rem rgb(125 211 252 / 0.055);
     opacity: 1;
+  }
+
+  .asteroids-control-zone {
+    box-sizing: border-box;
+    border: 2px solid rgb(148 163 184 / 0.22);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle, rgb(148 163 184 / 0.06) 0 48%, transparent 49%),
+      repeating-radial-gradient(circle, transparent 0 1.2rem, rgb(148 163 184 / 0.08) 1.25rem 1.32rem);
+    box-shadow: inset 0 0 2.5rem rgb(148 163 184 / 0.06), 0 0 1.5rem rgb(148 163 184 / 0.08);
+  }
+
+  .asteroids-control-zone-held {
+    border-color: rgb(253 224 71 / 0.52);
+    background:
+      radial-gradient(circle, rgb(253 224 71 / 0.12) 0 48%, transparent 49%),
+      repeating-radial-gradient(circle, transparent 0 1.2rem, rgb(253 224 71 / 0.1) 1.25rem 1.32rem);
+    box-shadow: inset 0 0 3rem rgb(253 224 71 / 0.1), 0 0 1.8rem rgb(253 224 71 / 0.14);
+  }
+
+  .asteroids-control-zone-local {
+    border-color: rgb(45 212 191 / 0.7);
+    box-shadow: inset 0 0 3rem rgb(20 184 166 / 0.14), 0 0 1.9rem rgb(45 212 191 / 0.2);
+  }
+
+  .asteroids-control-zone-contested {
+    border-color: rgb(244 114 182 / 0.66);
+    background:
+      radial-gradient(circle, rgb(244 114 182 / 0.12) 0 48%, transparent 49%),
+      repeating-radial-gradient(circle, transparent 0 1.2rem, rgb(244 114 182 / 0.1) 1.25rem 1.32rem);
+    box-shadow: inset 0 0 3rem rgb(244 114 182 / 0.1), 0 0 1.8rem rgb(244 114 182 / 0.16);
   }
 
   .asteroids-arena-corner {
@@ -1308,6 +1561,23 @@
     to { scale: 1.06; opacity: 1; }
   }
 
+  @keyframes control-score-pulse {
+    0% {
+      background: rgb(20 184 166 / 0.32);
+      box-shadow: 0 0 0 rgb(45 212 191 / 0);
+      transform: scale(1);
+    }
+    38% {
+      background: rgb(20 184 166 / 0.34);
+      box-shadow: 0 0 1.1rem rgb(45 212 191 / 0.34);
+      transform: scale(1.035);
+    }
+    100% {
+      box-shadow: 0 0 0 rgb(45 212 191 / 0);
+      transform: scale(1);
+    }
+  }
+
   @keyframes shield-pulse {
     from { opacity: 0.5; scale: 0.94; }
     to { opacity: 0.9; scale: 1.04; }
@@ -1320,7 +1590,8 @@
     }
 
     .asteroids-power-up,
-    .asteroids-ship-shielded::before {
+    .asteroids-ship-shielded::before,
+    .asteroids-control-score-pulse {
       animation: none;
     }
   }

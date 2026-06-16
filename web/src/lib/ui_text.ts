@@ -279,6 +279,16 @@ export const uiText = {
       rapidFire: 'Скорострельность',
       overdrive: 'Форсаж',
       nova: 'Нова'
+    },
+    control: {
+      title: 'Контроль зоны',
+      empty: 'Зона свободна',
+      contested: 'Зона оспаривается',
+      youHold: 'Вы удерживаете',
+      enemyHolds: 'Противник удерживает',
+      winner: 'Победитель',
+      youWon: 'Вы победили',
+      final: 'Итог контроля'
     }
   },
   errors: {

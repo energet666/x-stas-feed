@@ -71,6 +71,7 @@ export type ShipState = {
   active: boolean;
   score: number;
   kills: number;
+  controlScore: number;
   ackSeq: number;
   pingEcho?: number;
   shield: number;
@@ -109,6 +110,15 @@ export type ShipPowerUp = {
   expiresAt: number;
 };
 
+export type ShipControlZone = {
+  x: number;
+  y: number;
+  radius: number;
+  state: 'empty' | 'controlled' | 'contested';
+  ownerId?: string;
+  targetScore: number;
+};
+
 export type ShipEvent = {
   id: number;
   type:
@@ -123,6 +133,8 @@ export type ShipEvent = {
   shooterName?: string;
   victimId?: string;
   victimName?: string;
+  winnerId?: string;
+  winnerName?: string;
   x?: number;
   y?: number;
   saved?: boolean;
@@ -141,10 +153,13 @@ export type ShipSnapshot = {
   mode: 'idle' | 'solo' | 'multiplayer';
   status: 'idle' | 'playing' | 'finished';
   remainingMs: number;
+  winnerId?: string;
+  winnerName?: string;
   players: ShipState[];
   bullets?: ShipBullet[];
   asteroids?: ShipAsteroid[];
   powerUps?: ShipPowerUp[];
+  controlZone?: ShipControlZone;
   events?: ShipEvent[];
 };
 

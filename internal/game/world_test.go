@@ -15,6 +15,30 @@ func newTestWorld(t *testing.T) (*World, *time.Time) {
 	return w, &now
 }
 
+func placePlayerForControl(w *World, playerID string, inZone bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	p := w.players[playerID]
+	if p == nil {
+		return
+	}
+	if inZone {
+		p.x = controlZoneX
+		p.y = controlZoneY
+	} else {
+		p.x = 80
+		p.y = 80
+	}
+	p.vx = 0
+	p.vy = 0
+	p.input = Input{}
+	asteroidID := uint64(0)
+	if p.asteroid != nil {
+		asteroidID = p.asteroid.ID
+	}
+	p.asteroid = &Asteroid{ID: asteroidID, OwnerID: p.id, X: 80, Y: ArenaHeight - 80, Radius: 12}
+}
+
 func TestWorldAcceptsOnlyIncreasingCommandSequence(t *testing.T) {
 	w, _ := newTestWorld(t)
 	welcome, _, _ := w.Connect("", "Pilot")
@@ -315,6 +339,162 @@ func TestSecondActivePlayerSwitchesSoloToMultiplayer(t *testing.T) {
 	}
 	if w.players[first.PlayerID].score != 0 || w.players[second.PlayerID].kills != 0 {
 		t.Fatal("expected solo score and multiplayer kills to reset")
+	}
+}
+
+func TestMultiplayerControlZoneScoresSingleController(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	placePlayerForControl(w, first.PlayerID, true)
+	placePlayerForControl(w, second.PlayerID, false)
+
+	for range tickRate {
+		*now = now.Add(time.Second / tickRate)
+		w.step()
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.players[first.PlayerID].controlScore != 1 || w.players[second.PlayerID].controlScore != 0 {
+		t.Fatalf("expected only zone controller to score, first=%d second=%d", w.players[first.PlayerID].controlScore, w.players[second.PlayerID].controlScore)
+	}
+	snapshot := w.snapshotLocked(nil)
+	if snapshot.ControlZone == nil || snapshot.ControlZone.State != "controlled" || snapshot.ControlZone.OwnerID != first.PlayerID || snapshot.ControlZone.TargetScore != controlScoreLimit {
+		t.Fatalf("unexpected control zone snapshot: %#v", snapshot.ControlZone)
+	}
+}
+
+func TestMultiplayerControlZoneContestBlocksScoring(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	placePlayerForControl(w, first.PlayerID, true)
+	placePlayerForControl(w, second.PlayerID, true)
+
+	for range tickRate {
+		*now = now.Add(time.Second / tickRate)
+		w.step()
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.players[first.PlayerID].controlScore != 0 || w.players[second.PlayerID].controlScore != 0 {
+		t.Fatalf("contested zone should not score, first=%d second=%d", w.players[first.PlayerID].controlScore, w.players[second.PlayerID].controlScore)
+	}
+	snapshot := w.snapshotLocked(nil)
+	if snapshot.ControlZone == nil || snapshot.ControlZone.State != "contested" || snapshot.ControlZone.OwnerID != "" {
+		t.Fatalf("expected contested control zone, got %#v", snapshot.ControlZone)
+	}
+}
+
+func TestMultiplayerControlZoneExitStopsScoring(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	placePlayerForControl(w, first.PlayerID, true)
+	placePlayerForControl(w, second.PlayerID, false)
+
+	for range tickRate - 1 {
+		*now = now.Add(time.Second / tickRate)
+		w.step()
+	}
+	placePlayerForControl(w, first.PlayerID, false)
+	*now = now.Add(time.Second / tickRate)
+	w.step()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.players[first.PlayerID].controlScore != 0 || w.players[first.PlayerID].controlTicks != 0 {
+		t.Fatalf("expected leaving zone to clear partial control progress, score=%d ticks=%d", w.players[first.PlayerID].controlScore, w.players[first.PlayerID].controlTicks)
+	}
+}
+
+func TestMultiplayerControlZoneLimitFinishesRound(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	placePlayerForControl(w, first.PlayerID, true)
+	placePlayerForControl(w, second.PlayerID, false)
+	w.mu.Lock()
+	w.players[first.PlayerID].controlScore = controlScoreLimit - 1
+	w.players[first.PlayerID].controlTicks = tickRate - 1
+	w.mu.Unlock()
+
+	*now = now.Add(time.Second / tickRate)
+	w.step()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.status != "finished" || w.mode != "multiplayer" || w.winnerID != first.PlayerID {
+		t.Fatalf("expected multiplayer finish with winner, mode=%q status=%q winner=%q", w.mode, w.status, w.winnerID)
+	}
+	if w.players[first.PlayerID].active || w.players[second.PlayerID].active {
+		t.Fatalf("expected finished round to deactivate players, first=%#v second=%#v", w.players[first.PlayerID], w.players[second.PlayerID])
+	}
+	snapshot := w.snapshotLocked(nil)
+	if snapshot.WinnerID != first.PlayerID || snapshot.WinnerName != "One" || snapshot.ControlZone == nil {
+		t.Fatalf("expected winner and zone in finished snapshot, got %#v", snapshot)
+	}
+}
+
+func TestFinishedMultiplayerRoundIgnoresLateGameplayCommands(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	placePlayerForControl(w, first.PlayerID, true)
+	placePlayerForControl(w, second.PlayerID, false)
+	w.mu.Lock()
+	w.players[first.PlayerID].controlScore = controlScoreLimit - 1
+	w.players[first.PlayerID].controlTicks = tickRate - 1
+	w.mu.Unlock()
+	*now = now.Add(time.Second / tickRate)
+	w.step()
+
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 2, Input: Input{Thrust: true}})
+	w.Apply(first.PlayerID, Command{Type: "shoot", Seq: 3})
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.status != "finished" || w.players[first.PlayerID].active || w.players[first.PlayerID].input != (Input{}) {
+		t.Fatalf("late gameplay command changed finished multiplayer state: status=%q player=%#v", w.status, w.players[first.PlayerID])
+	}
+	if len(w.bullets) != 0 {
+		t.Fatalf("late shoot created bullets in finished multiplayer round: %#v", w.bullets)
+	}
+}
+
+func TestExpiredAwayPlayerReturnsControlRoundToSolo(t *testing.T) {
+	w, now := newTestWorld(t)
+	first, _, _ := w.Connect("", "One")
+	second, _, _ := w.Connect("", "Two")
+	w.Apply(first.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.Apply(second.PlayerID, Command{Type: "input", Seq: 1, Input: Input{Thrust: true}})
+	w.mu.Lock()
+	w.players[first.PlayerID].controlScore = 20
+	w.mu.Unlock()
+	w.Apply(second.PlayerID, Command{Type: "leave", Seq: 2})
+
+	*now = now.Add(reconnectGrace + time.Millisecond)
+	w.step()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.mode != "solo" || w.status != "playing" || w.roundEndsAt.IsZero() {
+		t.Fatalf("expected remaining participant to continue in solo, mode=%q status=%q end=%v", w.mode, w.status, w.roundEndsAt)
+	}
+	if w.players[first.PlayerID].controlScore != 0 {
+		t.Fatalf("expected multiplayer control score to reset on solo transition, got %d", w.players[first.PlayerID].controlScore)
 	}
 }
 
