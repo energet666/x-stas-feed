@@ -27,10 +27,12 @@ incremental, while zoom and pan transform only the viewport and never persisted
 coordinates.
 
 Boards open in pan mode. Freeform and straight-line tools use press-drag-release.
-Plain wheel zooms around the pointer; Ctrl-wheel adjusts brush size while
-drawing. Middle-button or Space-drag temporarily pans. Brush settings and custom
-colors persist in browser storage. The help dialog documents current shortcuts
-and identifies toolbar tools with the same icons used by the toolbar.
+Plain wheel over the rendered canvas zooms around the pointer; Ctrl-wheel over
+the rendered canvas adjusts brush size while drawing. Wheel input over empty
+board margins and floating panels keeps its native page or panel scrolling.
+Middle-button or Space-drag temporarily pans. Brush settings and custom colors
+persist in browser storage. The help dialog documents current shortcuts and
+identifies toolbar tools with the same icons used by the toolbar.
 
 Local drawing mode keeps completed strokes and placements from the existing
 asset library in the expanded browser session instead of posting them

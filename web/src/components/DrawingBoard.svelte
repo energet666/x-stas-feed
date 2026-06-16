@@ -1149,6 +1149,7 @@
 
     const delta = event.deltaY || event.deltaX;
     if (delta === 0) return;
+    if (!isPointerInsideRenderedCanvas(event)) return;
 
     if (event.ctrlKey && drawingToolSelected && !historyMode) {
       event.preventDefault();
