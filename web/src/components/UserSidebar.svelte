@@ -178,33 +178,33 @@
 
       <div class="background-field">
         <span class="background-label">{t.profile.pageBackground}</span>
-        <div class="background-segmented" role="group" aria-label={t.profile.background}>
+        <div class="background-segmented background-segmented-page" role="group" aria-label={t.profile.background}>
           <button
             class:background-segment-active={pageBackgroundMode === 'cosmos'}
             type="button"
+            aria-label={t.profile.backgroundCosmos}
             aria-pressed={pageBackgroundMode === 'cosmos'}
             onclick={() => selectPageBackground('cosmos')}
           >
             <Moon size={15} />
-            <span>{t.profile.backgroundCosmos}</span>
           </button>
           <button
             class:background-segment-active={pageBackgroundMode === 'daylight'}
             type="button"
+            aria-label={t.profile.backgroundDaylight}
             aria-pressed={pageBackgroundMode === 'daylight'}
             onclick={() => selectPageBackground('daylight')}
           >
             <Sun size={15} />
-            <span>{t.profile.backgroundDaylight}</span>
           </button>
           <button
             class:background-segment-active={pageBackgroundMode === 'toxic'}
             type="button"
+            aria-label={t.profile.backgroundToxic}
             aria-pressed={pageBackgroundMode === 'toxic'}
             onclick={() => selectPageBackground('toxic')}
           >
             <Zap size={15} />
-            <span>{t.profile.backgroundToxic}</span>
           </button>
         </div>
         <div class="background-segmented background-segmented-secondary" role="group" aria-label={t.profile.pageBackgroundAnimation}>
@@ -373,7 +373,7 @@
 
   .background-segmented {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     overflow: hidden;
     border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
@@ -402,9 +402,12 @@
     color: var(--color-fg-primary);
   }
 
+  .background-segmented-page {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .background-segmented-secondary {
     margin-top: 0.45rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .background-segmented :global(svg) {
