@@ -1013,9 +1013,6 @@
         commentsPanelItemID = null;
         return;
       }
-
-      openActivityBoard(activityItem.mediaId);
-      return;
     }
 
     activityModalOpen = true;

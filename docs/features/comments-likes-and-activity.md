@@ -28,5 +28,6 @@ previous in-memory activity item. The frontend applies the same replacement
 rule to board SSE events.
 Board names are resolved from current feed metadata when the activity response
 is built and are not stored in the activity index.
-Selecting comment activity opens a media/comments modal; selecting board
-activity opens the expanded board.
+Selecting comment activity opens a media/comments modal. Selecting regular
+board activity opens the same media/comments modal for that board; the fixed
+master board still opens directly because it is not feed media.
