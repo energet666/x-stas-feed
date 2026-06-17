@@ -246,6 +246,7 @@
     return () => {
       document.documentElement.classList.remove('safari-browser');
       document.documentElement.classList.remove('no-glass-effects');
+      document.documentElement.classList.remove('theme-toxic');
       clearTimeout(overlayHideTimer);
       clearTimeout(uploadStatusTimer);
       if (viewportFrameID !== undefined) {
@@ -312,6 +313,10 @@
     persistGlassEffectsMode(glassEffectsMode);
     persistVideoAutoplayEnabled(videoAutoplayEnabled);
     document.documentElement.classList.toggle('no-glass-effects', glassEffectsMode === 'off');
+  });
+
+  $effect(() => {
+    document.documentElement.classList.toggle('theme-toxic', pageBackgroundMode === 'toxic');
   });
 
   $effect(() => {
