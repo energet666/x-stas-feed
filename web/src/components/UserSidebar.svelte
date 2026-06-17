@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { ChevronDown, ChevronUp, Dice5, Moon, Sun, Zap } from 'lucide-svelte';
+  import { ChevronDown, ChevronUp, Dice5, Moon, Sun, Waves, Zap } from 'lucide-svelte';
   import { fallbackUsername, randomUsername } from '../lib/usernames';
   import { uiText as t } from '../lib/ui_text';
   import DrawingBoard from './DrawingBoard.svelte';
@@ -19,12 +19,12 @@
     onCardBackgroundModeChange
   }: { 
     username: string;
-    pageBackgroundMode?: 'cosmos' | 'daylight' | 'toxic';
+    pageBackgroundMode?: 'cosmos' | 'daylight' | 'toxic' | 'aurora';
     pageBackgroundAnimated?: boolean;
     cardBackgroundMode?: 'simple' | 'ambient';
     debugToolsEnabled?: boolean;
     onExpandMasterBoard: () => void;
-    onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight' | 'toxic') => void;
+    onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight' | 'toxic' | 'aurora') => void;
     onPageBackgroundAnimatedChange?: (animated: boolean) => void;
     onCardBackgroundModeChange?: (mode: 'simple' | 'ambient') => void;
   } = $props();
@@ -124,7 +124,7 @@
     }
   }
 
-  function selectPageBackground(mode: 'cosmos' | 'daylight' | 'toxic') {
+  function selectPageBackground(mode: 'cosmos' | 'daylight' | 'toxic' | 'aurora') {
     onPageBackgroundModeChange?.(mode);
   }
 </script>
@@ -205,6 +205,15 @@
             onclick={() => selectPageBackground('toxic')}
           >
             <Zap size={15} />
+          </button>
+          <button
+            class:background-segment-active={pageBackgroundMode === 'aurora'}
+            type="button"
+            aria-label={t.profile.backgroundAurora}
+            aria-pressed={pageBackgroundMode === 'aurora'}
+            onclick={() => selectPageBackground('aurora')}
+          >
+            <Waves size={15} />
           </button>
         </div>
         <div class="background-segmented background-segmented-secondary" role="group" aria-label={t.profile.pageBackgroundAnimation}>
@@ -403,7 +412,7 @@
   }
 
   .background-segmented-page {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .background-segmented-secondary {

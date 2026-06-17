@@ -43,8 +43,8 @@ specific to one feature and does not define a reusable visual convention.
 The product is a dark, media-first glass interface with restrained borders,
 minimal external shadows, readable overlays, and ambient card backgrounds.
 Side rails use lighter glass than media overlays. User-selectable page
-backgrounds include cosmos particles, graphite daylight geometry, and a bright
-toxic neon mode. The toxic mode is also a full Tailwind token theme: it remaps
-semantic foreground, border, action, surface, scrollbar, glass, and shadow
-variables on the document root. Global scrollbars share one dark-theme
-treatment across Firefox and WebKit browsers.
+backgrounds include cosmos particles, graphite daylight geometry, bright toxic
+neon, and a soft aurora mode. Toxic and aurora modes are full Tailwind token
+themes: they remap semantic foreground, border, action, surface, scrollbar,
+glass, and shadow variables on the document root. Global scrollbars use the
+active theme tokens across Firefox and WebKit browsers.

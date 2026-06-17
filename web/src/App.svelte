@@ -59,7 +59,7 @@
   const backgroundKeyboardControlEvent = 'feed-ai:background-keyboard-control';
 
   type CardBackgroundMode = 'simple' | 'ambient';
-  type PageBackgroundMode = 'cosmos' | 'daylight' | 'toxic';
+  type PageBackgroundMode = 'cosmos' | 'daylight' | 'toxic' | 'aurora';
   type GlassEffectsMode = 'off' | 'full';
   type FeedMode = 'all' | 'favorites';
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
@@ -247,6 +247,7 @@
       document.documentElement.classList.remove('safari-browser');
       document.documentElement.classList.remove('no-glass-effects');
       document.documentElement.classList.remove('theme-toxic');
+      document.documentElement.classList.remove('theme-aurora');
       clearTimeout(overlayHideTimer);
       clearTimeout(uploadStatusTimer);
       if (viewportFrameID !== undefined) {
@@ -317,6 +318,7 @@
 
   $effect(() => {
     document.documentElement.classList.toggle('theme-toxic', pageBackgroundMode === 'toxic');
+    document.documentElement.classList.toggle('theme-aurora', pageBackgroundMode === 'aurora');
   });
 
   $effect(() => {
@@ -800,7 +802,7 @@
   function readStoredPageBackgroundMode(): PageBackgroundMode {
     try {
       const storedValue = window.localStorage.getItem(pageBackgroundModeStorageKey);
-      if (storedValue === 'daylight' || storedValue === 'toxic') return storedValue;
+      if (storedValue === 'daylight' || storedValue === 'toxic' || storedValue === 'aurora') return storedValue;
       return 'cosmos';
     } catch {
       return 'cosmos';
@@ -1602,6 +1604,7 @@
   class="app-shell min-h-screen"
   class:app-shell-daylight={pageBackgroundMode === 'daylight'}
   class:app-shell-toxic={pageBackgroundMode === 'toxic'}
+  class:app-shell-aurora={pageBackgroundMode === 'aurora'}
 >
   <BackgroundParticles mode={pageBackgroundMode} animated={backgroundParticlesEnabled} />
   {#if asteroidsEnabled}
@@ -1975,6 +1978,25 @@
       radial-gradient(circle at 80% 14%, rgb(132 204 22 / 0.58), transparent 26rem),
       radial-gradient(circle at 62% 84%, rgb(6 182 212 / 0.48), transparent 30rem),
       linear-gradient(135deg, rgb(36 0 58), rgb(8 22 16) 50%, rgb(64 0 48));
+    content: '';
+    pointer-events: none;
+  }
+
+  .app-shell-aurora {
+    min-height: 100vh;
+  }
+
+  .app-shell-aurora::before {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      repeating-linear-gradient(120deg, rgb(94 234 212 / 0.1) 0 1px, transparent 1px 72px),
+      repeating-linear-gradient(60deg, rgb(187 247 208 / 0.07) 0 1px, transparent 1px 96px),
+      radial-gradient(circle at 18% 18%, rgb(20 184 166 / 0.42), transparent 26rem),
+      radial-gradient(circle at 76% 16%, rgb(167 139 250 / 0.34), transparent 28rem),
+      radial-gradient(circle at 55% 88%, rgb(74 222 128 / 0.26), transparent 30rem),
+      linear-gradient(135deg, rgb(4 20 17), rgb(16 27 31) 48%, rgb(24 12 35));
     content: '';
     pointer-events: none;
   }

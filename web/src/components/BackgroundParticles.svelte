@@ -5,7 +5,7 @@
     mode = "cosmos",
     animated = true
   }: {
-    mode?: "cosmos" | "daylight" | "toxic";
+    mode?: "cosmos" | "daylight" | "toxic" | "aurora";
     animated?: boolean;
   } = $props();
 
@@ -159,6 +159,12 @@
     if (mode === "toxic") {
       drawToxicBase();
       drawToxicGeometry();
+      return;
+    }
+
+    if (mode === "aurora") {
+      drawAuroraBase();
+      drawAuroraBands();
       return;
     }
 
@@ -321,6 +327,64 @@
       ctx.beginPath();
       ctx.moveTo(-60, y);
       ctx.bezierCurveTo(width * 0.26, y + 46, width * 0.58, y - 52, width + 60, y + 24);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAuroraBase() {
+    if (!ctx) return;
+    const drift = time * 0.003;
+    const sky = ctx.createLinearGradient(0, 0, width, height);
+    sky.addColorStop(0, "rgb(4, 20, 17)");
+    sky.addColorStop(0.5, "rgb(16, 27, 31)");
+    sky.addColorStop(1, "rgb(24, 12, 35)");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+
+    drawGlow(width * (0.18 + Math.sin(drift) * 0.04), height * 0.18, Math.max(width, height) * 0.48, "rgba(20, 184, 166, 0.38)");
+    drawGlow(width * (0.78 + Math.cos(drift * 0.7) * 0.04), height * 0.22, Math.max(width, height) * 0.42, "rgba(167, 139, 250, 0.3)");
+    drawGlow(width * 0.48, height * (0.88 + Math.sin(drift * 1.1) * 0.03), Math.max(width, height) * 0.52, "rgba(74, 222, 128, 0.2)");
+  }
+
+  function drawAuroraBands() {
+    if (!ctx) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let band = 0; band < 4; band++) {
+      const baseY = height * (0.16 + band * 0.115);
+      const amplitude = height * (0.04 + band * 0.012);
+      const phase = time * (0.008 + band * 0.002) + band * 1.7;
+      const gradient = ctx.createLinearGradient(0, baseY - amplitude * 2, 0, baseY + amplitude * 4);
+      gradient.addColorStop(0, "rgba(45, 212, 191, 0)");
+      gradient.addColorStop(0.36, band % 2 === 0 ? "rgba(94, 234, 212, 0.2)" : "rgba(167, 139, 250, 0.17)");
+      gradient.addColorStop(0.64, band % 2 === 0 ? "rgba(134, 239, 172, 0.16)" : "rgba(45, 212, 191, 0.14)");
+      gradient.addColorStop(1, "rgba(45, 212, 191, 0)");
+
+      ctx.beginPath();
+      ctx.moveTo(-40, baseY + Math.sin(phase) * amplitude);
+      for (let x = -40; x <= width + 80; x += 80) {
+        const y = baseY + Math.sin(x * 0.006 + phase) * amplitude + Math.sin(x * 0.013 - phase * 0.7) * amplitude * 0.42;
+        ctx.lineTo(x, y);
+      }
+      for (let x = width + 80; x >= -40; x -= 80) {
+        const y = baseY + amplitude * (2.3 + band * 0.2) + Math.sin(x * 0.005 + phase + 2) * amplitude * 0.55;
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(187, 247, 208, 0.1)";
+    ctx.lineWidth = 1;
+    const drift = (time * 0.24) % 88;
+    for (let x = -88 + drift; x < width + 88; x += 88) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + height * 0.18, height);
       ctx.stroke();
     }
     ctx.restore();

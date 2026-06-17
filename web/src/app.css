@@ -138,6 +138,63 @@ video {
   isolation: isolate;
 }
 
+:root.theme-aurora {
+  --color-page: rgb(4 20 17);
+  --color-surface-media: rgb(2 12 11);
+  --color-surface-overlay: rgb(3 18 16 / 0.9);
+  --color-fg-primary: rgb(236 253 245);
+  --color-fg-secondary: rgb(204 251 241 / 0.9);
+  --color-fg-muted: rgb(187 247 208 / 0.74);
+  --color-fg-subtle: rgb(153 246 228 / 0.54);
+  --color-fg-danger: rgb(251 113 133);
+
+  --color-border-glass: rgb(94 234 212 / 0.28);
+  --color-border-glass-soft: rgb(187 247 208 / 0.18);
+  --color-border-glass-hover: rgb(167 139 250 / 0.45);
+  --color-glass-highlight: rgb(204 251 241 / 0.2);
+  --color-glass-fallback: rgb(7 25 23 / 0.96);
+
+  --color-track-bg: rgb(94 234 212 / 0.18);
+  --color-track-bg-strong: rgb(187 247 208 / 0.24);
+  --color-track-fill: rgb(134 239 172 / 0.92);
+  --color-action-hover: rgb(45 212 191 / 0.14);
+  --color-action-hover-strong: rgb(167 139 250 / 0.16);
+  --color-action-bg: rgb(94 234 212 / 0.08);
+  --color-debug-cell: rgb(94 234 212 / 0.055);
+  --color-scrollbar-thumb: rgb(94 234 212 / 0.34);
+  --color-scrollbar-thumb-hover: rgb(187 247 208 / 0.5);
+  --color-scrollbar-thumb-active: rgb(167 139 250 / 0.64);
+  --color-scrollbar-track: rgb(4 20 17 / 0.36);
+
+  --background-image-glass: linear-gradient(135deg, rgb(45 212 191 / 0.09), rgb(167 139 250 / 0.06)), rgb(2 12 11 / 0.12);
+  --background-image-glass-nav: linear-gradient(180deg, rgb(45 212 191 / 0.15), rgb(167 139 250 / 0.07)), rgb(2 12 11 / 0.2);
+  --background-image-glass-strong: linear-gradient(135deg, rgb(45 212 191 / 0.16), rgb(4 20 17 / 0.18) 45%, rgb(167 139 250 / 0.12)), rgb(2 12 11 / 0.18);
+  --background-image-glass-side: linear-gradient(180deg, rgb(45 212 191 / 0.1), rgb(187 247 208 / 0.045)), rgb(2 12 11 / 0.1);
+  --background-image-glass-play: linear-gradient(180deg, rgb(187 247 208 / 0.15), rgb(45 212 191 / 0.05)), rgb(2 12 11 / 0.14);
+  --background-image-glass-overlay: linear-gradient(135deg, rgb(3 18 16 / 0.58), rgb(45 212 191 / 0.1), rgb(167 139 250 / 0.08));
+
+  --shadow-card: 0 1px 0 rgb(94 234 212 / 0.25) inset, 0 0 24px rgb(45 212 191 / 0.08);
+  --shadow-control: 0 1px 0 rgb(187 247 208 / 0.18) inset;
+  --shadow-control-hover: 0 1px 0 rgb(167 139 250 / 0.34) inset, 0 0 20px rgb(45 212 191 / 0.12);
+  --shadow-nav: 0 1px 0 rgb(94 234 212 / 0.25) inset;
+  --shadow-overlay: 0 1px 0 rgb(187 247 208 / 0.2) inset, 0 -1px 0 rgb(167 139 250 / 0.14) inset;
+  --shadow-video-controls: 0 1px 0 rgb(94 234 212 / 0.28) inset;
+  --shadow-debug: 0 1px 0 rgb(94 234 212 / 0.22) inset, 0 0 24px rgb(45 212 191 / 0.1);
+  --shadow-thumb: 0 0 10px rgb(94 234 212 / 0.26);
+  --drop-shadow-text: 0 1px 8px rgb(2 12 11 / 0.52), 0 0 10px rgb(94 234 212 / 0.14);
+
+  --background-pattern-lines: repeating-linear-gradient(45deg,
+      transparent,
+      transparent 12px,
+      rgb(94 234 212 / 0.07) 12px,
+      rgb(94 234 212 / 0.07) 13px),
+    repeating-linear-gradient(-45deg,
+      transparent,
+      transparent 12px,
+      rgb(167 139 250 / 0.07) 12px,
+      rgb(167 139 250 / 0.07) 13px);
+}
+
 :root.theme-toxic {
   --color-page: rgb(10 0 18);
   --color-surface-media: rgb(9 0 18);
@@ -270,7 +327,8 @@ video {
     background: linear-gradient(180deg, rgb(16 16 20 / 0.88), rgb(7 7 10 / 0.82)), rgb(0 0 0 / 0.74);
   }
 
-  :root.theme-toxic.no-glass-effects .debug-overlay {
+  :root.theme-toxic.no-glass-effects .debug-overlay,
+  :root.theme-aurora.no-glass-effects .debug-overlay {
     background: var(--background-image-glass-strong);
   }
 
