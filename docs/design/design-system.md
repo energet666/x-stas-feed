@@ -42,7 +42,7 @@ specific to one feature and does not define a reusable visual convention.
 
 The product is a dark, media-first glass interface with restrained borders,
 minimal external shadows, readable overlays, and ambient card backgrounds.
-Side rails use lighter glass than media overlays. A user-selectable daylight
-background uses graphite geometry instead of cosmos particles. Global
-scrollbars share one dark-theme treatment across Firefox and WebKit browsers.
-
+Side rails use lighter glass than media overlays. User-selectable page
+backgrounds include cosmos particles, graphite daylight geometry, and a bright
+toxic neon geometry mode. Global scrollbars share one dark-theme treatment
+across Firefox and WebKit browsers.

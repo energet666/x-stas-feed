@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { ChevronDown, ChevronUp, Dice5, Moon, Sun } from 'lucide-svelte';
+  import { ChevronDown, ChevronUp, Dice5, Moon, Sun, Zap } from 'lucide-svelte';
   import { fallbackUsername, randomUsername } from '../lib/usernames';
   import { uiText as t } from '../lib/ui_text';
   import DrawingBoard from './DrawingBoard.svelte';
@@ -19,12 +19,12 @@
     onCardBackgroundModeChange
   }: { 
     username: string;
-    pageBackgroundMode?: 'cosmos' | 'daylight';
+    pageBackgroundMode?: 'cosmos' | 'daylight' | 'toxic';
     pageBackgroundAnimated?: boolean;
     cardBackgroundMode?: 'simple' | 'ambient';
     debugToolsEnabled?: boolean;
     onExpandMasterBoard: () => void;
-    onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight') => void;
+    onPageBackgroundModeChange?: (mode: 'cosmos' | 'daylight' | 'toxic') => void;
     onPageBackgroundAnimatedChange?: (animated: boolean) => void;
     onCardBackgroundModeChange?: (mode: 'simple' | 'ambient') => void;
   } = $props();
@@ -124,7 +124,7 @@
     }
   }
 
-  function selectPageBackground(mode: 'cosmos' | 'daylight') {
+  function selectPageBackground(mode: 'cosmos' | 'daylight' | 'toxic') {
     onPageBackgroundModeChange?.(mode);
   }
 </script>
@@ -196,6 +196,15 @@
           >
             <Sun size={15} />
             <span>{t.profile.backgroundDaylight}</span>
+          </button>
+          <button
+            class:background-segment-active={pageBackgroundMode === 'toxic'}
+            type="button"
+            aria-pressed={pageBackgroundMode === 'toxic'}
+            onclick={() => selectPageBackground('toxic')}
+          >
+            <Zap size={15} />
+            <span>{t.profile.backgroundToxic}</span>
           </button>
         </div>
         <div class="background-segmented background-segmented-secondary" role="group" aria-label={t.profile.pageBackgroundAnimation}>
@@ -364,7 +373,7 @@
 
   .background-segmented {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: hidden;
     border: 1px solid var(--color-border-glass-soft);
     border-radius: var(--radius-control);
@@ -395,6 +404,7 @@
 
   .background-segmented-secondary {
     margin-top: 0.45rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .background-segmented :global(svg) {

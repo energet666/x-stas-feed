@@ -72,6 +72,7 @@ export const uiText = {
     background: 'Фон',
     backgroundCosmos: 'Космос',
     backgroundDaylight: 'Светлый',
+    backgroundToxic: 'Кислота',
     pageBackground: 'Фон страницы',
     pageBackgroundAnimation: 'Анимация фона страницы',
     backgroundStatic: 'Статичный',

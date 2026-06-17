@@ -59,7 +59,7 @@
   const backgroundKeyboardControlEvent = 'feed-ai:background-keyboard-control';
 
   type CardBackgroundMode = 'simple' | 'ambient';
-  type PageBackgroundMode = 'cosmos' | 'daylight';
+  type PageBackgroundMode = 'cosmos' | 'daylight' | 'toxic';
   type GlassEffectsMode = 'off' | 'full';
   type FeedMode = 'all' | 'favorites';
   type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
@@ -794,7 +794,9 @@
 
   function readStoredPageBackgroundMode(): PageBackgroundMode {
     try {
-      return window.localStorage.getItem(pageBackgroundModeStorageKey) === 'daylight' ? 'daylight' : 'cosmos';
+      const storedValue = window.localStorage.getItem(pageBackgroundModeStorageKey);
+      if (storedValue === 'daylight' || storedValue === 'toxic') return storedValue;
+      return 'cosmos';
     } catch {
       return 'cosmos';
     }
@@ -1594,6 +1596,7 @@
 <main
   class="app-shell min-h-screen"
   class:app-shell-daylight={pageBackgroundMode === 'daylight'}
+  class:app-shell-toxic={pageBackgroundMode === 'toxic'}
 >
   <BackgroundParticles mode={pageBackgroundMode} animated={backgroundParticlesEnabled} />
   {#if asteroidsEnabled}
@@ -1948,6 +1951,25 @@
       radial-gradient(circle at 82% 18%, rgb(30 41 59 / 0.46), transparent 26rem),
       radial-gradient(circle at 70% 82%, rgb(148 163 184 / 0.26), transparent 30rem),
       linear-gradient(135deg, rgb(82 89 96), rgb(65 72 79) 48%, rgb(48 55 63));
+    content: '';
+    pointer-events: none;
+  }
+
+  .app-shell-toxic {
+    min-height: 100vh;
+  }
+
+  .app-shell-toxic::before {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      repeating-linear-gradient(90deg, rgb(217 70 239 / 0.14) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(0deg, rgb(132 204 22 / 0.12) 0 1px, transparent 1px 38px),
+      radial-gradient(circle at 16% 18%, rgb(236 72 153 / 0.62), transparent 24rem),
+      radial-gradient(circle at 80% 14%, rgb(132 204 22 / 0.58), transparent 26rem),
+      radial-gradient(circle at 62% 84%, rgb(6 182 212 / 0.48), transparent 30rem),
+      linear-gradient(135deg, rgb(36 0 58), rgb(8 22 16) 50%, rgb(64 0 48));
     content: '';
     pointer-events: none;
   }

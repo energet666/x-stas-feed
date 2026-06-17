@@ -5,7 +5,7 @@
     mode = "cosmos",
     animated = true
   }: {
-    mode?: "cosmos" | "daylight";
+    mode?: "cosmos" | "daylight" | "toxic";
     animated?: boolean;
   } = $props();
 
@@ -112,7 +112,7 @@
   function initParticles() {
     particles = [];
     streaks = [];
-    if (mode === "daylight") return;
+    if (mode !== "cosmos") return;
 
     const numParticles = Math.min(Math.floor((width * height) / particleDensityPixels), maxParticles);
     for (let i = 0; i < numParticles; i++) {
@@ -153,6 +153,12 @@
     if (mode === "daylight") {
       drawDaylightBase();
       drawDaylightGeometry();
+      return;
+    }
+
+    if (mode === "toxic") {
+      drawToxicBase();
+      drawToxicGeometry();
       return;
     }
 
@@ -263,6 +269,60 @@
     drawPolygon(width * 0.18, height * 0.2, Math.min(width, height) * 0.18, 6, time * 0.0012);
     drawPolygon(width * 0.78, height * 0.24, Math.min(width, height) * 0.16, 5, -time * 0.001);
     drawPolygon(width * 0.58, height * 0.78, Math.min(width, height) * 0.22, 7, time * 0.0008);
+    ctx.restore();
+  }
+
+  function drawToxicBase() {
+    if (!ctx) return;
+    const drift = time * 0.004;
+    const haze = ctx.createLinearGradient(0, 0, width, height);
+    haze.addColorStop(0, "rgb(42, 0, 68)");
+    haze.addColorStop(0.42, "rgb(8, 22, 16)");
+    haze.addColorStop(1, "rgb(70, 0, 52)");
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, width, height);
+
+    drawGlow(width * (0.12 + Math.sin(drift) * 0.035), height * 0.18, Math.max(width, height) * 0.45, "rgba(236, 72, 153, 0.58)");
+    drawGlow(width * (0.82 + Math.cos(drift * 0.9) * 0.04), height * 0.18, Math.max(width, height) * 0.42, "rgba(163, 230, 53, 0.54)");
+    drawGlow(width * 0.52, height * (0.82 + Math.sin(drift * 1.3) * 0.03), Math.max(width, height) * 0.5, "rgba(34, 211, 238, 0.42)");
+    drawGlow(width * (0.46 + Math.cos(drift * 1.6) * 0.04), height * 0.44, Math.max(width, height) * 0.34, "rgba(250, 204, 21, 0.24)");
+  }
+
+  function drawToxicGeometry() {
+    if (!ctx) return;
+    const grid = 54;
+    const drift = (time * 0.42) % grid;
+
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(217, 70, 239, 0.22)";
+    ctx.beginPath();
+    for (let x = -grid + drift; x < width + grid; x += grid) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + height * 0.26, height);
+    }
+    for (let y = -grid - drift; y < height + grid; y += grid) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y + width * 0.08);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(190, 242, 100, 0.24)";
+    ctx.lineWidth = 1.4;
+    drawPolygon(width * 0.2, height * 0.22, Math.min(width, height) * 0.16, 3, time * 0.002);
+    drawPolygon(width * 0.76, height * 0.3, Math.min(width, height) * 0.14, 6, -time * 0.0016);
+    drawPolygon(width * 0.58, height * 0.76, Math.min(width, height) * 0.2, 5, time * 0.0012);
+
+    ctx.globalAlpha = 0.72;
+    ctx.strokeStyle = "rgba(34, 211, 238, 0.22)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const y = height * (0.18 + i * 0.2) + Math.sin(time * 0.018 + i) * 14;
+      ctx.beginPath();
+      ctx.moveTo(-60, y);
+      ctx.bezierCurveTo(width * 0.26, y + 46, width * 0.58, y - 52, width + 60, y + 24);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
