@@ -9,7 +9,10 @@ status: active
 `FeedCardFrame` owns card geometry, ambient composition, expanded mode, and top
 and bottom overlay stacks. The lower social chin sits outside the media frame so
 likes and comments do not obscure content. Expanded cards use a viewport-fixed
-wrapper and raise comments above the media through a top-level overlay.
+wrapper and raise comments above the media through a top-level overlay. While a
+feed card, drawing board, or activity media modal occupies the viewport, page
+background animation is paused without changing the visitor's saved appearance
+preference, then resumes when the fullscreen layer closes.
 
 Overlay visibility is coordinated by the frame. Interacting with a panel or
 range control clears auto-hide timers. Visible overlay transforms must become

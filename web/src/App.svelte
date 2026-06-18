@@ -141,6 +141,10 @@
   let feedRequestVersion = 0;
   let masterBoardExpanded = $state(false);
   let activityBoardExpandedID = $state<string | null>(null);
+  const fullscreenOverlayOpen = $derived(
+    expandedItemID !== null || activityModalOpen || masterBoardExpanded || activityBoardExpandedID !== null
+  );
+  const pageBackgroundAnimated = $derived(backgroundParticlesEnabled && !fullscreenOverlayOpen);
   let activityBoardAmbientCanvas = $state<HTMLCanvasElement | undefined>(undefined);
   let newFeedItemCount = $state(0);
   let activityPanelOpen = $state(false);
@@ -1606,7 +1610,7 @@
   class:app-shell-toxic={pageBackgroundMode === 'toxic'}
   class:app-shell-aurora={pageBackgroundMode === 'aurora'}
 >
-  <BackgroundParticles mode={pageBackgroundMode} animated={backgroundParticlesEnabled} />
+  <BackgroundParticles mode={pageBackgroundMode} animated={pageBackgroundAnimated} />
   {#if asteroidsEnabled}
     <AsteroidsShip username={commentUsername} />
   {/if}
