@@ -29,7 +29,9 @@ with the stored volume and mute state after its entire feed card enters the
 viewport and pauses as soon as the card is no longer fully visible; cards
 taller than the viewport do not autoplay. Manual controls remain available.
 Duration from backend metadata avoids requiring Safari to preload solely for
-control layout.
+control layout. Ambient sampling follows the visible frames: while playback runs
+in picture-in-picture the card keeps its last ambient frame and stops sampling,
+and it resumes on return to the card.
 
 Viewers mark interesting moments with the controls button or `M`. A marker is
 the whole second plus the visitor nickname, with no identifier and no browser

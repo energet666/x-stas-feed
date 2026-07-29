@@ -114,6 +114,7 @@
   let ambientCanvasHeight = $state(32);
   let ambientAnimationFrameId: number | undefined = undefined;
   let ambientFrameTick = 0;
+  let inPictureInPicture = $state(false);
   let isSafari = $state(false);
   let posterTime = $state(0);
   let posterCoverVisible = $state(true);
@@ -136,6 +137,8 @@
   const activePosterURL = $derived(hasVideoInteraction ? undefined : posterURL);
   const activeVideoURL = $derived(hasVideoInteraction ? item.url : undefined);
   const displayedPlaybackRate = $derived(temporaryPlaybackRate ?? userPlaybackRate);
+  // Picture-in-picture moves the frames out of the card, so the ambient copy stays frozen.
+  const ambientRenderingEnabled = $derived(ambientActive && !inPictureInPicture);
 
   onMount(() => {
     const userAgent = navigator.userAgent;
@@ -444,6 +447,18 @@
     }
 
     revealControls();
+  }
+
+  function setPictureInPicture(active: boolean) {
+    if (inPictureInPicture === active) return;
+    inPictureInPicture = active;
+    // Returning to the card leaves a stale ambient frame until the next draw.
+    if (!active) syncAmbientFrame();
+  }
+
+  function syncPresentationMode() {
+    const safariVideo = video as SafariVideoElement | undefined;
+    setPictureInPicture(safariVideo?.webkitPresentationMode === 'picture-in-picture');
   }
 
   function setActivePlayer() {
@@ -796,11 +811,29 @@
     drawFrame();
   }
 
+  // Both picture-in-picture APIs report the same thing; Safari only has the webkit one.
+  $effect(() => {
+    if (!video) return;
+    const element = video;
+    const enter = () => setPictureInPicture(true);
+    const leave = () => setPictureInPicture(false);
+
+    element.addEventListener('enterpictureinpicture', enter);
+    element.addEventListener('leavepictureinpicture', leave);
+    element.addEventListener('webkitpresentationmodechanged', syncPresentationMode);
+
+    return () => {
+      element.removeEventListener('enterpictureinpicture', enter);
+      element.removeEventListener('leavepictureinpicture', leave);
+      element.removeEventListener('webkitpresentationmodechanged', syncPresentationMode);
+    };
+  });
+
   function startAmbientSync() {
-    if (ambientAnimationFrameId || !ambientActive) return;
+    if (ambientAnimationFrameId || !ambientRenderingEnabled) return;
 
     const loop = () => {
-      if (!video || video.paused || video.ended || !ambientActive) {
+      if (!video || video.paused || video.ended || !ambientRenderingEnabled) {
         stopAmbientSync();
         return;
       }
@@ -825,7 +858,7 @@
   }
 
   function drawFrame() {
-    if (!video || !ambientCanvas || video.readyState < 2) return;
+    if (!ambientRenderingEnabled || !video || !ambientCanvas || video.readyState < 2) return;
     syncAmbientCanvasSize();
     const ctx = ambientCanvas.getContext('2d', { alpha: false });
     if (!ctx) return;
@@ -845,7 +878,7 @@
   }
 
   $effect(() => {
-    if (ambientActive && video && duration > 0) {
+    if (ambientRenderingEnabled && video && duration > 0) {
       drawFrame();
     }
   });
@@ -866,7 +899,7 @@
   });
 
   $effect(() => {
-    if (ambientActive && !paused) {
+    if (ambientRenderingEnabled && !paused) {
       startAmbientSync();
     } else {
       stopAmbientSync();
