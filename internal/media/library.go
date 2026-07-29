@@ -61,6 +61,7 @@ func SupportedExtensions() []string {
 type Library struct {
 	root     string
 	comments *CommentStore
+	markers  *MarkerStore
 	metadata *MetadataStore
 	boards   *BoardStore
 	logger   *log.Logger
@@ -72,6 +73,7 @@ type Library struct {
 	pathsByID         map[string]string
 	mimeTypesByID     map[string]string
 	commentsByMediaID map[string][]Comment
+	markersByMediaID  map[string][]Marker
 	activity          []ActivityItem
 }
 
@@ -87,6 +89,7 @@ type Item struct {
 	Comments        []Comment  `json:"comments"`
 	CommentCount    int        `json:"commentCount"`
 	LikeCount       int        `json:"likeCount"`
+	Markers         []Marker   `json:"markers,omitempty"`
 	DurationSeconds float64    `json:"durationSeconds,omitempty"`
 	AudioTags       *AudioTags `json:"audioTags,omitempty"`
 	CoverURL        string     `json:"coverUrl,omitempty"`
@@ -148,7 +151,7 @@ func (item ActivityItem) MarshalJSON() ([]byte, error) {
 }
 
 func NewLibrary(root string) *Library {
-	return &Library{root: root, comments: NewCommentStore(root), metadata: NewMetadataStore(root)}
+	return &Library{root: root, comments: NewCommentStore(root), markers: NewMarkerStore(root), metadata: NewMetadataStore(root)}
 }
 
 func NewLibraryWithLogger(root string, logger *log.Logger) *Library {
@@ -321,6 +324,66 @@ func (l *Library) CommentsForID(id string) ([]Comment, error) {
 		return nil, os.ErrNotExist
 	}
 	return cloneComments(l.commentsByMediaID[id]), nil
+}
+
+func (l *Library) MarkersForID(id string) ([]Marker, error) {
+	if err := validateMediaID(id); err != nil {
+		return nil, err
+	}
+	if err := l.ensureIndex(); err != nil {
+		return nil, err
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	if _, ok := l.itemsByID[id]; !ok {
+		return nil, os.ErrNotExist
+	}
+	return cloneMarkers(l.markersByMediaID[id]), nil
+}
+
+// AddMarker reports whether the marker was newly created; a repeat by the same
+// author at the same second changes nothing.
+func (l *Library) AddMarker(id string, timeSeconds float64, author string) (Marker, bool, error) {
+	started := time.Now()
+	if err := validateMediaID(id); err != nil {
+		return Marker{}, false, err
+	}
+	if err := l.ensureIndex(); err != nil {
+		return Marker{}, false, err
+	}
+
+	l.mu.RLock()
+	item, ok := l.itemsByID[id]
+	l.mu.RUnlock()
+	if !ok {
+		return Marker{}, false, os.ErrNotExist
+	}
+	if item.Type != "video" {
+		return Marker{}, false, errors.New("markers are only supported for video media")
+	}
+
+	marker, created, err := l.markers.Add(item.Filename, timeSeconds, author)
+	if err != nil {
+		return Marker{}, false, err
+	}
+	if !created {
+		return marker, false, nil
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	item, ok = l.itemsByID[id]
+	if !ok {
+		return Marker{}, false, os.ErrNotExist
+	}
+	l.markersByMediaID[id] = append(l.markersByMediaID[id], marker)
+	item.Markers = cloneMarkers(l.markersByMediaID[id])
+	l.setItemLocked(item)
+	l.logf("marker appended mediaID=%s filename=%q timeSeconds=%d author=%q duration=%s totalMarkersForMedia=%d", id, item.Filename, marker.TimeSeconds, marker.Author, time.Since(started).Round(time.Millisecond), len(l.markersByMediaID[id]))
+	return marker, true, nil
 }
 
 func (l *Library) AddComment(id, text, author string) (Comment, error) {
@@ -562,6 +625,7 @@ func (l *Library) ensureIndex() error {
 	l.pathsByID = make(map[string]string, len(items))
 	l.mimeTypesByID = make(map[string]string, len(items))
 	l.commentsByMediaID = make(map[string][]Comment, len(items))
+	l.markersByMediaID = make(map[string][]Marker)
 	l.activity = nil
 
 	root, err := filepath.Abs(l.root)
@@ -574,6 +638,7 @@ func (l *Library) ensureIndex() error {
 	var commentsFailed int
 	var mediaWithoutCommentFile int
 	var commentCount int
+	var markerCount int
 	for i, item := range items {
 		path := item.sourcePath
 		if path == "" {
@@ -600,6 +665,18 @@ func (l *Library) ensureIndex() error {
 			l.commentsByMediaID[item.ID] = []Comment{}
 			item = itemWithCommentSummary(item, nil)
 		}
+		if item.Type == "video" {
+			markers, err := l.markers.List(item.Filename)
+			if err != nil {
+				l.logf("marker cache load failed mediaID=%s filename=%q error=%v", item.ID, item.Filename, err)
+				markers = []Marker{}
+			}
+			if len(markers) > 0 {
+				l.markersByMediaID[item.ID] = markers
+				markerCount += len(markers)
+			}
+			item.Markers = cloneMarkers(markers)
+		}
 		l.items[i] = item
 		l.itemsByID[item.ID] = item
 		l.pathsByID[item.ID] = path
@@ -615,7 +692,7 @@ func (l *Library) ensureIndex() error {
 	}
 	sortActivity(l.activity)
 	l.initialized = true
-	l.logf("runtime index initialization completed root=%q duration=%s mediaItems=%d commentFilesFound=%d mediaWithoutCommentFile=%d commentFilesFailed=%d comments=%d activityItems=%d", root, time.Since(started).Round(time.Millisecond), len(l.items), commentFilesFound, mediaWithoutCommentFile, commentsFailed, commentCount, len(l.activity))
+	l.logf("runtime index initialization completed root=%q duration=%s mediaItems=%d commentFilesFound=%d mediaWithoutCommentFile=%d commentFilesFailed=%d comments=%d markers=%d activityItems=%d", root, time.Since(started).Round(time.Millisecond), len(l.items), commentFilesFound, mediaWithoutCommentFile, commentsFailed, commentCount, markerCount, len(l.activity))
 	return nil
 }
 
@@ -800,6 +877,9 @@ func cloneItems(items []Item) []Item {
 
 func cloneItem(item Item) Item {
 	item.Comments = cloneComments(item.Comments)
+	if len(item.Markers) > 0 {
+		item.Markers = cloneMarkers(item.Markers)
+	}
 	if item.AudioTags != nil {
 		tags := *item.AudioTags
 		item.AudioTags = &tags
@@ -812,6 +892,13 @@ func cloneComments(comments []Comment) []Comment {
 		return []Comment{}
 	}
 	return append([]Comment(nil), comments...)
+}
+
+func cloneMarkers(markers []Marker) []Marker {
+	if len(markers) == 0 {
+		return nil
+	}
+	return append([]Marker(nil), markers...)
 }
 
 func activityItem(item Item, comment Comment) ActivityItem {

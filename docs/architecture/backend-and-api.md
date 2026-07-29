@@ -31,6 +31,14 @@ Comments and likes:
 - `POST /api/media/{id}/likes`
 - `GET /api/comments/events`
 
+Video timeline markers:
+
+- `GET /api/media/{id}/markers`
+- `POST /api/media/{id}/markers` accepts `timeSeconds` plus an optional
+  `author`, rounds the time to a whole second, and is rejected for non-video
+  media. A repeat by the same author on the same second returns the existing
+  marker with `200` instead of `201`.
+
 Boards:
 
 - `POST /api/boards`

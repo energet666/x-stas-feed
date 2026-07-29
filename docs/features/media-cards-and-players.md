@@ -31,6 +31,17 @@ taller than the viewport do not autoplay. Manual controls remain available.
 Duration from backend metadata avoids requiring Safari to preload solely for
 control layout.
 
+Viewers mark interesting moments with the controls button or `M`. A marker is
+the whole second plus the visitor nickname, with no identifier and no browser
+state. Markers are shared, so every viewer sees them as dots over the seek
+track; one second is one dot, and the dot grows with the number of viewers who
+marked that second. Video items carry their markers in the feed payload, and
+new markers arrive over the social SSE stream, including for the marking
+client, so the appearing dot is the only confirmation; a duplicate or failed
+marker stays silent. One nickname marks one second once: the backend returns
+the existing marker without creating or publishing anything, and the player
+refuses the repeat locally.
+
 Up and Down remain reserved for feed navigation. A fully visible video becomes
 the active player even when autoplay is disabled; explicit interaction also
 activates it immediately. Playback speed changes with Shift+Right and

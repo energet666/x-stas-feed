@@ -11,10 +11,11 @@
   import FeedVideoControls from './FeedVideoControls.svelte';
   import FeedVideoOverlay from './FeedVideoOverlay.svelte';
   import { uiText as t } from '../../lib/ui_text';
-  import { mediaPosterURL } from '../../lib/feed';
+  import { createMarker, mediaPosterURL } from '../../lib/feed';
   import type { MediaItem } from '../../lib/feed';
   import {
     AVAILABLE_SPEEDS,
+    groupMarkers,
     FEED_VIDEO_PLAY_EVENT,
     FEED_VIDEO_VOLUME_EVENT,
     LONG_PRESS_DELAY_MS,
@@ -26,6 +27,7 @@
     clampVolume,
     clearStoredProgress,
     isEditableTarget,
+    normalizeMarkerAuthor,
     readStoredProgress,
     readStoredVolume,
     saveStoredProgress,
@@ -46,6 +48,7 @@
     likePending = false,
     autoplayEnabled = false,
     suppressFeedChrome = false,
+    username = t.common.guest,
     onReveal,
     onKeep,
     onHide,
@@ -62,6 +65,7 @@
     likePending?: boolean;
     autoplayEnabled?: boolean;
     suppressFeedChrome?: boolean;
+    username?: string;
     onReveal: () => void;
     onKeep: () => void;
     onHide: () => void;
@@ -119,8 +123,11 @@
   let autoplayStarted = false;
   let inAutoplayViewport = false;
   let autoplayRequestVersion = 0;
+  let markerPending = $state(false);
   const playerId = nextPlayerId++;
 
+  const markers = $derived(item.markers ?? []);
+  const markerGroups = $derived(groupMarkers(markers, duration));
   const canPersistProgress = $derived(duration >= MIN_PROGRESS_SAVE_DURATION_SECONDS);
   const progress = $derived(duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0);
   const supportsPip = $derived(supportsPictureInPicture(video));
@@ -140,6 +147,35 @@
     metadataWanted = duration <= 0;
     validateDisplayedProgress();
   });
+
+  // One nickname marks one second once.
+  function alreadyMarked(second: number) {
+    const author = normalizeMarkerAuthor(username);
+    return markers.some(
+      (marker) => marker.timeSeconds === second && normalizeMarkerAuthor(marker.author) === author
+    );
+  }
+
+  async function addMarker() {
+    if (!video || markerPending || duration <= 0) return;
+    setActivePlayer();
+    revealControls();
+
+    const time = hasVideoInteraction ? video.currentTime : currentTime;
+    if (!Number.isFinite(time)) return;
+    const second = Math.round(clampPlaybackTime(time));
+    if (alreadyMarked(second)) return;
+
+    markerPending = true;
+    try {
+      // The new marker arrives through the social SSE stream, like board operations.
+      await createMarker(item.id, second, username);
+    } catch {
+      // A failed marker leaves the timeline unchanged; the next attempt can retry.
+    } finally {
+      markerPending = false;
+    }
+  }
 
   function revealControls() {
     showControls = true;
@@ -588,6 +624,12 @@
       return;
     }
 
+    if (event.code === 'KeyM' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      void addMarker();
+      return;
+    }
+
     if (event.shiftKey && (event.code === 'ArrowLeft' || event.code === 'ArrowRight')) {
       event.preventDefault();
       changePlaybackRate(event.code === 'ArrowRight' ? 1 : -1);
@@ -970,14 +1012,17 @@
       {muted}
       {volume}
       {progress}
+      markers={markerGroups}
       {supportsVolumeControl}
       {supportsPip}
+      {markerPending}
       bind:isDragging
       onTogglePlay={togglePlay}
       onSeek={handleSeek}
       onVolumeChange={handleVolume}
       onToggleMute={toggleMute}
       onTogglePip={togglePip}
+      onAddMarker={addMarker}
       onEnterControls={enterControls}
       onLeaveControls={leaveControls}
       onFinishDragging={finishDragging}

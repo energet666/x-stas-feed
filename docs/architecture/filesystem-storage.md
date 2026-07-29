@@ -13,6 +13,8 @@ from scanning.
 ## Sidecar Layout
 
 - `.comments/{rootFilename}.jsonl`: comments, one JSON object per line.
+- `.markers/{rootFilename}.jsonl`: video timeline markers as whole second plus
+  author, one JSON object per line.
 - `.metadata/{rootFilename}.json`: display name, visible modified time, media
   like count, and cached probe metadata.
 - `.posters/`: generated video poster JPEGs.
@@ -35,5 +37,7 @@ renames are unsupported until restart. Metadata probing and generated covers or
 posters are best effort; failure must not make the underlying media unavailable.
 
 Comment likes rewrite their JSONL file atomically because an existing record
-changes. New comments and board operations append to their stores.
+changes. New comments, markers, and board operations append to their stores.
+Markers are capped per media so an append-only sidecar cannot grow without
+bound.
 

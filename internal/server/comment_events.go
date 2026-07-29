@@ -16,6 +16,11 @@ type likeEvent struct {
 	LikeCount int    `json:"likeCount"`
 }
 
+type markerEvent struct {
+	MediaID string       `json:"mediaId"`
+	Marker  media.Marker `json:"marker"`
+}
+
 type commentLikeEvent struct {
 	MediaID   string `json:"mediaId"`
 	CommentID string `json:"commentId"`
@@ -66,6 +71,13 @@ func (h *commentHub) publish(mediaID string, comment media.Comment) {
 	h.publishEvent(feedEvent{
 		Name: "comment",
 		Data: commentEvent{MediaID: mediaID, Comment: comment},
+	})
+}
+
+func (h *commentHub) publishMarker(mediaID string, marker media.Marker) {
+	h.publishEvent(feedEvent{
+		Name: "marker",
+		Data: markerEvent{MediaID: mediaID, Marker: marker},
 	})
 }
 

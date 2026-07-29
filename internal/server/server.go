@@ -82,6 +82,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/media/{id}/comments", s.handleCreateComment)
 	s.mux.HandleFunc("POST /api/media/{id}/comments/{commentID}/likes", s.handleCreateCommentLike)
 	s.mux.HandleFunc("POST /api/media/{id}/likes", s.handleCreateLike)
+	s.mux.HandleFunc("GET /api/media/{id}/markers", s.handleMarkers)
+	s.mux.HandleFunc("POST /api/media/{id}/markers", s.handleCreateMarker)
 	s.mux.HandleFunc("GET /api/media/{id}/cover", s.handleMediaCover)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
@@ -352,6 +354,51 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Location", r.URL.Path+"/"+comment.ID)
 	s.comments.publish(r.PathValue("id"), comment)
 	writeJSON(w, http.StatusCreated, comment)
+}
+
+func (s *Server) handleMarkers(w http.ResponseWriter, r *http.Request) {
+	markers, err := s.library.MarkersForID(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if markers == nil {
+		markers = []media.Marker{}
+	}
+	writeJSON(w, http.StatusOK, map[string][]media.Marker{"markers": markers})
+}
+
+func (s *Server) handleCreateMarker(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		TimeSeconds float64 `json:"timeSeconds"`
+		Author      string  `json:"author"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid marker payload")
+		return
+	}
+
+	marker, created, err := s.library.AddMarker(r.PathValue("id"), request.TimeSeconds, request.Author)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.NotFound(w, r)
+			return
+		}
+		if errors.Is(err, media.ErrMarkerLimitReached) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if !created {
+		writeJSON(w, http.StatusOK, marker)
+		return
+	}
+
+	s.comments.publishMarker(r.PathValue("id"), marker)
+	writeJSON(w, http.StatusCreated, marker)
 }
 
 func (s *Server) handleCreateLike(w http.ResponseWriter, r *http.Request) {

@@ -35,6 +35,8 @@
     type FeedItemCreatedEvent,
     type IndexedFeedItem,
     type LikeEvent,
+    type Marker,
+    type MarkerEvent,
     type MediaItem,
     type StrokeEvent
   } from './lib/feed';
@@ -1102,6 +1104,18 @@
     }
   }
 
+  function appendItemMarker(mediaId: string, marker: Marker) {
+    const withMarker = (item: MediaItem) => {
+      if (item.id !== mediaId) return item;
+      return { ...item, markers: [...(item.markers ?? []), marker] };
+    };
+
+    items = items.map(withMarker);
+    if (selectedActivityMedia) {
+      selectedActivityMedia = withMarker(selectedActivityMedia);
+    }
+  }
+
   function updateItemLikeCount(mediaId: string, likeCount: number) {
     items = items.map((item) =>
       item.id === mediaId
@@ -1379,6 +1393,15 @@
         updateItemLikeCount(nextEvent.mediaId, nextEvent.likeCount);
       } catch {
         // Ignore malformed stream events; feed pagination can recover state.
+      }
+    });
+
+    commentEvents.addEventListener('marker', (event) => {
+      try {
+        const nextEvent = JSON.parse(event.data) as MarkerEvent;
+        appendItemMarker(nextEvent.mediaId, nextEvent.marker);
+      } catch {
+        // Ignore malformed stream events; a feed reload can recover marker state.
       }
     });
 

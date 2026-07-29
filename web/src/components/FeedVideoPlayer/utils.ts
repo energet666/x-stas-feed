@@ -1,3 +1,5 @@
+import type { Marker } from '../../lib/feed';
+
 export const AVAILABLE_SPEEDS = [1, 1.25, 1.5, 2];
 export const FEED_VIDEO_PLAY_EVENT = 'feed-video-play';
 export const FEED_VIDEO_VOLUME_EVENT = 'feed-video-volume';
@@ -8,6 +10,7 @@ export const MIN_PROGRESS_SAVE_DURATION_SECONDS = 120;
 
 const videoVolumeKey = 'feed-ai:video-volume';
 const videoMutedKey = 'feed-ai:video-muted';
+const maxAuthorRunes = 40;
 
 export type SafariVideoElement = HTMLVideoElement & {
   webkitSupportsPresentationMode?: (mode: 'picture-in-picture') => boolean;
@@ -101,6 +104,35 @@ export function saveStoredProgress(mediaId: string, time: number, duration: numb
 export function clearStoredProgress(mediaId: string) {
   storageRemove(progressStorageKey(mediaId));
   storageRemove(legacyVideoProgressStorageKey(mediaId));
+}
+
+export type MarkerGroup = {
+  timeSeconds: number;
+  count: number;
+};
+
+// Markers live on whole seconds, so one second is one dot and its weight is the
+// number of viewers who marked it.
+export function groupMarkers(markers: Marker[], duration: number): MarkerGroup[] {
+  if (markers.length === 0 || !Number.isFinite(duration) || duration <= 0) return [];
+
+  const counts = new Map<number, number>();
+  for (const marker of markers) {
+    if (!Number.isFinite(marker.timeSeconds) || marker.timeSeconds < 0) continue;
+    const second = Math.min(Math.round(marker.timeSeconds), Math.round(duration));
+    counts.set(second, (counts.get(second) ?? 0) + 1);
+  }
+
+  return [...counts]
+    .map(([timeSeconds, count]) => ({ timeSeconds, count }))
+    .sort((left, right) => left.timeSeconds - right.timeSeconds);
+}
+
+// Mirrors the backend author normalization so a stored author can be compared
+// with the current nickname.
+export function normalizeMarkerAuthor(author: string) {
+  const normalized = author.split(/\s+/).filter(Boolean).join(' ');
+  return [...normalized].slice(0, maxAuthorRunes).join('');
 }
 
 export function attachHorizontalSeekWheel(

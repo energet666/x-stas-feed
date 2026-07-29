@@ -15,6 +15,17 @@ export type CommentEvent = {
   comment: Comment;
 };
 
+export type Marker = {
+  timeSeconds: number;
+  author: string;
+  createdAt: string;
+};
+
+export type MarkerEvent = {
+  mediaId: string;
+  marker: Marker;
+};
+
 export type LikeEvent = {
   mediaId: string;
   likeCount: number;
@@ -195,6 +206,7 @@ export type MediaItem = {
   comments: Comment[];
   commentCount: number;
   likeCount: number;
+  markers?: Marker[];
   durationSeconds?: number;
   audioTags?: AudioTags;
   coverUrl?: string;
@@ -302,6 +314,32 @@ export async function createComment(mediaId: string, text: string, author: strin
   }
 
   return (await response.json()) as Comment;
+}
+
+export async function fetchMarkers(mediaId: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/markers`);
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? uiText.errors.markersRequest(response.status));
+  }
+
+  const body = (await response.json()) as { markers: Marker[] | null };
+  return Array.isArray(body.markers) ? body.markers : [];
+}
+
+export async function createMarker(mediaId: string, timeSeconds: number, author: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/markers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeSeconds, author })
+  });
+
+  if (!response.ok) {
+    const message = await responseErrorMessage(response);
+    throw new Error(message ?? uiText.errors.markerRequest(response.status));
+  }
+
+  return (await response.json()) as Marker;
 }
 
 export async function createLike(mediaId: string) {
@@ -417,7 +455,8 @@ function uploadErrorsMessage(body: UploadResult | null) {
 function normalizeMediaItem(item: MediaItem) {
   return {
     ...item,
-    comments: Array.isArray(item.comments) ? item.comments : []
+    comments: Array.isArray(item.comments) ? item.comments : [],
+    markers: Array.isArray(item.markers) ? item.markers : []
   };
 }
 

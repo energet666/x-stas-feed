@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { Pause, Play, Volume2, VolumeX } from 'lucide-svelte';
-  import { formatVideoTime } from './FeedVideoPlayer/utils';
+  import { formatVideoTime, type MarkerGroup } from './FeedVideoPlayer/utils';
   import { uiText as t } from '../lib/ui_text';
 
   let {
@@ -13,6 +13,7 @@
     muted,
     volume,
     progress,
+    markers = [],
     supportsVolumeControl,
     isDragging = $bindable(false),
     extraControls,
@@ -32,6 +33,7 @@
     muted: boolean;
     volume: number;
     progress: number;
+    markers?: MarkerGroup[];
     supportsVolumeControl: boolean;
     isDragging: boolean;
     extraControls?: Snippet;
@@ -43,6 +45,11 @@
     onLeaveControls: () => void;
     onFinishDragging: () => void;
   } = $props();
+
+  // Heavier dots read as moments that more viewers marked.
+  function markerSize(count: number) {
+    return (0.34 + Math.min(count - 1, 5) * 0.05).toFixed(2);
+  }
 
   function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
     const target = event.currentTarget;
@@ -125,6 +132,16 @@
     <div class="media-playback-progress-track w-full overflow-hidden rounded-full">
       <div class="media-playback-progress-fill h-full" style={`width: ${progress}%`}></div>
     </div>
+    {#if duration > 0 && markers.length > 0}
+      <div class="media-playback-markers pointer-events-none absolute inset-0" aria-hidden="true">
+        {#each markers as marker (marker.timeSeconds)}
+          <span
+            class="media-playback-marker"
+            style={`left: ${Math.min(100, (marker.timeSeconds / duration) * 100)}%; --marker-size: ${markerSize(marker.count)}rem`}
+          ></span>
+        {/each}
+      </div>
+    {/if}
     <input
       aria-label={seekLabel}
       type="range"
@@ -222,6 +239,20 @@
   .media-playback-progress-fill {
     border-radius: inherit;
     background: var(--color-track-fill);
+  }
+
+  .media-playback-marker {
+    position: absolute;
+    top: 50%;
+    width: var(--marker-size, 0.34rem);
+    height: var(--marker-size, 0.34rem);
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: var(--color-track-fill);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45);
+    transition:
+      width 140ms ease,
+      height 140ms ease;
   }
 
   .media-playback-progress input {

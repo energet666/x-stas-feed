@@ -12,7 +12,8 @@ for Asteroids.
 ## SSE Streams
 
 `GET /api/comments/events` is the global social/feed stream. It carries new
-comments, media likes, comment likes, and newly created feed items. The client
+comments, media likes, comment likes, video timeline markers, and newly created
+feed items. The client
 updates visible state directly but does not prepend a newly announced card into
 the virtual list. It shows a refresh affordance and reloads from the newest
 index to avoid viewport jumps.

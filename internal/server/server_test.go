@@ -1831,6 +1831,200 @@ func TestCreateBoardImagePersistsOperationAndServesAsset(t *testing.T) {
 	}
 }
 
+func TestMarkerEndpointsCreateListAndUpdateFeedItem(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "clip.mp4")
+	id := media.EncodeID("clip.mp4")
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	for _, seconds := range []string{"4.25", "61.5"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/markers", bytes.NewBufferString(`{"timeSeconds":`+seconds+`,"author":"Шустрый Компот 9"}`))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+
+		handler.ServeHTTP(res, req)
+
+		if res.Code != http.StatusCreated {
+			t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/media/"+id+"/markers", nil)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", res.Code)
+	}
+
+	var markersResponse struct {
+		Markers []media.Marker `json:"markers"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&markersResponse); err != nil {
+		t.Fatal(err)
+	}
+	if len(markersResponse.Markers) != 2 || markersResponse.Markers[0].TimeSeconds != 4 || markersResponse.Markers[1].TimeSeconds != 62 {
+		t.Fatalf("expected markers rounded to whole seconds, got %#v", markersResponse)
+	}
+	if markersResponse.Markers[0].Author != "Шустрый Компот 9" {
+		t.Fatalf("expected saved marker author, got %#v", markersResponse.Markers[0])
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/feed?index=-1", nil)
+	res = httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	var feedItem media.IndexedItem
+	if err := json.NewDecoder(res.Body).Decode(&feedItem); err != nil {
+		t.Fatal(err)
+	}
+	if len(feedItem.Item.Markers) != 2 || feedItem.Item.Markers[0].TimeSeconds != 4 {
+		t.Fatalf("expected markers in feed item, got %#v", feedItem.Item.Markers)
+	}
+}
+
+func TestCreateMarkerRepeatBySameAuthorIsNotCreated(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "clip.mp4")
+	id := media.EncodeID("clip.mp4")
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+	post := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/markers", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		return res
+	}
+
+	if res := post(`{"timeSeconds":10.2,"author":"Важный Пончик 5"}`); res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+	if res := post(`{"timeSeconds":9.7,"author":"Важный Пончик 5"}`); res.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for repeat, got %d body=%s", res.Code, res.Body.String())
+	}
+	if res := post(`{"timeSeconds":10,"author":"Нежный Чебурек 6"}`); res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201 for another author, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/media/"+id+"/markers", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	var markersResponse struct {
+		Markers []media.Marker `json:"markers"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&markersResponse); err != nil {
+		t.Fatal(err)
+	}
+	if len(markersResponse.Markers) != 2 {
+		t.Fatalf("expected 2 markers on second 10, got %#v", markersResponse.Markers)
+	}
+}
+
+func TestCreateMarkerRejectsInvalidTimeAndUnknownMedia(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "clip.mp4")
+	id := media.EncodeID("clip.mp4")
+
+	handler := New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/media/"+id+"/markers", bytes.NewBufferString(`{"timeSeconds":-3}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for negative time, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/media/"+media.EncodeID("missing.mp4")+"/markers", bytes.NewBufferString(`{"timeSeconds":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404 for unknown media, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/media/not-a-media-id/markers", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404 for invalid media id, got %d", res.Code)
+	}
+}
+
+func TestCommentEventsStreamsCreatedMarkers(t *testing.T) {
+	dir := t.TempDir()
+	writeServerTestFile(t, dir, "clip.mp4")
+	id := media.EncodeID("clip.mp4")
+
+	testServer := httptest.NewServer(New(media.NewLibrary(dir), dir, "", log.New(io.Discard, "", 0)).Handler())
+	defer testServer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/comments/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := testServer.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(res.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+
+	postRes, err := testServer.Client().Post(
+		testServer.URL+"/api/media/"+id+"/markers",
+		"application/json",
+		bytes.NewBufferString(`{"timeSeconds":18.5}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = postRes.Body.Close()
+	if postRes.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", postRes.StatusCode)
+	}
+
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("marker event stream closed before receiving data")
+			}
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var event struct {
+				MediaID string       `json:"mediaId"`
+				Marker  media.Marker `json:"marker"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+				t.Fatal(err)
+			}
+			if event.MediaID != id || event.Marker.TimeSeconds != 19 {
+				t.Fatalf("expected streamed marker event, got %#v", event)
+			}
+			return
+		case <-timeout:
+			t.Fatal("timed out waiting for marker event")
+		}
+	}
+}
+
 func writeServerTestFile(t *testing.T, dir, name string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
