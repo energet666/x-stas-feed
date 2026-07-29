@@ -1,5 +1,8 @@
 WEB_DIR := web
 BUILD_DIR := build
+RUN_ADDR := :8080
+RUN_CONTENT_DIR := test-content
+RUN_STATIC_DIR := $(WEB_DIR)/dist
 PACKAGE_DIR := $(BUILD_DIR)/feed-ai-win64
 PACKAGE_WEB_DIST := $(PACKAGE_DIR)/web/dist
 PACKAGE_CONTENT_DIR := $(PACKAGE_DIR)/test-content
@@ -14,7 +17,7 @@ FFPROBE_WIN_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/ffprobe.exe
 FFMPEG_WIN_LICENSE_SRC := tools/ffmpeg/windows-amd64/LICENSE.txt
 FFMPEG_WIN_LICENSE_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/LICENSE.txt
 
-.PHONY: check docs-check web-build web-package server-win sticker-pack-win ffmpeg-win package-win zip-win
+.PHONY: check docs-check web-build web-package run server-win sticker-pack-win ffmpeg-win package-win zip-win
 
 check:
 	go run ./tools/docscheck
@@ -26,6 +29,9 @@ docs-check:
 
 web-build:
 	cd $(WEB_DIR) && npm run build
+
+run: web-build
+	go run ./cmd/server -addr $(RUN_ADDR) -content-dir $(RUN_CONTENT_DIR) -static-dir $(RUN_STATIC_DIR)
 
 web-package:
 	mkdir -p $(PACKAGE_WEB_DIST)
