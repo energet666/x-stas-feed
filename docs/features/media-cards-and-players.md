@@ -44,6 +44,14 @@ marker stays silent. One nickname marks one second once: the backend returns
 the existing marker without creating or publishing anything, and the player
 refuses the repeat locally.
 
+Pointing at the seek track shows the frame at that position above the cursor
+with its timecode. Frames come from one cached sprite sheet per video, so
+scrubbing costs a single request and no seeking; the sheet is requested on the
+first hover and nothing is drawn until it decodes, which leaves plain seeking
+for short videos that have no sheet. The preview stays inside the track at both
+ends, portrait frames are scaled down to a common height, and a touch drag shows
+the preview until the finger lifts.
+
 Up and Down remain reserved for feed navigation. A fully visible video becomes
 the active player even when autoplay is disabled; explicit interaction also
 activates it immediately. Playback speed changes with Shift+Right and

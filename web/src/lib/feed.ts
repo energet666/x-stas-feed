@@ -21,6 +21,18 @@ export type Marker = {
   createdAt: string;
 };
 
+// Tile i of the sheet holds the frame at intervalSeconds * (i + 0.5).
+export type MediaSprite = {
+  version: string;
+  tileWidth: number;
+  tileHeight: number;
+  columns: number;
+  rows: number;
+  count: number;
+  intervalSeconds: number;
+  durationSeconds: number;
+};
+
 export type MarkerEvent = {
   mediaId: string;
   marker: Marker;
@@ -437,6 +449,27 @@ export function shipSocketURL(resumeToken: string, name: string) {
 export function mediaPosterURL(mediaId: string, seconds: number) {
   const time = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 2) / 2 : 0;
   return `/api/media/${encodeURIComponent(mediaId)}/poster?time=${time.toFixed(1)}`;
+}
+
+export function mediaSpriteURL(mediaId: string) {
+  return `/api/media/${encodeURIComponent(mediaId)}/sprite`;
+}
+
+// Media too short for a useful sheet answers 404, so a missing sheet is a
+// normal outcome rather than an error worth surfacing.
+export async function fetchMediaSprite(mediaId: string) {
+  const response = await fetch(`/api/media/${encodeURIComponent(mediaId)}/sprite/meta`);
+  if (!response.ok) return null;
+
+  const sheet = (await response.json()) as MediaSprite;
+  const usable =
+    sheet &&
+    sheet.tileWidth > 0 &&
+    sheet.tileHeight > 0 &&
+    sheet.columns > 0 &&
+    sheet.count > 0 &&
+    sheet.intervalSeconds > 0;
+  return usable ? sheet : null;
 }
 
 async function responseErrorMessage(response: Response) {

@@ -86,6 +86,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/media/{id}/markers", s.handleCreateMarker)
 	s.mux.HandleFunc("GET /api/media/{id}/cover", s.handleMediaCover)
 	s.mux.HandleFunc("GET /api/media/{id}/poster", s.handleMediaPoster)
+	s.mux.HandleFunc("GET /api/media/{id}/sprite", s.handleMediaSprite)
+	s.mux.HandleFunc("GET /api/media/{id}/sprite/meta", s.handleMediaSpriteMeta)
 	s.mux.HandleFunc("GET /api/boards", s.handleListBoards)
 	s.mux.HandleFunc("POST /api/boards", s.handleCreateBoard)
 	s.mux.HandleFunc("GET /api/board-assets", s.handleListBoardAssets)
@@ -501,6 +503,29 @@ func (s *Server) handleMediaPoster(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleMediaSprite(w http.ResponseWriter, r *http.Request) {
+	path, _, err := s.library.SpriteForID(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleMediaSpriteMeta(w http.ResponseWriter, r *http.Request) {
+	_, sheet, err := s.library.SpriteForID(r.PathValue("id"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	writeJSON(w, http.StatusOK, sheet)
 }
 
 func (s *Server) handleMediaCover(w http.ResponseWriter, r *http.Request) {

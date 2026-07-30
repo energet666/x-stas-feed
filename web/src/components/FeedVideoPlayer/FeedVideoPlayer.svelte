@@ -1046,6 +1046,7 @@
       {volume}
       {progress}
       markers={markerGroups}
+      previewMediaId={item.id}
       {supportsVolumeControl}
       {supportsPip}
       {markerPending}

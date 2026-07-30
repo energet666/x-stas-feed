@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { Pause, Play, Volume2, VolumeX } from 'lucide-svelte';
   import { formatVideoTime, type MarkerGroup } from './FeedVideoPlayer/utils';
+  import { fetchMediaSprite, mediaSpriteURL, type MediaSprite } from '../lib/feed';
   import { uiText as t } from '../lib/ui_text';
 
   let {
@@ -14,6 +15,7 @@
     volume,
     progress,
     markers = [],
+    previewMediaId,
     supportsVolumeControl,
     isDragging = $bindable(false),
     extraControls,
@@ -34,6 +36,7 @@
     volume: number;
     progress: number;
     markers?: MarkerGroup[];
+    previewMediaId?: string;
     supportsVolumeControl: boolean;
     isDragging: boolean;
     extraControls?: Snippet;
@@ -46,10 +49,100 @@
     onFinishDragging: () => void;
   } = $props();
 
+  // A portrait tile would tower over the controls, so the frame is scaled down
+  // to a common height instead of being shown at its stored size.
+  const previewMaxHeight = 108;
+
+  let sprite = $state<MediaSprite | null>(null);
+  let spriteURL = $state('');
+  let spriteLoaded = $state(false);
+  let spriteRequested = false;
+  let previewTime = $state(-1);
+  let previewOffset = $state(0);
+  let trackWidth = $state(0);
+
+  const previewScale = $derived(sprite ? Math.min(1, previewMaxHeight / sprite.tileHeight) : 1);
+  const previewWidth = $derived(sprite ? sprite.tileWidth * previewScale : 0);
+  const previewFrame = $derived.by(() => {
+    if (!sprite || !spriteLoaded || previewTime < 0) return null;
+
+    const index = Math.min(sprite.count - 1, Math.max(0, Math.floor(previewTime / sprite.intervalSeconds)));
+    const column = index % sprite.columns;
+    const row = Math.floor(index / sprite.columns);
+    const height = sprite.tileHeight * previewScale;
+    // The whole sheet is scaled as one background so a tile keeps its share of
+    // the image no matter how far it is scaled down.
+    return {
+      width: previewWidth,
+      height,
+      sheetWidth: sprite.columns * previewWidth,
+      sheetHeight: sprite.rows * height,
+      offsetX: column * previewWidth,
+      offsetY: row * height
+    };
+  });
+  const previewLeft = $derived(
+    trackWidth > 0 && previewWidth > 0
+      ? Math.min(Math.max(previewOffset, previewWidth / 2), Math.max(trackWidth - previewWidth / 2, previewWidth / 2))
+      : previewOffset
+  );
+
   // Heavier dots read as moments that more viewers marked.
   function markerSize(count: number) {
     return (0.34 + Math.min(count - 1, 5) * 0.05).toFixed(2);
   }
+
+  function loadSprite(mediaId: string) {
+    if (spriteRequested) return;
+    spriteRequested = true;
+
+    fetchMediaSprite(mediaId)
+      .then((sheet) => {
+        if (!sheet) return;
+        sprite = sheet;
+        spriteURL = mediaSpriteURL(mediaId);
+        // Nothing is shown until the sheet itself is decoded, so scrubbing
+        // never flashes an empty box.
+        const image = new Image();
+        image.onload = () => (spriteLoaded = true);
+        image.src = spriteURL;
+      })
+      .catch(() => undefined);
+  }
+
+  function updatePreview(event: PointerEvent) {
+    if (!previewMediaId || duration <= 0) {
+      previewTime = -1;
+      return;
+    }
+
+    const input = event.currentTarget;
+    if (!(input instanceof HTMLInputElement)) return;
+    const progressEl = input.closest('.media-playback-progress');
+    if (!(progressEl instanceof HTMLElement)) return;
+    const bounds = progressEl.getBoundingClientRect();
+    if (bounds.width <= 0) return;
+
+    const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    trackWidth = bounds.width;
+    previewOffset = ratio * bounds.width;
+    previewTime = ratio * duration;
+    loadSprite(previewMediaId);
+  }
+
+  function hidePreview() {
+    previewTime = -1;
+  }
+
+  // A recycled player points at another media, so the cached sheet goes with it.
+  $effect(() => {
+    previewMediaId;
+    sprite = null;
+    spriteURL = '';
+    spriteLoaded = false;
+    spriteRequested = false;
+    previewTime = -1;
+  });
 
   function eventIsInsideCurrentTarget(event: PointerEvent | MouseEvent) {
     const target = event.currentTarget;
@@ -89,9 +182,16 @@
   }
 
   function updateSeekInteraction(event: PointerEvent) {
+    updatePreview(event);
     if (!isDragging) return;
     event.preventDefault();
     applySeekPointerValue(event);
+  }
+
+  function finishSeekInteraction(event: PointerEvent) {
+    // A touch leaves no cursor behind, so its preview goes away with the lift.
+    if (event.pointerType !== 'mouse') hidePreview();
+    finishRangeInteraction();
   }
 
   function finishRangeInteraction() {
@@ -129,6 +229,19 @@
   <span class="media-playback-time shrink-0 font-bold">{formatVideoTime(currentTime)}</span>
 
   <div class="media-playback-progress relative flex min-w-16 flex-1 items-center">
+    {#if previewFrame}
+      <div
+        class="media-playback-preview pointer-events-none absolute flex flex-col items-center gap-1"
+        style={`left: ${previewLeft}px; --preview-width: ${previewFrame.width}px`}
+        aria-hidden="true"
+      >
+        <span
+          class="media-playback-preview-frame block overflow-hidden"
+          style={`width: ${previewFrame.width}px; height: ${previewFrame.height}px; background-image: url(${spriteURL}); background-size: ${previewFrame.sheetWidth}px ${previewFrame.sheetHeight}px; background-position: -${previewFrame.offsetX}px -${previewFrame.offsetY}px`}
+        ></span>
+        <span class="media-playback-preview-time">{formatVideoTime(previewTime)}</span>
+      </div>
+    {/if}
     <div class="media-playback-progress-track w-full overflow-hidden rounded-full">
       <div class="media-playback-progress-fill h-full" style={`width: ${progress}%`}></div>
     </div>
@@ -151,7 +264,9 @@
       value={currentTime}
       onpointerdown={startSeekInteraction}
       onpointermove={updateSeekInteraction}
-      onpointerup={finishRangeInteraction}
+      onpointerup={finishSeekInteraction}
+      onpointerleave={hidePreview}
+      onpointercancel={hidePreview}
       onmousedown={startRangeInteraction}
       onmouseup={finishRangeInteraction}
       onchange={finishRangeInteraction}
@@ -239,6 +354,29 @@
   .media-playback-progress-fill {
     border-radius: inherit;
     background: var(--color-track-fill);
+  }
+
+  .media-playback-preview {
+    bottom: calc(100% + 0.15rem);
+    z-index: 6;
+    transform: translateX(-50%);
+  }
+
+  .media-playback-preview-frame {
+    border-radius: 0.6rem;
+    background-color: var(--color-surface-media);
+    background-repeat: no-repeat;
+    box-shadow:
+      0 0 0 1px var(--color-border-glass),
+      var(--shadow-thumb);
+  }
+
+  .media-playback-preview-time {
+    color: var(--color-fg-primary);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 0.65);
   }
 
   .media-playback-marker {

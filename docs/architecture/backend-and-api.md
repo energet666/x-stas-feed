@@ -19,6 +19,8 @@ Feed and media:
 - `GET /api/media/{id}` returns one safe media record.
 - `GET /media/{id}` serves media bytes with a one-hour public cache policy.
 - `GET /api/media/{id}/poster?time=T` and `/cover` serve generated artifacts.
+- `GET /api/media/{id}/sprite` serves the scrubbing sprite sheet of one video,
+  and `/sprite/meta` its tile grid. Both answer `404` for media without a sheet.
 - `POST /api/uploads` accepts one multipart `files` part, plus optional
   `modifiedAt`, with a 5 GiB request limit.
 - `GET /api/activity?limit=N` returns comments plus the latest board operation

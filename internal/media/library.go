@@ -75,6 +75,9 @@ type Library struct {
 	commentsByMediaID map[string][]Comment
 	markersByMediaID  map[string][]Marker
 	activity          []ActivityItem
+
+	spriteMu    sync.Mutex
+	spriteCalls map[string]*spriteCall
 }
 
 type Item struct {

@@ -17,7 +17,8 @@ from scanning.
   author, one JSON object per line.
 - `.metadata/{rootFilename}.json`: display name, visible modified time, media
   like count, and cached probe metadata.
-- `.posters/`: generated video poster JPEGs.
+- `.posters/`: generated video poster JPEGs, plus one scrubbing sprite sheet
+  JPEG and its tile grid JSON per video.
 - `.covers/`: extracted audio cover JPEGs.
 - `.boards/{rootFilename}.jsonl`: board metadata followed by ordered operations.
 - `.boards/master.jsonl`: the non-feed master board.

@@ -12,6 +12,7 @@
     volume,
     progress,
     markers = [],
+    previewMediaId,
     supportsVolumeControl,
     supportsPip,
     markerPending = false,
@@ -33,6 +34,7 @@
     volume: number;
     progress: number;
     markers?: MarkerGroup[];
+    previewMediaId?: string;
     supportsVolumeControl: boolean;
     supportsPip: boolean;
     markerPending?: boolean;
@@ -59,6 +61,7 @@
   {volume}
   {progress}
   {markers}
+  {previewMediaId}
   {supportsVolumeControl}
   bind:isDragging
   {onTogglePlay}
