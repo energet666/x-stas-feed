@@ -588,6 +588,104 @@ func TestSaveUploadWithModifiedAtDisplaysSourceTimeButSortsByServerTime(t *testi
 	}
 }
 
+func TestSaveUploadedTempFileRenamesTempIntoLibrary(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	temp := writeTestUploadTemp(t, library, "uploaded image bytes")
+	tempPath := temp.Name()
+	if filepath.Dir(tempPath) != dir {
+		t.Fatalf("expected temp file inside library root %q, got %q", dir, tempPath)
+	}
+
+	uploaded, err := library.SaveUploadedTempFile("New Photo.png", tempPath, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Filename != "New Photo.png" {
+		t.Fatalf("expected original filename, got %q", uploaded.Filename)
+	}
+	if _, err := os.Stat(tempPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected temp file to be renamed away, got %v", err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(dir, uploaded.Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != "uploaded image bytes" {
+		t.Fatalf("expected uploaded bytes to survive the rename, got %q", contents)
+	}
+
+	indexed, err := library.IndexedItem(-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if indexed.LastIndex != 0 || indexed.Item.ID != uploaded.ID {
+		t.Fatalf("expected only the uploaded item in the index, got %#v", indexed)
+	}
+}
+
+func TestSaveUploadedTempFileRejectsEmptyUploadAndKeepsTemp(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+
+	temp := writeTestUploadTemp(t, library, "")
+	tempPath := temp.Name()
+
+	if _, err := library.SaveUploadedTempFile("empty.png", tempPath, time.Time{}); err == nil {
+		t.Fatal("expected empty upload to be rejected")
+	}
+	if _, err := os.Stat(tempPath); err != nil {
+		t.Fatalf("expected rejected temp file to stay for caller cleanup: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "empty.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected no media file for rejected upload, got %v", err)
+	}
+}
+
+func TestRemoveUploadTempsDeletesInterruptedUploads(t *testing.T) {
+	dir := t.TempDir()
+	library := NewLibrary(dir)
+	writeTestFile(t, dir, "keep.png", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC))
+
+	temp := writeTestUploadTemp(t, library, "interrupted upload")
+	tempPath := temp.Name()
+
+	items, err := library.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Filename != "keep.png" {
+		t.Fatalf("expected temp file to stay out of the index, got %#v", items)
+	}
+
+	if err := library.RemoveUploadTemps(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(tempPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected leftover temp file to be removed, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "keep.png")); err != nil {
+		t.Fatalf("expected media files to survive cleanup: %v", err)
+	}
+}
+
+func writeTestUploadTemp(t *testing.T, library *Library, contents string) *os.File {
+	t.Helper()
+	temp, err := library.CreateUploadTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := temp.WriteString(contents); err != nil {
+		t.Fatal(err)
+	}
+	if err := temp.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return temp
+}
+
 func TestRuntimeIndexUpdatesCommentsActivityAndLikes(t *testing.T) {
 	dir := t.TempDir()
 	modTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

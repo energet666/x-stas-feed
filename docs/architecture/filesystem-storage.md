@@ -25,6 +25,8 @@ from scanning.
 - `.boards/assets/`: content-addressed reusable board images.
 - `.boards/sticker-pack/`: committed starter assets and attribution.
 - `.game-scores/`: filesystem-backed solo Asteroids scores.
+- `.upload-*.tmp`: root-level scratch files for uploads in flight, removed on
+  server start when an upload was interrupted.
 
 Sidecar names are derived from media records known to the server, never from
 arbitrary client paths. JSON and JSON Lines are used so user text may contain

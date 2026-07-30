@@ -20,6 +20,9 @@ func main() {
 
 	logger := log.New(logging.NewConsoleWriter(os.Stdout), "", 0)
 	library := media.NewLibraryWithLogger(*contentDir, logger)
+	if err := library.RemoveUploadTemps(); err != nil {
+		logger.Printf("upload temp cleanup failed contentDir=%q error=%v", *contentDir, err)
+	}
 	app := server.New(library, *contentDir, *staticDir, logger)
 
 	httpServer := &http.Server{

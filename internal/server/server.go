@@ -195,13 +195,15 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 	var uploadFilename string
 	var uploadModifiedAt time.Time
 	var uploadTemp *os.File
+	var uploadTempPath string
 	var pendingModifiedAt []time.Time
 
 	defer func() {
 		if uploadTemp != nil {
-			name := uploadTemp.Name()
 			_ = uploadTemp.Close()
-			_ = os.Remove(name)
+		}
+		if uploadTempPath != "" {
+			_ = os.Remove(uploadTempPath)
 		}
 	}()
 
@@ -246,7 +248,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 			pendingModifiedAt = pendingModifiedAt[1:]
 		}
 
-		temp, err := os.CreateTemp("", "feed-ai-upload-*")
+		temp, err := s.library.CreateUploadTemp()
 		if err != nil {
 			_ = part.Close()
 			writeError(w, http.StatusInternalServerError, "upload could not be stored")
@@ -267,6 +269,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		uploadFilename = filename
 		uploadModifiedAt = sourceModifiedAt
 		uploadTemp = temp
+		uploadTempPath = temp.Name()
 	}
 
 	if uploadTemp == nil {
@@ -274,12 +277,14 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := uploadTemp.Seek(0, io.SeekStart); err != nil {
-		writeError(w, http.StatusInternalServerError, "upload could not be read")
+	// The rename below needs the file closed on every platform.
+	if err := uploadTemp.Close(); err != nil {
+		writeError(w, http.StatusInternalServerError, "upload could not be stored")
 		return
 	}
+	uploadTemp = nil
 
-	item, uploadErr := s.library.SaveUploadWithModifiedAt(uploadFilename, uploadTemp, uploadModifiedAt)
+	item, uploadErr := s.library.SaveUploadedTempFile(uploadFilename, uploadTempPath, uploadModifiedAt)
 	if uploadErr != nil {
 		if isRequestTooLarge(uploadErr) {
 			writeUploadTooLarge(w)
@@ -289,6 +294,7 @@ func (s *Server) handleUploads(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, response)
 		return
 	}
+	uploadTempPath = ""
 
 	response.Items = append(response.Items, item)
 	s.publishFeedItemCreated(item.ID)

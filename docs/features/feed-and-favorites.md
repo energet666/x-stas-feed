@@ -29,6 +29,11 @@ use suffixes such as `clip (1).mp4`. Successful uploads update the runtime index
 publish a feed-created event, and cause the initiating client to reload from
 the newest item.
 
+Received bytes stream into a scratch file inside the content root and are moved
+into place with a rename, so a large upload is written once. The browser
+progress bar tracks only the request body, so it reaches 100% before the server
+finishes the rename, metadata probe, and index update.
+
 ## Favorites
 
 Favorites are an ordered ID array under `feed-ai:favorites`. New IDs are
