@@ -590,21 +590,19 @@
   }
 
   .audio-art-wrap {
+    container: audio-art-wrap / size;
     display: grid;
-    width: auto;
-    max-width: 100%;
+    width: 100%;
     height: 100%;
-    max-height: min(38rem, 100%);
     min-height: 0;
-    aspect-ratio: 1;
     place-items: center;
   }
 
   .audio-art {
     position: relative;
     display: grid;
-    width: 100%;
-    height: 100%;
+    width: min(100%, 100cqh, 38rem);
+    aspect-ratio: 1;
     overflow: hidden;
     place-items: center;
     border: 1px solid rgb(255 255 255 / 0.16);
@@ -698,8 +696,8 @@
       padding-left: 1rem;
     }
 
-    .audio-art-wrap {
-      max-height: min(100%, 31rem);
+    .audio-art {
+      width: min(100%, 100cqh, 31rem);
     }
 
     h3 {
