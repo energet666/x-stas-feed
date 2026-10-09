@@ -60,6 +60,7 @@
   let previewTime = $state(-1);
   let previewOffset = $state(0);
   let trackWidth = $state(0);
+  let hoveredMarkerTime = $state(-1);
 
   const previewScale = $derived(sprite ? Math.min(1, previewMaxHeight / sprite.tileHeight) : 1);
   const previewWidth = $derived(sprite ? sprite.tileWidth * previewScale : 0);
@@ -92,6 +93,36 @@
     return (0.34 + Math.min(count - 1, 5) * 0.05).toFixed(2);
   }
 
+  // A pixel of a long video spans several seconds, so a pointer near a dot
+  // lands exactly on its second instead of wherever the cursor happens to be.
+  const markerSnapPixels = 8;
+
+  function trackPosition(event: PointerEvent) {
+    const input = event.currentTarget;
+    if (!(input instanceof HTMLInputElement) || duration <= 0) return null;
+    const progressEl = input.closest('.media-playback-progress');
+    if (!(progressEl instanceof HTMLElement)) return null;
+    const bounds = progressEl.getBoundingClientRect();
+    if (bounds.width <= 0) return null;
+
+    const offset = Math.min(bounds.width, Math.max(0, event.clientX - bounds.left));
+    let nearest: MarkerGroup | null = null;
+    let nearestDistance = Infinity;
+    for (const marker of markers) {
+      const distance = Math.abs(Math.min(1, marker.timeSeconds / duration) * bounds.width - offset);
+      if (distance < nearestDistance) {
+        nearest = marker;
+        nearestDistance = distance;
+      }
+    }
+
+    if (nearest && nearestDistance <= markerSnapPixels) {
+      const time = Math.min(nearest.timeSeconds, duration);
+      return { width: bounds.width, offset: (time / duration) * bounds.width, time, marker: nearest };
+    }
+    return { width: bounds.width, offset, time: (offset / bounds.width) * duration, marker: null };
+  }
+
   function loadSprite(mediaId: string) {
     if (spriteRequested) return;
     spriteRequested = true;
@@ -111,27 +142,22 @@
   }
 
   function updatePreview(event: PointerEvent) {
-    if (!previewMediaId || duration <= 0) {
+    const position = trackPosition(event);
+    hoveredMarkerTime = position?.marker?.timeSeconds ?? -1;
+    if (!previewMediaId || !position) {
       previewTime = -1;
       return;
     }
 
-    const input = event.currentTarget;
-    if (!(input instanceof HTMLInputElement)) return;
-    const progressEl = input.closest('.media-playback-progress');
-    if (!(progressEl instanceof HTMLElement)) return;
-    const bounds = progressEl.getBoundingClientRect();
-    if (bounds.width <= 0) return;
-
-    const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-    trackWidth = bounds.width;
-    previewOffset = ratio * bounds.width;
-    previewTime = ratio * duration;
+    trackWidth = position.width;
+    previewOffset = position.offset;
+    previewTime = position.time;
     loadSprite(previewMediaId);
   }
 
   function hidePreview() {
     previewTime = -1;
+    hoveredMarkerTime = -1;
   }
 
   // A recycled player points at another media, so the cached sheet goes with it.
@@ -163,12 +189,9 @@
 
   function applySeekPointerValue(event: PointerEvent) {
     const input = event.currentTarget;
-    if (!(input instanceof HTMLInputElement) || duration <= 0) return;
-    const progressEl = input.closest('.media-playback-progress');
-    if (!(progressEl instanceof HTMLElement)) return;
-    const bounds = progressEl.getBoundingClientRect();
-    const ratio = bounds.width > 0 ? Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width)) : 0;
-    input.value = String(ratio * duration);
+    const position = trackPosition(event);
+    if (!(input instanceof HTMLInputElement) || !position) return;
+    input.value = String(position.time);
     onSeek(event);
   }
 
@@ -178,6 +201,7 @@
     startRangeInteraction();
     event.preventDefault();
     input.setPointerCapture(event.pointerId);
+    updatePreview(event);
     applySeekPointerValue(event);
   }
 
@@ -250,6 +274,7 @@
         {#each markers as marker (marker.timeSeconds)}
           <span
             class="media-playback-marker"
+            class:media-playback-marker-hovered={marker.timeSeconds === hoveredMarkerTime}
             style={`left: ${Math.min(100, (marker.timeSeconds / duration) * 100)}%; --marker-size: ${markerSize(marker.count)}rem`}
           ></span>
         {/each}
@@ -390,7 +415,16 @@
     box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45);
     transition:
       width 140ms ease,
-      height 140ms ease;
+      height 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .media-playback-marker-hovered {
+    width: calc(var(--marker-size, 0.34rem) + 0.22rem);
+    height: calc(var(--marker-size, 0.34rem) + 0.22rem);
+    box-shadow:
+      0 0 0 1px rgb(0 0 0 / 0.45),
+      0 0 0 3px var(--color-action-hover);
   }
 
   .media-playback-progress input {

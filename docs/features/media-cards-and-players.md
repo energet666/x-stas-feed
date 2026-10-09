@@ -44,6 +44,10 @@ marker stays silent. One nickname marks one second once: the backend returns
 the existing marker without creating or publishing anything, and the player
 refuses the repeat locally.
 
+A pointer within a few pixels of a dot snaps to it: the dot is highlighted, the
+preview shows that marker's second, and a click or drag seeks exactly there,
+because one pixel of a long video spans several seconds.
+
 Pointing at the seek track shows the frame at that position above the cursor
 with its timecode. Frames come from one cached sprite sheet per video, so
 scrubbing costs a single request and no seeking; the sheet is requested on the
