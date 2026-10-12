@@ -107,6 +107,12 @@ Create a Windows x64 package:
 make package-win
 ```
 
+Create a small Windows x64 package without FFmpeg (`build/feed-ai-win64-lite.zip`):
+
+```sh
+make package-win-lite
+```
+
 The Windows package is written under `build/feed-ai-win64` and zipped as `build/feed-ai-win64.zip`. The starter board sticker pack is copied into the packaged `test-content/.boards/sticker-pack` directory. If local Windows FFmpeg binaries are present under `tools/ffmpeg/windows-amd64/`, they are copied into the package.
 
 ## Content Directory
