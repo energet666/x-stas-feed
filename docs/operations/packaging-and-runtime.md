@@ -11,6 +11,8 @@ status: active
 
 - the Vite production bundle;
 - `server.exe`;
+- `start.bat` from `tools/package/start.bat`, which starts the server with the
+  package paths and opens `http://localhost:8080` in the default browser;
 - the committed drawing-board sticker pack;
 - bundled Windows amd64 FFmpeg and FFprobe binaries when locally present.
 
@@ -18,8 +20,8 @@ status: active
 `build/feed-ai-win64-lite` and creates `build/feed-ai-win64-lite.zip`, a few
 megabytes instead of well over a hundred. It ships an empty
 `tools/ffmpeg/windows-amd64` folder and a Russian `README.txt` from
-`tools/package/windows-lite-README.txt` that explains how to start the server
-and where to get FFmpeg. Without FFmpeg the server degrades as described in
+`tools/package/windows-lite-README.txt` that explains how to start the package
+with `start.bat` and where to get FFmpeg. Without FFmpeg the server degrades as described in
 [known constraints](known-constraints.md).
 
 Production-style local operation builds `web/dist` and starts the Go server

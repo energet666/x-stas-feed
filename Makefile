@@ -10,6 +10,7 @@ PACKAGE_ZIP := $(BUILD_DIR)/feed-ai-win64.zip
 LITE_PACKAGE_NAME := feed-ai-win64-lite
 LITE_PACKAGE_DIR := $(BUILD_DIR)/$(LITE_PACKAGE_NAME)
 LITE_README_SRC := tools/package/windows-lite-README.txt
+LAUNCHER_SRC := tools/package/start.bat
 SERVER_WIN := $(PACKAGE_DIR)/server.exe
 STICKER_PACK_SRC := test-content/.boards/sticker-pack
 STICKER_PACK_DST := $(PACKAGE_CONTENT_DIR)/.boards/sticker-pack
@@ -20,7 +21,7 @@ FFPROBE_WIN_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/ffprobe.exe
 FFMPEG_WIN_LICENSE_SRC := tools/ffmpeg/windows-amd64/LICENSE.txt
 FFMPEG_WIN_LICENSE_DST := $(PACKAGE_DIR)/tools/ffmpeg/windows-amd64/LICENSE.txt
 
-.PHONY: check docs-check web-build web-package run server-win sticker-pack-win ffmpeg-win package-win zip-win package-win-lite
+.PHONY: check docs-check web-build web-package run server-win launcher-win sticker-pack-win ffmpeg-win package-win zip-win package-win-lite
 
 check:
 	go run ./tools/docscheck
@@ -43,6 +44,10 @@ web-package:
 server-win:
 	mkdir -p $(PACKAGE_DIR)
 	GOOS=windows GOARCH=amd64 go build -o $(SERVER_WIN) ./cmd/server
+
+launcher-win:
+	mkdir -p $(PACKAGE_DIR)
+	cp "$(LAUNCHER_SRC)" "$(PACKAGE_DIR)/start.bat"
 
 sticker-pack-win:
 	@rm -rf "$(STICKER_PACK_DST)"
@@ -77,13 +82,13 @@ ffmpeg-win:
 zip-win:
 	cd $(BUILD_DIR) && zip -r -FS feed-ai-win64.zip feed-ai-win64 -x '*/.DS_Store' '*.DS_Store'
 
-package-win: web-package server-win sticker-pack-win ffmpeg-win
+package-win: web-package server-win launcher-win sticker-pack-win ffmpeg-win
 	$(MAKE) zip-win
 
 # The lite package leaves FFmpeg out so the archive stays small; the server
 # falls back to PATH or to binaries the user drops into the empty tools folder.
 package-win-lite:
-	$(MAKE) web-package server-win sticker-pack-win PACKAGE_DIR=$(LITE_PACKAGE_DIR)
+	$(MAKE) web-package server-win launcher-win sticker-pack-win PACKAGE_DIR=$(LITE_PACKAGE_DIR)
 	rm -rf "$(LITE_PACKAGE_DIR)/tools"
 	mkdir -p "$(LITE_PACKAGE_DIR)/tools/ffmpeg/windows-amd64"
 	cp "$(LITE_README_SRC)" "$(LITE_PACKAGE_DIR)/README.txt"
