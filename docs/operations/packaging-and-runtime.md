@@ -12,7 +12,7 @@ status: active
 - the Vite production bundle;
 - `server.exe`;
 - `start.bat` from `tools/package/start.bat`, which starts the server with the
-  package paths and opens `http://localhost:8080` in the default browser;
+  package paths and keeps its console open after it stops;
 - the committed drawing-board sticker pack;
 - bundled Windows amd64 FFmpeg and FFprobe binaries when locally present.
 
